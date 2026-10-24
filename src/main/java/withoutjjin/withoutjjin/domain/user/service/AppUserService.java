@@ -1,11 +1,12 @@
 package withoutjjin.withoutjjin.domain.user.service;
 
 
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import withoutjjin.withoutjjin.domain.user.entity.AppUser;
 import withoutjjin.withoutjjin.domain.user.repository.AppUserRepository;
+import org.springframework.transaction.annotation.Transactional;
+
 
 @Service
 @RequiredArgsConstructor
@@ -34,6 +35,19 @@ public class AppUserService {
                 ));
     }
 
+
+    @Transactional(readOnly = true)
+    public AppUser getByIssuerAndSubject(
+            String issuer,
+            String subject
+    ) {
+        return appUserRepository.findByIssuerAndSubject(issuer, subject)
+                .orElseThrow(() ->
+                        new IllegalStateException(
+                                "로그인 계정과 연결된 회원이 없습니다."
+                        )
+                );
+    }
 
 
 
