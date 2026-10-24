@@ -1,6 +1,7 @@
 package withoutjjin.withoutjjin.global.config;
 
 
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -45,6 +46,15 @@ public class SecurityConfig {
                                 .oidcUserService(customOidcUserService)
                                 //Google 사용자 정보를 처리할 때 우리가 만든 클래스를 사용하도록 연결.
                         )
+                ).logout(logout -> logout
+                        .logoutUrl("/api/v1/auth/logout")
+                        .invalidateHttpSession(true) //서버 세션 무효화
+                        .clearAuthentication(true) // 인증 정보 정리
+                        .deleteCookies("SESSION") //현재 기본 이름인 세션 쿠키 삭제
+                        .logoutSuccessHandler((request, response, authentication) -> {
+                            response.setHeader("Cache-Control", "no-store");
+                            response.setStatus(HttpServletResponse.SC_NO_CONTENT); // 로그아웃 성공 후 204 반환
+                        })
                 );
 
         return http.build();

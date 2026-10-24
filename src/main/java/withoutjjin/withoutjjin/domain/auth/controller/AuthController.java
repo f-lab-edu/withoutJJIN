@@ -6,6 +6,7 @@ import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
+import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -24,8 +25,8 @@ public class AuthController {
 
     @GetMapping("/me")
     public ResponseEntity<MeResponse> me(
-            @AuthenticationPrincipal OidcUser oidcUser // Spring Security가 확인한 현재 로그인 사용자 정보를 받음
-    ) {
+            @AuthenticationPrincipal OidcUser oidcUser, // Spring Security가 확인한 현재 로그인 사용자 정보를 받음
+            CsrfToken csrfToken) {
         AppUser user = appUserService.getByIssuerAndSubject(
                 oidcUser.getIssuer().toString(),
                 oidcUser.getSubject()
@@ -34,7 +35,8 @@ public class AuthController {
         MeResponse response = new MeResponse(
                 user.getId(),
                 user.getEmail(),
-                user.getDisplayName()
+                user.getDisplayName(),
+                csrfToken.getToken()
         );
 
         return ResponseEntity.ok()
