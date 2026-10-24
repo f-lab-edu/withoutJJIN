@@ -20,6 +20,7 @@ spring:
 
 
   session:
+    timeout: 30m
     jdbc:
       initialize-schema: always  # 세션 테이블 준비
 

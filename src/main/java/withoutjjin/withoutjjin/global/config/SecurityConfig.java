@@ -9,6 +9,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import withoutjjin.withoutjjin.domain.auth.controller.handler.ApiAuthenticationEntryPoint;
+import withoutjjin.withoutjjin.domain.auth.controller.handler.OAuth2LoginFailureHandler;
 import withoutjjin.withoutjjin.domain.auth.oauth.CustomOidcUserService;
 
 @Configuration
@@ -17,7 +18,7 @@ public class SecurityConfig {
 
     private final CustomOidcUserService customOidcUserService;
     private final ApiAuthenticationEntryPoint apiAuthenticationEntryPoint;
-
+    private final OAuth2LoginFailureHandler oAuth2LoginFailureHandler;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http)
@@ -46,6 +47,7 @@ public class SecurityConfig {
                                 .oidcUserService(customOidcUserService)
                                 //Google 사용자 정보를 처리할 때 우리가 만든 클래스를 사용하도록 연결.
                         )
+                        .failureHandler(oAuth2LoginFailureHandler)// 구글 로그인 실패시
                 ).logout(logout -> logout
                         .logoutUrl("/api/v1/auth/logout")
                         .invalidateHttpSession(true) //서버 세션 무효화
