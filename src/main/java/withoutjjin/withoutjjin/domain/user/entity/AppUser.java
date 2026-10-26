@@ -14,6 +14,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 @Entity
 @Getter
@@ -66,14 +67,14 @@ public class AppUser {
 
     @PrePersist //  insert하기 직전에
     private void onCreate() {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
         this.createdAt = now;
         this.updatedAt = now;
     }
 
     @PreUpdate  // 더티체킹으로 변경 감지하여 Hibernate가 update 수행하기전에 메서드 실행
     private void onUpdate() {
-        this.updatedAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
     }
 
 }

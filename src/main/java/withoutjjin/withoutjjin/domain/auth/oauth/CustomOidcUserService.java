@@ -20,7 +20,8 @@ public class CustomOidcUserService extends OidcUserService { // Spring의 기본
 
         OidcUser oidcUser = super.loadUser(userRequest); //부모 클래스의 기본 기능으로 Google 사용자 정보를 읽음.
 
-        appUserService.getOrCreateUser( //그 계정을 우리 회원 DB와 연결.
+        appUserService.getOrCreateUser(
+                //그 계정을 우리 회원 DB와 연결.
                 oidcUser.getIssuer().toString(),
                 oidcUser.getSubject(),
                 oidcUser.getEmail(),
