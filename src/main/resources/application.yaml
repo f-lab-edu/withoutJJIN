@@ -1,0 +1,39 @@
+spring:
+  config:
+    import: "optional:file:./.env[.properties][encoding=utf-8]"
+
+  application:
+    name: withoutJJIN
+  datasource:
+    url: jdbc:mysql://localhost:3307/ftfm
+    username : ftfm
+    password: ${DB_PASSWORD}
+
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+
+  session:
+    timeout: 30m
+    jdbc:
+      initialize-schema: always  # 세션 테이블 준비
+
+
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+            scope:
+              - openid
+              - email
+              - profile
+
