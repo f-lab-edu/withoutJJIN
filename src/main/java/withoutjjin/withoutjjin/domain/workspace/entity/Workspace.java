@@ -33,7 +33,7 @@ public class Workspace {
     }
 
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false) //무조건 존재해야한다는거
     @JoinColumn(name = "created_by", nullable = false, updatable = false)
     // 팀을 최초로 만든사람을 변경하지 않게 하기위해서 updatable = false설정해서 생성이후 엔티티수정이 이루어지지않음
     private AppUser createdBy;
