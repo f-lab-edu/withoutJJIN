@@ -15,6 +15,10 @@ import java.util.Objects;
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
+@Table(name = "invitation", indexes = @Index(
+        name = "idx_invitation_email_schedule",
+        columnList = "invitation_status,email_send_status,next_retry_at,expires_at"
+))
 public class Invitation {
 
     // 최초 발송을 제외하고 최대 3회 재시도한다.
