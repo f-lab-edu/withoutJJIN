@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import withoutjjin.withoutjjin.domain.invitation.entity.Invitation;
+import withoutjjin.withoutjjin.domain.invitation.dto.InvitationStatusResponse;
 import withoutjjin.withoutjjin.domain.invitation.entity.InvitationStatus;
 import withoutjjin.withoutjjin.domain.invitation.repository.InvitationRepository;
 import withoutjjin.withoutjjin.domain.invitation.token.InvitationTokenCipher;
@@ -66,6 +67,29 @@ public class InvitationService {
         );
 
         return invitationRepository.save(invitation);
+    }
+
+    @Transactional(readOnly = true)
+    public InvitationStatusResponse getInvitationStatus(
+            Long workspaceId, Long invitationId, String issuer, String subject
+    ) {
+        AppUser user = appUserService.getByIssuerAndSubject(issuer, subject);
+        if (!workspaceMemberRepository.existsByWorkspaceIdAndUserId(workspaceId, user.getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "워크스페이스 멤버만 초대 상태를 조회할 수 있습니다.");
+        }
+
+        Invitation invitation = invitationRepository.findByIdAndWorkspaceId(invitationId, workspaceId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "초대를 찾을 수 없습니다."));
+
+        // 영속성 컨텍스트 안에서 필요한 정보만 응답으로 변환한다. 토큰은 반환하지 않는다.
+        return new InvitationStatusResponse(
+                invitation.getId(), invitation.getWorkspace().getId(), invitation.getTargetEmail(),
+                invitation.getInvitationStatus(), invitation.getEmailSendStatus(),
+                invitation.getRetryCount(), invitation.getNextRetryAt(),
+                invitation.getExpiresAt(), invitation.getCreatedAt()
+        );
     }
 
     private void validateInvitation(

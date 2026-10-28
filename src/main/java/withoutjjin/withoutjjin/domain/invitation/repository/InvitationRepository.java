@@ -1,7 +1,9 @@
 package withoutjjin.withoutjjin.domain.invitation.repository;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import withoutjjin.withoutjjin.domain.invitation.entity.EmailSendStatus;
@@ -10,8 +12,11 @@ import withoutjjin.withoutjjin.domain.invitation.entity.InvitationStatus;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface InvitationRepository extends JpaRepository<Invitation, Long> {
+
+    Optional<Invitation> findByIdAndWorkspaceId(Long id, Long workspaceId);
 
     boolean existsByWorkspaceIdAndTargetEmailAndInvitationStatusAndExpiresAtAfter(
             Long workspaceId, String targetEmail, InvitationStatus invitationStatus,
@@ -37,6 +42,23 @@ public interface InvitationRepository extends JpaRepository<Invitation, Long> {
             @Param("pendingStatus") EmailSendStatus pendingStatus,
             @Param("failedStatus") EmailSendStatus failedStatus,
             @Param("now") LocalDateTime now,
+            Pageable pageable
+    );
+
+    // 처리 시작 및 결과 기록은 짧은 트랜잭션 안에서 한 작업자씩 수행한다.
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select i from Invitation i where i.id = :id")
+    Optional<Invitation> findByIdForUpdate(@Param("id") Long id);
+
+    @Query("""
+            select i.id from Invitation i
+            where i.emailSendStatus = :processingStatus
+              and i.processingStartedAt <= :cutoff
+            order by i.id asc
+            """)
+    List<Long> findTimedOutProcessingIds(
+            @Param("processingStatus") EmailSendStatus processingStatus,
+            @Param("cutoff") LocalDateTime cutoff,
             Pageable pageable
     );
 }
