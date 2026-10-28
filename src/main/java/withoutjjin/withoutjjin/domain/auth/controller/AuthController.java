@@ -18,7 +18,6 @@ import withoutjjin.withoutjjin.domain.user.service.AppUserService;
 @Controller
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
-
 public class AuthController {
 
     private final AppUserService appUserService;
