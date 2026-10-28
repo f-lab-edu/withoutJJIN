@@ -41,3 +41,11 @@ invitation:
   token:
     encryption-key: ${INVITATION_TOKEN_ENCRYPTION_KEY}
 
+aws:
+  credentials:
+    access-key-id: ${AWS_ACCESS_KEY_ID:}
+    secret-access-key: ${AWS_SECRET_ACCESS_KEY:}
+  ses:
+    region: ${AWS_REGION}
+    from-email: ${SES_FROM_EMAIL}
+
