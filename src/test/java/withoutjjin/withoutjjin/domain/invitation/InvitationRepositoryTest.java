@@ -9,6 +9,7 @@ import withoutjjin.withoutjjin.domain.invitation.entity.EmailSendStatus;
 import withoutjjin.withoutjjin.domain.invitation.entity.Invitation;
 import withoutjjin.withoutjjin.domain.invitation.entity.InvitationStatus;
 import withoutjjin.withoutjjin.domain.invitation.repository.InvitationRepository;
+import withoutjjin.withoutjjin.domain.invitation.token.InvitationTokenCipher;
 import withoutjjin.withoutjjin.domain.user.entity.AppUser;
 import withoutjjin.withoutjjin.domain.user.repository.AppUserRepository;
 import withoutjjin.withoutjjin.domain.workspace.entity.Workspace;
@@ -37,6 +38,9 @@ class InvitationRepositoryTest {
     @Autowired
     private EntityManager em;
 
+    @Autowired
+    private InvitationTokenCipher tokenCipher;
+
     @Test
     void 초대를_저장하고_관계와_초기값을_조회한다() {
         // 1. 초대자 회원 저장
@@ -58,6 +62,7 @@ class InvitationRepositoryTest {
 // 저장 테스트에 사용할 값
         String targetEmail = "invitee@example.com";
         String tokenHash = "test-token-hash-" + UUID.randomUUID();
+        String encryptedToken = tokenCipher.encrypt("repository-test-token");
 
         LocalDateTime expiresAt =
                 LocalDateTime.now(ZoneId.of("Asia/Seoul"))
@@ -71,6 +76,7 @@ class InvitationRepositoryTest {
                         user,
                         targetEmail,
                         tokenHash,
+                        encryptedToken,
                         expiresAt
                 )
         );
@@ -89,6 +95,8 @@ class InvitationRepositoryTest {
 // 초대 정보와 관계 검증
         assertThat(found.getTargetEmail()).isEqualTo(targetEmail);
         assertThat(found.getTokenHash()).isEqualTo(tokenHash);
+        assertThat(found.getEncryptedToken()).isEqualTo(encryptedToken);
+        assertThat(tokenCipher.decrypt(found.getEncryptedToken())).isEqualTo("repository-test-token");
         assertThat(found.getExpiresAt()).isEqualTo(expiresAt);
         assertThat(found.getWorkspace().getId()).isEqualTo(workspaceId);
         assertThat(found.getInvitedBy().getId()).isEqualTo(userId);

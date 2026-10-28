@@ -37,3 +37,7 @@ spring:
               - email
               - profile
 
+invitation:
+  token:
+    encryption-key: ${INVITATION_TOKEN_ENCRYPTION_KEY}
+

@@ -30,7 +30,7 @@ public class InvitationTokenGenerator {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
 
             // 문자열을 UTF-8 바이트로 바꾸고 해시 계산
-            byte[] hash = digest.digest(
+            byte[] hash = digest.digest(    // SHA-256은 계산 규칙이 이미 정해진 표준 알고리즘
                     token.getBytes(StandardCharsets.UTF_8)
             );
             //HexFormat: 계산된 바이트를 16진수 문자열로 표현하는 도구

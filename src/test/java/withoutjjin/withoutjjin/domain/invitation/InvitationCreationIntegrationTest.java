@@ -18,6 +18,8 @@ import withoutjjin.withoutjjin.domain.invitation.entity.EmailSendStatus;
 import withoutjjin.withoutjjin.domain.invitation.entity.Invitation;
 import withoutjjin.withoutjjin.domain.invitation.entity.InvitationStatus;
 import withoutjjin.withoutjjin.domain.invitation.repository.InvitationRepository;
+import withoutjjin.withoutjjin.domain.invitation.token.InvitationTokenCipher;
+import withoutjjin.withoutjjin.domain.invitation.token.InvitationTokenGenerator;
 import withoutjjin.withoutjjin.domain.user.entity.AppUser;
 import withoutjjin.withoutjjin.domain.user.repository.AppUserRepository;
 import withoutjjin.withoutjjin.domain.workspace.entity.Workspace;
@@ -54,6 +56,10 @@ class InvitationCreationIntegrationTest {
     private InvitationRepository invitationRepository;
     @Autowired
     private EntityManager entityManager;
+    @Autowired
+    private InvitationTokenCipher tokenCipher;
+    @Autowired
+    private InvitationTokenGenerator tokenGenerator;
 
     private AppUser inviter;
     private Workspace workspace;
@@ -83,6 +89,7 @@ class InvitationCreationIntegrationTest {
                 .andExpect(jsonPath("$.createdAt").isNotEmpty())
                 .andExpect(jsonPath("$.expiresAt").isNotEmpty())
                 .andExpect(jsonPath("$.token").doesNotExist())
+                .andExpect(jsonPath("$.encryptedToken").doesNotExist())
                 .andExpect(jsonPath("$.tokenHash").doesNotExist());
 
         invitationRepository.flush();
@@ -94,6 +101,11 @@ class InvitationCreationIntegrationTest {
                 .getSingleResult();
 
         assertThat(saved.getTokenHash()).matches("[0-9a-f]{64}");
+        assertThat(saved.getEncryptedToken()).startsWith("v1:");
+        String restoredToken = tokenCipher.decrypt(saved.getEncryptedToken());
+        assertThat(restoredToken).hasSize(43);
+        assertThat(tokenGenerator.hashToken(restoredToken)).isEqualTo(saved.getTokenHash());
+        assertThat(saved.getEncryptedToken()).doesNotContain(restoredToken);
         assertThat(saved.getInvitationStatus()).isEqualTo(InvitationStatus.PENDING);
         assertThat(saved.getEmailSendStatus()).isEqualTo(EmailSendStatus.PENDING);
         assertThat(saved.getRetryCount()).isZero();
@@ -189,8 +201,10 @@ class InvitationCreationIntegrationTest {
     }
 
     private void saveExistingInvitation(LocalDateTime expiresAt) {
+        String token = tokenGenerator.generateToken();
         invitationRepository.saveAndFlush(new Invitation(
-                workspace, inviter, targetEmail, UUID.randomUUID().toString(), expiresAt
+                workspace, inviter, targetEmail,
+                tokenGenerator.hashToken(token), tokenCipher.encrypt(token), expiresAt
         ));
     }
 
