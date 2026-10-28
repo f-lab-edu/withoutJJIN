@@ -14,4 +14,5 @@ public class InvitationMailConfig {
         // 기존 초대 만료 시각과 같은 시간대를 사용한다.
         return Clock.system(ZoneId.of("Asia/Seoul"));
     }
+
 }

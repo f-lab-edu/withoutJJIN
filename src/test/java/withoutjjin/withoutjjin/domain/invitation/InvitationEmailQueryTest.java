@@ -138,6 +138,28 @@ class InvitationEmailQueryTest {
         assertThat(firstBatch).containsExactlyElementsOf(allCandidates.subList(0, 2));
     }
 
+    @Test
+    void 수신_주소를_제한하면_해당_주소의_발송과_복구_대상만_조회한다() {
+        Invitation allowed = saveInvitation(now.plusDays(1));
+        Invitation excluded = saveInvitation(now.plusDays(1));
+        String recipient = allowed.getTargetEmail();
+        flushAndClear();
+
+        assertThat(invitationRepository.findSendableIds(
+                InvitationStatus.PENDING, EmailSendStatus.PENDING, EmailSendStatus.FAILED,
+                now, recipient, Pageable.unpaged())).containsExactly(allowed.getId());
+
+        Invitation allowedProcessing = invitationRepository.findById(allowed.getId()).orElseThrow();
+        Invitation excludedProcessing = invitationRepository.findById(excluded.getId()).orElseThrow();
+        allowedProcessing.startProcessing(now.minusMinutes(6));
+        excludedProcessing.startProcessing(now.minusMinutes(6));
+        flushAndClear();
+
+        assertThat(invitationRepository.findTimedOutProcessingIds(
+                EmailSendStatus.PROCESSING, now.minusMinutes(5), recipient, Pageable.unpaged()))
+                .containsExactly(allowed.getId());
+    }
+
     private Invitation saveInvitation(LocalDateTime expiresAt) {
         return invitationRepository.save(new Invitation(
                 workspace, inviter, UUID.randomUUID() + "@example.com",

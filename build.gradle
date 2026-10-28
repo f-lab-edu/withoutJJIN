@@ -43,5 +43,7 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
-
+    // 로컬에서 실제 발송을 켰어도 자동 테스트는 SES에 메일을 보내지 않는다.
+    systemProperty 'invitation.mail.enabled', 'false'
+    systemProperty 'invitation.mail.allowed-recipient', ''
 }

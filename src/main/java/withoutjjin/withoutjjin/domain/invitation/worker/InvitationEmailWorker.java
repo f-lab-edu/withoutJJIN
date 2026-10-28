@@ -27,7 +27,7 @@ import java.util.Optional;
 public class InvitationEmailWorker {
 
     private static final Logger log = LoggerFactory.getLogger(InvitationEmailWorker.class);
-    private static final int BATCH_SIZE = 20;
+    private static final int BATCH_SIZE = 20; // 가져올데이터 갯수
     private static final Duration PROCESSING_TIMEOUT = Duration.ofMinutes(5);
 
     private final InvitationMailTransactionService transactions;
@@ -37,16 +37,17 @@ public class InvitationEmailWorker {
     private final Clock clock;
     private final String pageUrl;
 
-    public InvitationEmailWorker(
-            InvitationMailTransactionService transactions,
-            InvitationEmailSender emailSender,
-            InvitationTokenCipher tokenCipher,
-            InvitationTokenGenerator tokenGenerator,
-            @Qualifier("invitationMailClock") Clock clock,
-            @Value("${invitation.mail.page-url}") String pageUrl
+    public InvitationEmailWorker( //필요한 객체를 전달받고 초대 화면 주소를 검사
+            InvitationMailTransactionService transactions, //??
+            InvitationEmailSender emailSender,// 이메일 보내는 사람, 발신자
+            InvitationTokenCipher tokenCipher,// 토큰암호화된것
+            InvitationTokenGenerator tokenGenerator, // 토큰을 난수만들거나 해쉬함수 넣는것
+            @Qualifier("invitationMailClock") Clock clock, //어느 지역에 시간을 읽을지 표시
+            @Value("${invitation.mail.page-url}") String pageUrl // url형식
     ) {
         URI uri = URI.create(pageUrl);
-        if ((!"http".equalsIgnoreCase(uri.getScheme()) && !"https".equalsIgnoreCase(uri.getScheme())) // HTTPS은 걱정 ㄴㄴ 요청을 보내지않았기에 암호화되지않았음
+        if ((!"http".equalsIgnoreCase(uri.getScheme()) && !"https".equalsIgnoreCase(uri.getScheme()))
+                // HTTPS은 걱정 ㄴㄴ 요청을 보내지않았기에 암호화되지않았음, 적절한 schema인가?? 부분
                 || uri.getHost() == null || uri.getUserInfo() != null || uri.getFragment() != null) {
             throw new IllegalArgumentException("초대 화면 주소는 올바른 HTTP 또는 HTTPS 주소여야 합니다.");
         }
@@ -58,12 +59,16 @@ public class InvitationEmailWorker {
         this.pageUrl = pageUrl;
     }
 
-    public void processPendingBatch() {
+    public void processPendingBatch() { // 한꺼번에 대기 처리
+
+//        이전에 처리를 시작했는데 (현재 시간 - PROCESSING_TIMEOUT), cutoff 기준으로 아직 진행중인 녀석들을 찾음
+//        아직 PROCESSING인 작업을 찾음
+//          → 시간 초과 작업으로 복구 처리
         LocalDateTime now = now();
-        LocalDateTime cutoff = now.minus(PROCESSING_TIMEOUT);
+        LocalDateTime cutoff = now.minus(PROCESSING_TIMEOUT); //
         for (Long id : transactions.findTimedOutIds(cutoff, BATCH_SIZE)) {
             try {
-                transactions.recoverTimedOut(id, cutoff, now);
+                transactions.recoverTimedOut(id, cutoff, now); //? ?/?
             } catch (RuntimeException failure) {
                 logFailure(id, failure);
             }
@@ -71,6 +76,7 @@ public class InvitationEmailWorker {
 
         for (Long id : transactions.findSendableIds(now(), BATCH_SIZE)) {
             try {
+                //지금 발송할 수 있는 초대 처리
                 processInvitation(id);
             } catch (RuntimeException failure) {
                 // 한 작업의 DB 오류가 나머지 작업 처리를 막지 않도록 한다.
@@ -79,7 +85,8 @@ public class InvitationEmailWorker {
         }
     }
 
-    public void processInvitation(Long id) {
+    public void processInvitation(Long id)
+    {  // 초대 한 건의 메일 발송 처리
         Optional<MailTask> claimed = transactions.claim(id, now());
         if (claimed.isEmpty()) {
             return;
@@ -93,16 +100,18 @@ public class InvitationEmailWorker {
 
         String invitationLink;
         try {
-            String token = tokenCipher.decrypt(task.encryptedToken());
+            String token = tokenCipher.decrypt(task.encryptedToken()); // 복호화
             if (!tokenGenerator.hashToken(token).equals(task.tokenHash())) {
                 throw new IllegalStateException("초대 토큰의 해시가 일치하지 않습니다.");
             }
             invitationLink = UriComponentsBuilder.fromUriString(pageUrl)
                     .replaceQueryParam("token", token).build().encode().toUriString();
+            // 초대 링크만듬
+
         } catch (RuntimeException failure) {
             // 복호화·해시 오류는 같은 데이터로 반복해도 해결되지 않으므로 재시도하지 않는다.
             transactions.markFailed(task, now(), false);
-            logFailure(id, failure);
+            logFailure(id, failure); //어떤 초대에서 어떤 종류의 오류가 났는지 기록
             return;
         }
 

@@ -31,6 +31,7 @@ public interface InvitationRepository extends JpaRepository<Invitation, Long> {
             where i.invitationStatus = :invitationStatus
               and i.expiresAt > :now
               and i.encryptedToken is not null
+              and (:recipient is null or i.targetEmail = :recipient)
               and (
                     i.emailSendStatus = :pendingStatus
                     or (i.emailSendStatus = :failedStatus and i.nextRetryAt <= :now)
@@ -42,8 +43,16 @@ public interface InvitationRepository extends JpaRepository<Invitation, Long> {
             @Param("pendingStatus") EmailSendStatus pendingStatus,
             @Param("failedStatus") EmailSendStatus failedStatus,
             @Param("now") LocalDateTime now,
+            @Param("recipient") String recipient,
             Pageable pageable
     );
+
+    default List<Long> findSendableIds(
+            InvitationStatus status, EmailSendStatus pendingStatus, EmailSendStatus failedStatus,
+            LocalDateTime now, Pageable pageable
+    ) {
+        return findSendableIds(status, pendingStatus, failedStatus, now, null, pageable);
+    }
 
     // 처리 시작 및 결과 기록은 짧은 트랜잭션 안에서 한 작업자씩 수행한다.
     @Lock(LockModeType.PESSIMISTIC_WRITE)
@@ -54,11 +63,19 @@ public interface InvitationRepository extends JpaRepository<Invitation, Long> {
             select i.id from Invitation i
             where i.emailSendStatus = :processingStatus
               and i.processingStartedAt <= :cutoff
+              and (:recipient is null or i.targetEmail = :recipient)
             order by i.id asc
             """)
     List<Long> findTimedOutProcessingIds(
             @Param("processingStatus") EmailSendStatus processingStatus,
             @Param("cutoff") LocalDateTime cutoff,
+            @Param("recipient") String recipient,
             Pageable pageable
     );
+
+    default List<Long> findTimedOutProcessingIds(
+            EmailSendStatus status, LocalDateTime cutoff, Pageable pageable
+    ) {
+        return findTimedOutProcessingIds(status, cutoff, null, pageable);
+    }
 }

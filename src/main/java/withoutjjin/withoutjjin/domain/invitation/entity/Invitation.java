@@ -129,7 +129,7 @@ public class Invitation {
     }
 
     public void markSubmitted() {
-        ensureProcessing();
+        ensureProcessing(); // 처리 상태인지 확인
 
         // SUBMITTED는 메일 서비스의 요청 접수 성공이며, 메일함 배달 완료는 아니다.
         emailSendStatus = EmailSendStatus.SUBMITTED;
@@ -140,7 +140,7 @@ public class Invitation {
 
     public void markFailed(LocalDateTime now, boolean retryable) {
         Objects.requireNonNull(now, "실패 시각이 필요합니다.");
-        ensureProcessing();
+        ensureProcessing(); // 준비상태인지 확인
 
         emailSendStatus = EmailSendStatus.FAILED;
         processingStartedAt = null;
