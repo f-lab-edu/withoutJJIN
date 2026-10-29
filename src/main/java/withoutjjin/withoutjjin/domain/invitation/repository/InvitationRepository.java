@@ -16,6 +16,7 @@ import java.util.Optional;
 
 public interface InvitationRepository extends JpaRepository<Invitation, Long> {
 
+    Optional<Invitation> findByIdAndWorkspaceId(Long id, Long workspaceId);
 
     boolean existsByWorkspaceIdAndTargetEmailAndInvitationStatusAndExpiresAtAfter(
             Long workspaceId, String targetEmail, InvitationStatus invitationStatus,

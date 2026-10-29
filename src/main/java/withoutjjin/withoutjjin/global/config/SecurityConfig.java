@@ -27,6 +27,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/",
+                                "/index.html",
                                 "/error",
                                 "/login/**",
                                 "/oauth2/**"
@@ -42,6 +43,7 @@ public class SecurityConfig {
                 )
                 )
                 .oauth2Login(oauth -> oauth
+                        .defaultSuccessUrl("/", true) // 로그인 후 테스트 화면으로 돌아온다.
                         .userInfoEndpoint(userInfo -> userInfo
                                 .oidcUserService(customOidcUserService)
                                 //Google 사용자 정보를 처리할 때 우리가 만든 클래스를 사용하도록 연결.

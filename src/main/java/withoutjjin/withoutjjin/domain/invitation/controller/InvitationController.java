@@ -8,12 +8,14 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import withoutjjin.withoutjjin.domain.invitation.dto.CreateRequestInvitation;
 import withoutjjin.withoutjjin.domain.invitation.dto.InvitationResponse;
+import withoutjjin.withoutjjin.domain.invitation.dto.InvitationStatusResponse;
 import withoutjjin.withoutjjin.domain.invitation.entity.Invitation;
 import withoutjjin.withoutjjin.domain.invitation.service.InvitationService;
 
@@ -23,6 +25,17 @@ import withoutjjin.withoutjjin.domain.invitation.service.InvitationService;
 public class InvitationController {
 
     private final InvitationService invitationService;
+
+    @GetMapping("/workspaces/{workspaceId}/invitations/{invitationId}")
+    public ResponseEntity<InvitationStatusResponse> getInvitationStatus(
+            @AuthenticationPrincipal OidcUser oidcUser,
+            @PathVariable Long workspaceId,
+            @PathVariable Long invitationId
+    ) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(invitationService.getInvitationStatus(workspaceId, invitationId,
+                        oidcUser.getIssuer().toString(), oidcUser.getSubject()));
+    }
 
     @PostMapping("/workspaces/{workspaceId}/invitations")
     public ResponseEntity<InvitationResponse> createInvitation(

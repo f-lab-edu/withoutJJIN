@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>FTFM · 초대 테스트</title>
+  <style>
+    :root{--bg:#f5f7f5;--paper:#fff;--ink:#172d28;--muted:#6a7b74;--line:#e2e9e5;--green:#16785a;--mint:#eaf5ed;--red:#ae3c3c;--amber:#96651a;--radius:20px}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","Malgun Gothic",sans-serif}button,input{font:inherit}button,a,input{touch-action:manipulation}button,a{ -webkit-tap-highlight-color:transparent}button{cursor:pointer}button:disabled{cursor:not-allowed;opacity:.45}button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid #6dc9a1;outline-offset:3px}a{color:inherit}h1,h2,p{margin:0}header{background:#fff;border-bottom:1px solid var(--line)}.topbar{max-width:1180px;margin:auto;min-height:80px;padding:16px 28px;display:flex;align-items:center;justify-content:space-between;gap:16px}.brand{display:flex;align-items:center;gap:11px;text-decoration:none}.mark{background:var(--ink);color:#fff;width:35px;height:35px;border-radius:11px;display:grid;place-items:center;font-weight:800;letter-spacing:-3px;padding-right:3px}.brand strong{font-size:21px;letter-spacing:-1px}.brand small{font-size:12px;color:var(--muted);border-left:1px solid var(--line);padding-left:12px;margin-left:2px}.account{display:flex;align-items:center;gap:12px}.account-label{font-size:13px;color:var(--muted);max-width:240px;overflow-wrap:anywhere}.button{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--line);border-radius:11px;background:#fff;color:var(--ink);padding:10px 16px;font-size:13px;font-weight:650;text-decoration:none;transition:background .15s}.button:hover:not(:disabled){background:#f0f5f2}.primary{background:var(--green);border-color:var(--green);color:#fff}.primary:hover:not(:disabled){background:#105f47}.quiet{padding:7px 11px;font-size:12px}.hidden,[hidden]{display:none!important}main{max-width:1180px;margin:auto;padding:38px 28px 28px}.eyebrow{font-size:11px;color:var(--green);font-weight:750;letter-spacing:2px;margin-bottom:12px}.hero{display:flex;align-items:center;justify-content:space-between;gap:30px;margin-bottom:28px}.hero h1{font-size:clamp(25px,3.5vw,35px);line-height:1.35;letter-spacing:-1.5px;margin-bottom:12px}.hero p{color:var(--muted);font-size:14px;max-width:620px}.hero-art{width:195px;flex:none}.notice{padding:15px 18px;border:1px solid #d5e7d9;border-radius:13px;background:var(--mint);font-size:13px;margin-bottom:26px;display:flex;justify-content:space-between;align-items:center;gap:14px}.notice strong{font-weight:650}.notice p{color:#52705e;font-size:12px;margin-top:2px}.steps{display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap}.step{color:var(--muted);font-size:12px;display:flex;align-items:center;gap:8px}.step span{background:#e9eeeb;border-radius:50%;width:22px;height:22px;display:grid;place-items:center;font-size:11px}.step.done span{background:var(--green);color:#fff}.step.done{color:var(--green)}.step-arrow{color:#b1beb6;margin:0 12px}.grid{display:grid;grid-template-columns:370px minmax(0,1fr);gap:22px;align-items:start}.card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:24px;box-shadow:0 4px 20px #173d2a03}.card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:21px}.card-head h2{font-size:17px;letter-spacing:-.5px}.subtitle{font-size:12px;color:var(--muted);margin-top:4px}.section-label{font-size:11px;font-weight:700;letter-spacing:1px;color:var(--muted);margin-bottom:12px}.workspaces{display:flex;flex-direction:column;gap:9px;max-height:270px;overflow:auto}.workspace{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 14px;color:var(--ink)}.workspace.selected{background:#f0f8f2;border-color:#8cbaa1;box-shadow:0 0 0 1px #8cbaa1}.folder{width:33px;height:33px;background:#edf3ee;color:var(--green);border-radius:9px;display:grid;place-items:center;flex:none}.workspace-name{font-size:13px;font-weight:650;overflow-wrap:anywhere}.workspace-id{font-size:11px;color:var(--muted)}.check{margin-left:auto;color:var(--green);font-size:17px}.divider{border:0;border-top:1px solid var(--line);margin:23px 0 19px}label{display:block;font-size:12px;font-weight:650;margin-bottom:7px}input{border:1px solid #d5ded8;border-radius:10px;background:#fff;padding:11px 12px;width:100%;color:var(--ink);font-size:14px;min-width:0}input::placeholder{color:#9ba7a0}input:disabled{background:#f6f8f6}.inline-form{display:flex;align-items:end;gap:8px}.inline-form .field{flex:1;min-width:0}.inline-form .button{flex:none;min-height:45px}.hint{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.6}.selected-team{display:flex;align-items:center;gap:10px;border:1px dashed #c5d9cb;background:#f7faf7;border-radius:11px;padding:12px 14px;font-size:13px;margin-bottom:22px}.selected-team strong{overflow-wrap:anywhere}.selected-team small{color:var(--muted);display:block;font-size:11px}.invite-submit{width:100%;margin-top:20px;padding:12px}.invite-meta{font-size:11px;color:var(--muted);text-align:center;margin-top:10px}.status-panel{margin-top:22px}.empty{padding:25px 14px;border:1px dashed var(--line);border-radius:12px;background:#fafcf9;color:var(--muted);font-size:12px;text-align:center}.invitations{display:grid;gap:12px}.invitation{border:1px solid var(--line);border-radius:13px;padding:16px}.invitation-top{display:flex;justify-content:space-between;align-items:start;gap:10px}.recipient{font-size:13px;font-weight:650;overflow-wrap:anywhere}.invitation-team{font-size:11px;color:var(--muted);margin-top:2px}.badge{display:inline-flex;align-items:center;gap:5px;background:#edf2ee;color:#627268;border-radius:20px;padding:4px 9px;font-size:11px;white-space:nowrap;font-weight:650}.badge:before{content:"";width:5px;height:5px;background:currentColor;border-radius:50%}.badge.green{background:#e9f5ec;color:#1d7754}.badge.amber{background:#fcf2df;color:var(--amber)}.badge.red{background:#fceeed;color:var(--red)}.invitation-copy{font-size:12px;color:var(--muted);margin-top:10px}.invitation-footer{border-top:1px solid #edf1ed;margin-top:12px;padding-top:10px;display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:11px;color:var(--muted)}.bottom-note{margin-top:17px;font-size:11px;color:var(--muted);line-height:1.8}.feedback{margin:0 0 20px;padding:12px 16px;border-radius:11px;background:#eaf4ed;border:1px solid #cfe3d4;font-size:13px;overflow-wrap:anywhere}.feedback.error{background:#fff1ef;border-color:#f1d3d0;color:#9d3939}.history{margin-top:22px;border:1px solid var(--line);border-radius:14px;background:#fff;padding:14px 18px}.history summary{cursor:pointer;font-size:12px;font-weight:600;color:var(--muted)}.history ul{margin:13px 0 0;padding:0;list-style:none}.history li{padding:9px 0;border-top:1px solid var(--line);font-size:11px;display:flex;gap:12px;align-items:baseline;overflow-wrap:anywhere}.history code{font-family:ui-monospace,Consolas,monospace;flex:1}.history time{color:var(--muted);white-space:nowrap}.history b{color:var(--green)}footer{font-size:11px;color:#8b998f;display:flex;justify-content:space-between;gap:10px;padding-top:22px}.lookup{margin-top:17px}.lookup summary{cursor:pointer;font-size:11px;color:var(--muted);margin-bottom:10px}@media(max-width:850px){.grid{grid-template-columns:1fr}.hero-art{width:130px}.workspaces{max-height:210px}.card{padding:21px}.hero h1{font-size:28px}}@media(max-width:520px){main{padding:27px 16px}.topbar{padding:14px 16px;min-height:70px}.brand small,.hero-art{display:none}.account-label{max-width:125px;font-size:11px}.hero h1{font-size:25px}.notice{align-items:start}.step-arrow{margin:0 3px}.card{padding:20px}.card-head{gap:9px}footer{flex-direction:column}.history li{flex-wrap:wrap}.hero{margin-bottom:22px}}
+    .button{white-space:nowrap;flex-shrink:0}
+  </style>
+</head>
+<body>
+<header><div class="topbar">
+  <a class="brand" href="/" aria-label="FTFM 테스트 홈"><span class="mark" aria-hidden="true">ff</span><strong>FTFM</strong><small>초대 테스트</small></a>
+  <div class="account"><span id="account-label" class="account-label">로그인 확인 중…</span><a id="login" class="button" href="/oauth2/authorization/google">Google로 로그인</a><button id="logout" class="button quiet" type="button" hidden>로그아웃</button></div>
+</div></header>
+<main>
+  <section class="hero">
+    <div><div class="eyebrow">WORK BETTER, TOGETHER</div><h1>팀의 시작은,<br>한 통의 초대에서.</h1><p>워크스페이스를 만들고 팀원을 초대해 보세요.<br>초대 요청부터 메일 발송 상태까지 한 화면에서 확인할 수 있어요.</p></div>
+    <svg class="hero-art" viewBox="0 0 220 150" fill="none" aria-hidden="true"><circle cx="113" cy="76" r="65" fill="#E5EFE6"/><path d="M23 106H63M160 40H204M178 106H195" stroke="#AAC4B2" stroke-width="2" stroke-linecap="round" stroke-dasharray="4 7"/><rect x="52" y="35" width="121" height="79" rx="14" fill="white" stroke="#AECDB8" stroke-width="1.5"/><path d="M56 40L105 75C109 78 116 78 120 75L169 40" stroke="#AECDB8" stroke-width="1.5"/><path d="M55 109L91 78M170 109L135 78" stroke="#D5E5D9" stroke-width="1.5"/><circle cx="166" cy="109" r="22" fill="#16785A"/><path d="M157 109L163 115L176 102" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M42 28V38M37 33H47M188 69V79M183 74H193" stroke="#92B8A0" stroke-width="2" stroke-linecap="round"/></svg>
+  </section>
+  <div class="notice"><div><strong id="notice-title">로그인 후 테스트를 시작하세요.</strong><p id="notice-copy">Google 로그인으로 현재 계정을 확인하고, 소속된 워크스페이스를 불러와요.</p></div><span class="badge" id="session-badge">확인 중</span></div>
+  <div class="steps" aria-label="테스트 순서"><div class="step" id="step-login"><span>1</span>로그인</div><span class="step-arrow" aria-hidden="true">›</span><div class="step" id="step-team"><span>2</span>워크스페이스 선택</div><span class="step-arrow" aria-hidden="true">›</span><div class="step" id="step-invite"><span>3</span>초대 및 발송 확인</div></div>
+  <p id="feedback" class="feedback" role="status" aria-live="polite" hidden></p>
+  <div class="grid">
+    <section class="card">
+      <div class="card-head"><div><h2>내 워크스페이스</h2><p class="subtitle">초대할 팀을 먼저 선택하세요.</p></div><button id="refresh-workspaces" class="button quiet" type="button" disabled>새로고침</button></div>
+      <div id="workspaces" class="workspaces"><p class="empty">로그인하면 내 워크스페이스가 표시돼요.</p></div>
+      <hr class="divider"><div class="section-label">새 워크스페이스</div>
+      <form id="workspace-form" class="inline-form"><div class="field"><label for="workspace-name">워크스페이스 이름</label><input id="workspace-name" name="name" maxlength="80" placeholder="예: 초대 테스트 팀" required disabled></div><button id="create-workspace" class="button" type="submit" disabled>만들기</button></form>
+      <p class="hint">팀이 없다면 하나 만들어 시작해 보세요.</p>
+    </section>
+    <div>
+      <section class="card">
+        <div class="card-head"><div><h2>팀원 초대</h2><p class="subtitle">초대받을 이메일로 초대 링크를 보내요.</p></div><span class="badge green">이메일 초대</span></div>
+        <div class="selected-team"><span class="folder" aria-hidden="true">↗</span><div><small>선택한 워크스페이스</small><strong id="selected-team">왼쪽에서 팀을 선택하세요.</strong></div></div>
+        <form id="invite-form"><label for="target-email">받는 사람 이메일</label><input id="target-email" name="targetEmail" type="email" maxlength="254" autocomplete="email" placeholder="teammate@example.com" required disabled><p class="hint">SES 샌드박스에서는 수신 주소도 검증되어 있어야 해요.<br>처음에는 검증된 본인 주소로 테스트하세요. 팀에 이미 가입한 주소는 초대할 수 없어요.</p><button id="create-invitation" class="button primary invite-submit" type="submit" disabled>초대 요청하기 <span aria-hidden="true">↗</span></button><p class="invite-meta">초대는 24시간 동안 유효해요. 자동 발송은 서버 설정을 켜야 시작돼요.</p></form>
+      </section>
+      <section class="card status-panel">
+        <div class="card-head"><div><h2>초대 발송 확인</h2><p class="subtitle">상태를 새로고침해 처리 결과를 확인하세요.</p></div><button id="refresh-invitations" class="button quiet" type="button" disabled>상태 새로고침</button></div>
+        <div id="invitations" class="invitations"><p class="empty">초대를 요청하면 이곳에서 발송 상태를 확인할 수 있어요.</p></div>
+        <details class="lookup"><summary>기존 초대 번호로 조회하기</summary><form id="lookup-form" class="inline-form"><div class="field"><label for="invitation-id">선택한 팀의 초대 번호</label><input id="invitation-id" type="number" min="1" step="1" placeholder="예: 12" required disabled></div><button id="lookup" class="button" type="submit" disabled>조회</button></form></details>
+        <p class="bottom-note">‘발송 요청 접수’는 SES가 요청을 접수했다는 뜻이에요. 실제 도착 여부는 메일함에서 확인하세요.<br>초대 링크를 누른 뒤 확인·수락하는 화면은 아직 연결 전이에요.</p>
+      </section>
+    </div>
+  </div>
+  <details class="history"><summary>요청 기록 보기 <span id="log-count">0</span></summary><ul id="request-log"><li>아직 요청 기록이 없어요.</li></ul></details>
+  <footer><span>FTFM · File, Team & Feedback Management</span><span>계정과 초대 정보는 현재 로그인한 사용자 기준으로 조회해요.</span></footer>
+</main>
+<script>
+(() => {
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const state = {user:null, workspaces:[], selected:null, invitations:[], logs:[], busy:new Set()};
+  const labels = {PENDING:"발송 대기", PROCESSING:"처리 중", SUBMITTED:"발송 요청 접수", FAILED:"발송 실패"};
+  let authVersion = 0;
+
+  function feedback(message, error=false) {
+    $("feedback").textContent = message;
+    $("feedback").className = "feedback" + (error ? " error" : "");
+    $("feedback").hidden = !message;
+  }
+  function element(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+  function rememberIds() {
+    // 개인정보나 CSRF 토큰 대신, 이 탭에서 조회할 초대 ID만 보관한다.
+    try { sessionStorage.setItem("ftfm-test-invitations", JSON.stringify({owner:state.user?.id, ids:state.invitations.map(i=>({id:i.id,workspaceId:i.workspaceId})).slice(0,20)})); } catch (_) {}
+  }
+  function restoreIds() {
+    try {
+      const stored = JSON.parse(sessionStorage.getItem("ftfm-test-invitations") || "null");
+      if (stored?.owner === state.user.id && Array.isArray(stored.ids)) {
+        return stored.ids.filter(i => Number.isSafeInteger(i.id) && Number.isSafeInteger(i.workspaceId)).slice(0,20);
+      }
+    } catch (_) {}
+    return [];
+  }
+  function log(method, path, status) {
+    state.logs.unshift({method,path,status,time:new Date().toLocaleTimeString("ko-KR",{hour12:false})});
+    state.logs = state.logs.slice(0,12);
+    $("log-count").textContent = String(state.logs.length);
+    $("request-log").replaceChildren(...state.logs.map(item => {
+      const li = element("li"); li.append(element("time", "", item.time), element("code", "", `${item.method} ${item.path}`), element("b", "", String(item.status))); return li;
+    }));
+  }
+  async function request(path, options={}) {
+    const method = options.method || "GET";
+    let response;
+    try { response = await fetch(path, {credentials:"same-origin", cache:"no-store", ...options}); }
+    catch (_) { log(method,path,"연결 실패"); throw new Error("서버에 연결할 수 없어요. Spring Boot가 실행 중인지 확인하세요."); }
+    log(method,path,response.status);
+    const text = await response.text();
+    let data = null;
+    try { data = text ? JSON.parse(text) : null; } catch (_) {}
+    if (!response.ok) {
+      const messages = {400:"입력값을 확인하세요.",401:"로그인이 필요해요. 다시 로그인해 주세요.",403:"접근 권한 또는 CSRF 토큰을 확인할 수 없어요. 로그인 상태를 새로고침해 주세요.",404:"선택한 팀 또는 초대를 찾을 수 없어요.",409:"이미 팀에 가입했거나, 아직 유효한 초대가 존재해요.",429:"요청이 많아요. 잠시 뒤 다시 시도하세요."};
+      const error = new Error(data?.message || data?.detail || messages[response.status] || `요청 처리에 실패했어요. (HTTP ${response.status})`);
+      error.status = response.status;
+      if (response.status === 401) signedOut();
+      throw error;
+    }
+    return data;
+  }
+  async function post(path, body) {
+    // 변경 요청 직전에 현재 세션의 CSRF 토큰을 가져온다. 쿠키는 브라우저가 함께 보낸다.
+    const me = await request("/api/v1/auth/me");
+    if (!me?.csrfToken) throw new Error("CSRF 토큰을 가져오지 못했어요. 다시 로그인해 주세요.");
+    if (me.id !== state.user?.id) { signedOut(); throw new Error("다른 탭에서 로그인 계정이 바뀌었어요. 화면을 새로고침해 주세요."); }
+    return request(path, {method:"POST",headers:{"X-CSRF-TOKEN":me.csrfToken,...(body === undefined ? {} : {"Content-Type":"application/json"})}, ...(body === undefined ? {} : {body:JSON.stringify(body)})});
+  }
+  function renderControls() {
+    const signedIn = !!state.user;
+    const busy = state.busy.size > 0;
+    $("login").hidden = signedIn;
+    $("logout").hidden = !signedIn;
+    $("logout").disabled = busy;
+    $("account-label").textContent = signedIn ? state.user.email : "로그인 전";
+    $("session-badge").textContent = signedIn ? "로그인됨" : "로그인 필요";
+    $("session-badge").className = "badge" + (signedIn ? " green" : "");
+    $("notice-title").textContent = signedIn ? `${state.user.displayName || "회원"}님, 테스트를 시작해 볼까요?` : "로그인 후 테스트를 시작하세요.";
+    $("notice-copy").textContent = signedIn ? "팀을 선택하고 초대를 요청한 다음, 발송 상태와 실제 메일함을 확인하세요." : "Google 로그인으로 현재 계정을 확인하고, 소속된 워크스페이스를 불러와요.";
+    $("step-login").classList.toggle("done",signedIn);
+    $("step-team").classList.toggle("done",!!state.selected);
+    $("step-invite").classList.toggle("done",state.invitations.length > 0);
+    for (const id of ["workspace-name","create-workspace","refresh-workspaces"]) $(id).disabled = !signedIn || busy;
+    for (const id of ["target-email","create-invitation","invitation-id","lookup"]) $(id).disabled = !signedIn || !state.selected || busy;
+    $("refresh-invitations").disabled = !signedIn || !state.invitations.length || busy;
+    $("selected-team").textContent = state.selected?.name || "왼쪽에서 팀을 선택하세요.";
+  }
+  function renderWorkspaces() {
+    const nodes = state.workspaces.map(workspace => {
+      const button = element("button", "workspace" + (state.selected?.id === workspace.id ? " selected" : ""));
+      button.type="button"; button.disabled=state.busy.size>0;
+      button.setAttribute("aria-pressed",String(state.selected?.id === workspace.id));
+      const info=element("div"); info.append(element("div","workspace-name",workspace.name),element("div","workspace-id",`워크스페이스 #${workspace.id}`));
+      button.append(element("span","folder","▱"),info);
+      if (state.selected?.id === workspace.id) button.append(element("span","check","✓"));
+      button.addEventListener("click",()=>{state.selected=workspace;renderWorkspaces();renderControls();});
+      return button;
+    });
+    $("workspaces").replaceChildren(...(nodes.length ? nodes : [element("p","empty",state.user ? "소속된 팀이 없어요. 아래에서 새 팀을 만들어 보세요." : "로그인하면 내 워크스페이스가 표시돼요.")]));
+  }
+  function formatTime(value) {
+    if (!value) return "—";
+    const date = new Date(value + (/[zZ]|[+-]\d\d:\d\d$/.test(value) ? "" : "+09:00"));
+    return Number.isNaN(date.getTime()) ? value : date.toLocaleString("ko-KR",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit",timeZone:"Asia/Seoul"}) + " (한국 시간)";
+  }
+  function renderInvitations() {
+    const nodes=state.invitations.map(invitation=>{
+      const card=element("article","invitation");
+      const row=element("div","invitation-top"); const info=element("div");
+      info.append(element("div","recipient",invitation.targetEmail || "초대 정보 조회 중"),element("div","invitation-team",`${state.workspaces.find(w=>w.id===invitation.workspaceId)?.name || "워크스페이스 #"+invitation.workspaceId} · 초대 #${invitation.id}`));
+      const status=invitation.emailSendStatus;
+      const retry= status==="FAILED" && !!invitation.nextRetryAt;
+      const badge=element("span","badge"+(status==="SUBMITTED"?" green":status==="FAILED"&&!retry?" red":status==="PROCESSING"||retry?" amber":""),retry ? "재시도 대기" : labels[status] || "조회 필요");
+      row.append(info,badge); card.append(row);
+      const copy=invitation.error || (status==="SUBMITTED"?"SES가 발송 요청을 접수했어요. 받는 사람의 메일함을 확인하세요.":retry?`다음 재시도: ${formatTime(invitation.nextRetryAt)}`:status==="FAILED"?"자동 발송이 실패했어요. 서버 로그에서 원인을 확인하세요.":status==="PROCESSING"?"메일 발송 요청을 처리하고 있어요.":"발송을 기다리고 있어요. 자동 발송 설정이 켜져 있는지 확인하세요.");
+      card.append(element("p","invitation-copy",copy));
+      const foot=element("div","invitation-footer");
+      foot.append(element("span","",`재시도 ${invitation.retryCount ?? 0}회 · 만료 ${formatTime(invitation.expiresAt)}`));
+      const button=element("button","button quiet","상태 확인");button.type="button";button.disabled=state.busy.size>0;
+      button.addEventListener("click",()=>run("status",async()=>{await refreshOne(invitation);renderInvitations();}));
+      foot.append(button);card.append(foot);return card;
+    });
+    $("invitations").replaceChildren(...(nodes.length?nodes:[element("p","empty","초대를 요청하면 이곳에서 발송 상태를 확인할 수 있어요.")]));
+    renderControls();
+  }
+  function signedOut() {
+    authVersion++;
+    state.user=null;state.workspaces=[];state.selected=null;state.invitations=[];
+    try{sessionStorage.removeItem("ftfm-test-invitations");}catch(_){}
+    renderWorkspaces();renderInvitations();renderControls();
+  }
+  async function refreshOne(invitation) {
+    const version=authVersion;
+    const fresh=await request(`/api/v1/workspaces/${invitation.workspaceId}/invitations/${invitation.id}`);
+    if(version !== authVersion || !state.user) return;
+    const index=state.invitations.findIndex(i=>i.id===fresh.id);
+    if(index>=0) state.invitations[index]=fresh; else state.invitations.unshift(fresh);
+    state.invitations=state.invitations.slice(0,20); rememberIds();
+  }
+  async function loadWorkspaces(preferred) {
+    const version=authVersion;
+    const workspaces=await request("/api/v1/workspaces");
+    if(version !== authVersion || !state.user) return;
+    state.workspaces=workspaces;
+    state.selected=workspaces.find(w=>w.id===(preferred || state.selected?.id)) || workspaces[0] || null;
+    renderWorkspaces();renderControls();
+  }
+  async function run(key, action) {
+    if(state.busy.size) return;
+    state.busy.add(key);feedback("");renderControls();renderWorkspaces();renderInvitations();
+    try{await action();}catch(error){feedback(error.message,true);}
+    finally{state.busy.delete(key);renderControls();renderWorkspaces();renderInvitations();}
+  }
+  $("workspace-form").addEventListener("submit",event=>{event.preventDefault();run("workspace",async()=>{
+    const name=$("workspace-name").value.trim(); if(!name) throw new Error("워크스페이스 이름을 입력하세요.");
+    const workspace=await post("/api/v1/workspaces",{name});
+    $("workspace-name").value="";await loadWorkspaces(workspace.id);feedback(`‘${workspace.name}’ 워크스페이스를 만들었어요.`);
+  });});
+  $("invite-form").addEventListener("submit",event=>{event.preventDefault();run("invite",async()=>{
+    const targetEmail=$("target-email").value.trim(); const workspace=state.selected;
+    if(!workspace) throw new Error("워크스페이스를 선택하세요.");
+    const invitation=await post(`/api/v1/workspaces/${workspace.id}/invitations`,{targetEmail});
+    state.invitations.unshift(invitation);state.invitations=state.invitations.slice(0,20);rememberIds();renderInvitations();
+    $("target-email").value="";feedback("초대를 저장했어요. 상태를 새로고침하면 발송 처리 결과를 볼 수 있어요.");
+  });});
+  $("refresh-workspaces").addEventListener("click",()=>run("workspaces",()=>loadWorkspaces()));
+  $("refresh-invitations").addEventListener("click",()=>run("statuses",async()=>{
+    const invitations=[...state.invitations]; const version=authVersion;
+    for(const invitation of invitations){
+      try{await refreshOne(invitation);}catch(error){
+        if(error.status===401) throw error;
+        const current=state.invitations.find(i=>i.id===invitation.id);
+        if(version===authVersion && current) current.error=error.message;
+      }
+    }
+    renderInvitations();
+  }));
+  $("lookup-form").addEventListener("submit",event=>{event.preventDefault();run("lookup",async()=>{
+    const id=Number($("invitation-id").value); if(!Number.isSafeInteger(id)||id<1) throw new Error("올바른 초대 번호를 입력하세요.");
+    await refreshOne({id,workspaceId:state.selected.id}); renderInvitations();feedback("초대 상태를 조회했어요.");
+  });});
+  $("logout").addEventListener("click",()=>run("logout",async()=>{
+    await post("/api/v1/auth/logout");signedOut();feedback("로그아웃했어요.");
+  }));
+  async function start() {
+    try{
+      const me=await request("/api/v1/auth/me");
+      state.user={id:me.id,email:me.email,displayName:me.displayName}; authVersion++;
+      const remembered=restoreIds(); renderControls();
+      await loadWorkspaces();
+      for(const invitation of remembered){try{await refreshOne(invitation);}catch(error){if(error.status===401) throw error;}}
+      renderInvitations();
+    }catch(error){if(error.status!==401)feedback(error.message,true);renderControls();}
+  }
+  start();
+})();
+</script>
+</body>
+</html>
