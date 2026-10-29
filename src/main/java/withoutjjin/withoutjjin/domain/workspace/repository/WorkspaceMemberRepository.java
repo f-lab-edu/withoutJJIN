@@ -18,6 +18,15 @@ public interface WorkspaceMemberRepository extends JpaRepository<WorkspaceMember
         """)
     List<WorkspaceMember> findAllByUserId(@Param("userId") Long userId);
 
+    @Query("""
+        select m
+        from WorkspaceMember m
+        join fetch m.user
+        where m.workspace.id = :workspaceId
+        order by m.joinedAt asc, m.id asc
+        """)
+    List<WorkspaceMember> findAllWithUserByWorkspaceId(@Param("workspaceId") Long workspaceId);
+
 
     boolean existsByWorkspaceIdAndUserId(Long workspaceId, Long userId);
 

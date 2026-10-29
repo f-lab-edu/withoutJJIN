@@ -28,6 +28,7 @@
     <section class="card">
       <div class="card-head"><div><h2>내 워크스페이스</h2><p class="subtitle">초대할 팀을 먼저 선택하세요.</p></div><button id="refresh-workspaces" class="button quiet" type="button" disabled>새로고침</button></div>
       <div id="workspaces" class="workspaces"><p class="empty">로그인하면 내 워크스페이스가 표시돼요.</p></div>
+      <a id="open-workspace" class="button primary" style="width:100%;margin-top:12px" hidden>선택한 워크스페이스 열기 →</a>
       <hr class="divider"><div class="section-label">새 워크스페이스</div>
       <form id="workspace-form" class="inline-form"><div class="field"><label for="workspace-name">워크스페이스 이름</label><input id="workspace-name" name="name" maxlength="80" placeholder="예: 초대 테스트 팀" required disabled></div><button id="create-workspace" class="button" type="submit" disabled>만들기</button></form>
       <p class="hint">팀이 없다면 하나 만들어 시작해 보세요.</p>
@@ -133,6 +134,9 @@
     for (const id of ["target-email","create-invitation","invitation-id","lookup"]) $(id).disabled = !signedIn || !state.selected || busy;
     $("refresh-invitations").disabled = !signedIn || !state.invitations.length || busy;
     $("selected-team").textContent = state.selected?.name || "왼쪽에서 팀을 선택하세요.";
+    $("open-workspace").hidden = !signedIn || !state.selected;
+    if (state.selected) $("open-workspace").href = `/workspaces/${state.selected.id}`;
+    else $("open-workspace").removeAttribute("href");
   }
   function renderWorkspaces() {
     const nodes = state.workspaces.map(workspace => {

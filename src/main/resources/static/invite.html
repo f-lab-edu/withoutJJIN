@@ -197,7 +197,7 @@
       state.accepted=accepted;forget();state.token=null;
       $("title").textContent="이제 같은 팀이에요.";
       $("description").textContent=accepted.workspaceName + " 워크스페이스에 참여했어요.";
-      $("go-workspace").href="/?workspace=" + encodeURIComponent(accepted.workspaceId);
+      $("go-workspace").href="/workspaces/" + encodeURIComponent(accepted.workspaceId);
       $("retry").hidden=true;
       // 가입 후 조회 실패가 이미 성공한 수락을 실패처럼 보이게 하지 않는다.
       try {await refreshMembership();}
