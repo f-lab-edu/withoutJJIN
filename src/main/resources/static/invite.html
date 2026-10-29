@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta name="color-scheme" content="light">
+  <title>워크스페이스 초대 · FTFM</title>
+  <style>
+    :root{--ink:#172d28;--muted:#687d73;--green:#16785a;--line:#dfe8e2;--bg:#f4f7f3}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI","Malgun Gothic",sans-serif}a{color:inherit}button,a{touch-action:manipulation}button{font:inherit;cursor:pointer}button:disabled{opacity:.5;cursor:not-allowed}[hidden]{display:none!important}a:focus-visible,button:focus-visible{outline:3px solid #76c9a6;outline-offset:4px}
+    header{max-width:1080px;margin:auto;padding:27px 24px;display:flex;justify-content:space-between;align-items:center;gap:16px}.brand{display:flex;gap:10px;align-items:center;text-decoration:none;font-size:22px;font-weight:750;letter-spacing:-1px}.mark{width:34px;height:34px;border-radius:10px;background:var(--ink);color:white;display:grid;place-items:center;font-size:17px;letter-spacing:-2px;padding-right:2px}.home{font-size:13px;color:var(--muted)}main{max-width:580px;margin:38px auto 70px;padding:0 20px}.eyebrow{text-align:center;font-size:11px;letter-spacing:2.5px;color:var(--green);font-weight:750;margin-bottom:20px}.card{background:white;border:1px solid var(--line);border-radius:25px;padding:38px;box-shadow:0 15px 55px #254b3020}.icon{width:64px;height:64px;display:grid;place-items:center;margin-bottom:23px;background:#edf6ee;border-radius:19px;color:var(--green)}h1{font-size:29px;line-height:1.4;letter-spacing:-1.2px;margin:0 0 12px;overflow-wrap:anywhere}p{margin:0}.muted{color:var(--muted);font-size:14px}.team{margin:26px 0;padding:16px 18px;border:1px solid var(--line);border-radius:13px;background:#f9fbf8}.label{font-size:11px;color:var(--muted);margin-bottom:4px}.team strong{font-size:18px;overflow-wrap:anywhere}.expiry{font-size:12px;color:var(--muted);margin-top:5px}.account{padding:16px 0 21px;border-top:1px solid var(--line)}#account-email{font-size:14px;font-weight:650;overflow-wrap:anywhere}.button{display:flex;align-items:center;justify-content:center;gap:8px;min-height:47px;border-radius:11px;border:1px solid var(--line);padding:11px 15px;background:white;color:var(--ink);text-decoration:none;font-size:14px;font-weight:650;width:100%;text-align:center}.button:hover:not(:disabled){background:#f0f6f1}.primary{background:var(--green);border-color:var(--green);color:white}.primary:hover:not(:disabled){background:#105f47}.secondary{margin-top:10px}.fine{font-size:12px;color:var(--muted);margin-top:14px;line-height:1.8}.message{padding:13px 15px;border-radius:11px;margin:20px 0;background:#eef6ee;border:1px solid #cfe2d1;font-size:13px;overflow-wrap:anywhere}.message.error{background:#fff2ee;border-color:#efd1c8;color:#993d33}.success{margin-top:24px;padding:18px;background:#eef6ee;border:1px solid #cfe2d1;border-radius:13px}.success strong{display:block;margin-bottom:7px}.success ul{margin:10px 0 16px;padding-left:20px;overflow-wrap:anywhere}.success a{margin-top:12px}.foot{text-align:center;color:#8b9b90;font-size:11px;margin-top:23px}.steps{display:flex;gap:8px;justify-content:center;font-size:12px;color:var(--muted);margin-top:23px}.steps span{padding:3px 10px;border-radius:20px;background:#e7eee7}.steps .done{background:#d9ebdf;color:var(--green)}@media(max-width:520px){header{padding:20px}.card{padding:27px 23px}main{margin-top:22px}h1{font-size:25px}.steps{gap:5px;font-size:11px}.steps span{padding:3px 8px}}
+  </style>
+</head>
+<body>
+<header><a class="brand" href="/" aria-label="FTFM 홈"><span class="mark" aria-hidden="true">ff</span>FTFM</a><a class="home" href="/">홈으로</a></header>
+<main>
+  <div class="eyebrow">YOUR TEAM IS WAITING</div>
+  <section class="card" aria-labelledby="title" aria-busy="true" id="card">
+    <div class="icon" aria-hidden="true"><svg width="34" height="34" viewBox="0 0 34 34" fill="none"><rect x="3" y="7" width="28" height="21" rx="5" stroke="currentColor" stroke-width="1.7"/><path d="m5 9 10 8c1.2 1 2.8 1 4 0l10-8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></div>
+    <h1 id="title">초대를 확인하고 있어요.</h1>
+    <p class="muted" id="description">잠시만 기다려 주세요.</p>
+    <div class="team" id="team" hidden><div class="label">초대받은 워크스페이스</div><strong id="team-name"></strong><p class="expiry" id="expiry"></p></div>
+    <div class="account" id="account" hidden><div class="label">현재 로그인한 계정</div><p id="account-email"></p><p class="fine">초대 메일을 받은 Google 계정으로 수락해 주세요.</p></div>
+    <p id="message" class="message" role="status" aria-live="polite" hidden></p>
+    <div id="actions" hidden>
+      <a id="login" class="button primary" href="/invite/continue">Google로 로그인하고 계속하기</a>
+      <button id="accept" type="button" class="button primary" hidden>초대 수락하기</button>
+      <button id="switch-account" type="button" class="button secondary" hidden>다른 계정으로 로그인</button>
+      <p class="fine">수락 버튼을 누르면 이 워크스페이스의 멤버로 등록돼요.</p>
+    </div>
+    <button id="retry" class="button secondary" type="button" hidden>다시 확인하기</button>
+    <section id="success" class="success" hidden aria-label="가입 결과"><strong>워크스페이스에 가입했어요.</strong><p id="membership-status" class="muted"></p><ul id="joined-workspaces"></ul><button id="refresh-membership" class="button" type="button">내 목록 다시 확인</button><a class="button primary" id="go-workspace" href="/">내 워크스페이스로 이동</a></section>
+  </section>
+  <div class="steps" aria-label="초대 수락 순서"><span id="step-preview">1 초대 확인</span><span id="step-login">2 로그인</span><span id="step-accept">3 수락</span></div>
+  <p class="foot">FTFM · File, Team & Feedback Management</p>
+</main>
+<script>
+(() => {
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const KEY = "ftfm-pending-invitation";
+  const MAX_AGE = 24 * 60 * 60 * 1000;
+  const params = new URLSearchParams(location.search);
+  const loginError = params.get("loginError");
+  const state = {token:null, preview:null, user:null, busy:false, accepted:null, stored:false};
+
+  function forget() { try { sessionStorage.removeItem(KEY); } catch (_) {} }
+  function validToken(value) { return typeof value === "string" && value.trim().length > 0 && value.length <= 256; }
+  function remember(token) {
+    try { sessionStorage.setItem(KEY, JSON.stringify({token, savedAt:Date.now()})); return true; }
+    catch (_) { return false; }
+  }
+  // 초대 토큰은 같은 탭의 로그인 왕복·새로고침에만 사용하고 성공 시 삭제한다.
+  function loadToken() {
+    if (params.has("token")) {
+      const values = params.getAll("token");
+      forget();
+      if (values.length !== 1 || !validToken(values[0])) return null;
+      state.stored = remember(values[0]);
+      return values[0];
+    }
+    try {
+      const stored = JSON.parse(sessionStorage.getItem(KEY) || "null");
+      const age = Date.now() - stored?.savedAt;
+      if (stored && validToken(stored.token) && Number.isFinite(age) && age >= 0 && age < MAX_AGE) {
+        state.stored = true;
+        return stored.token;
+      }
+    } catch (_) {}
+    forget();
+    return null;
+  }
+  state.token = loadToken();
+  // 브라우저 주소와 이후 Referer에 토큰을 계속 남기지 않는다.
+  history.replaceState(null, "", "/invite");
+
+  function message(text, error=false) {
+    $("message").textContent=text;
+    $("message").className="message" + (error ? " error" : "");
+    $("message").hidden=!text;
+  }
+  function render() {
+    $("card").setAttribute("aria-busy", String(state.busy));
+    $("team").hidden=!state.preview;
+    if (state.preview) {
+      $("team-name").textContent=state.preview.workspaceName;
+      const date=new Date(state.preview.expiresAt + "+09:00");
+      $("expiry").textContent=Number.isNaN(date.getTime()) ? "" : "초대 만료: " + date.toLocaleString("ko-KR",{timeZone:"Asia/Seoul"}) + " (한국 시간)";
+    }
+    $("account").hidden=!state.user;
+    $("account-email").textContent=state.user?.email || "";
+    $("actions").hidden=!state.preview || !!state.accepted;
+    $("login").hidden=!!state.user;
+    $("accept").hidden=!state.user;
+    $("switch-account").hidden=!state.user;
+    $("accept").disabled=state.busy;
+    $("switch-account").disabled=state.busy;
+    $("retry").disabled=state.busy;
+    $("refresh-membership").disabled=state.busy;
+    $("login").setAttribute("aria-disabled",String(state.busy));
+    $("step-preview").classList.toggle("done",!!state.preview || !!state.accepted);
+    $("step-login").classList.toggle("done",!!state.user);
+    $("step-accept").classList.toggle("done",!!state.accepted);
+    $("success").hidden=!state.accepted;
+  }
+  async function api(path, options={}) {
+    let response;
+    try { response=await fetch(path,{credentials:"same-origin",cache:"no-store",referrerPolicy:"no-referrer",...options}); }
+    catch (_) { throw new Error("서버에 연결하지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요."); }
+    let data=null;
+    try { data=await response.json(); } catch (_) {}
+    if (!response.ok) { const error=new Error("요청 실패");error.status=response.status;throw error; }
+    return data;
+  }
+  async function me() {
+    try { return await api("/api/v1/auth/me"); }
+    catch (error) { if(error.status===401)return null;throw error; }
+  }
+  function showError(error, accepting=false) {
+    const texts={
+      400:"초대 링크가 올바르지 않아요. 메일의 링크를 다시 열어 주세요.",
+      401:"로그인이 만료됐어요. 다시 로그인한 뒤 수락해 주세요.",
+      403:"초대받은 이메일의 인증된 Google 계정인지 확인해 주세요. 계정이 맞다면 다시 확인한 뒤 수락해 주세요.",
+      404:"초대를 찾을 수 없어요. 메일의 링크를 확인해 주세요.",
+      409:accepting ? "이미 사용한 초대예요. 팀에서 탈퇴했거나 제외됐다면 새 초대가 필요해요." : "이미 수락한 초대예요. 홈에서 내 워크스페이스 목록을 확인해 주세요.",
+      410:"만료되었거나 취소된 초대예요. 팀원에게 새 초대를 요청해 주세요.",
+      429:"요청이 많아요. 잠시 뒤 다시 시도해 주세요."
+    };
+    message(texts[error.status] || (error.status ? "처리하지 못했어요. 잠시 뒤 다시 시도해 주세요." : error.message),true);
+    $("retry").hidden=!state.token;
+  }
+  async function checkInvitation() {
+    if(state.busy)return;
+    state.busy=true;state.preview=null;message("");render();
+    try {
+      if(!state.token) {
+        $("title").textContent="초대 링크를 열어 주세요.";
+        $("description").textContent="초대 메일의 링크를 누르면 이곳에서 초대를 확인할 수 있어요.";
+        return;
+      }
+      $("title").textContent="초대를 확인하고 있어요.";
+      const results=await Promise.allSettled([
+        api("/api/v1/invitations?token=" + encodeURIComponent(state.token)),me()
+      ]);
+      if(results[1].status==="fulfilled")state.user=results[1].value;
+      else {state.user=null;throw results[1].reason;}
+      if(results[0].status!=="fulfilled")throw results[0].reason;
+      state.preview=results[0].value;
+      $("title").textContent="함께할 팀이 기다리고 있어요.";
+      $("description").textContent="초대 내용을 확인하고 워크스페이스에 참여하세요.";
+      $("retry").hidden=true;
+      const reasons={LOGIN_CANCELED:"로그인을 취소했어요. 준비되면 다시 로그인해 주세요.",OAUTH_STATE_INVALID:"로그인 요청을 확인하지 못했어요. 이 화면에서 다시 시작해 주세요.",GOOGLE_AUTH_FAILED:"Google 로그인에 실패했어요. 다시 시도해 주세요."};
+      if(reasons[loginError])message(reasons[loginError],true);
+      if(!state.stored && !state.user)message("브라우저에서 임시 저장을 사용할 수 없어요. 먼저 로그인한 뒤 메일의 초대 링크를 다시 열어 주세요.",true);
+    } catch(error) {
+      $("title").textContent="초대를 확인하지 못했어요.";
+      $("description").textContent="아래 안내를 확인해 주세요.";
+      showError(error);
+    } finally {state.busy=false;render();}
+  }
+  async function csrfUser() {
+    const current=await me();
+    if(!current){state.user=null;const error=new Error();error.status=401;throw error;}
+    if(current.id!==state.user?.id){
+      state.user=current;
+      throw new Error("다른 탭에서 로그인 계정이 바뀌었어요. 현재 계정을 확인하고 다시 시도해 주세요.");
+    }
+    if(!current.csrfToken)throw new Error("인증 정보를 확인하지 못했어요. 다시 로그인해 주세요.");
+    return current;
+  }
+  async function refreshMembership() {
+    await csrfUser();
+    const workspaces=await api("/api/v1/workspaces");
+    // 다른 사용자 입력을 HTML로 해석하지 않는다.
+    $("joined-workspaces").replaceChildren(...workspaces.map(workspace=>{
+      const li=document.createElement("li");li.textContent=workspace.name;return li;
+    }));
+    const joined=workspaces.some(workspace=>workspace.id===state.accepted.workspaceId);
+    $("membership-status").textContent=joined
+      ? "내 워크스페이스 목록에서도 가입을 확인했어요."
+      : "수락은 완료됐지만 현재 목록에서 팀을 찾지 못했어요. 목록을 다시 확인해 주세요.";
+  }
+  $("login").addEventListener("click",event=>{
+    if(state.busy){event.preventDefault();return;}
+    if(!state.stored)$("login").href="/oauth2/authorization/google";
+  });
+  $("accept").addEventListener("click",async()=>{
+    if(state.busy || !state.preview || state.accepted)return;
+    state.busy=true;message("");render();
+    try {
+      const current=await csrfUser();
+      const accepted=await api("/api/v1/invitations/accept",{
+        method:"POST",headers:{"Content-Type":"application/json","X-CSRF-TOKEN":current.csrfToken},
+        body:JSON.stringify({token:state.token})
+      });
+      state.accepted=accepted;forget();state.token=null;
+      $("title").textContent="이제 같은 팀이에요.";
+      $("description").textContent=accepted.workspaceName + " 워크스페이스에 참여했어요.";
+      $("go-workspace").href="/?workspace=" + encodeURIComponent(accepted.workspaceId);
+      $("retry").hidden=true;
+      // 가입 후 조회 실패가 이미 성공한 수락을 실패처럼 보이게 하지 않는다.
+      try {await refreshMembership();}
+      catch (_) {$("membership-status").textContent="가입은 완료됐어요. 내 목록을 다시 확인해 주세요.";}
+    } catch(error) {
+      if([404,409,410].includes(error.status))state.preview=null;
+      showError(error,true);
+    } finally {state.busy=false;render();}
+  });
+  $("switch-account").addEventListener("click",async()=>{
+    if(state.busy)return;
+    state.busy=true;message("");render();
+    try {
+      const current=await csrfUser();
+      await api("/api/v1/auth/logout",{method:"POST",headers:{"X-CSRF-TOKEN":current.csrfToken}});
+      state.user=null;
+      // Google의 로그인 상태는 별개다. 계정 선택 화면에서 초대받은 계정을 선택한다.
+      message("서비스에서 로그아웃했어요. Google 로그인에서 초대받은 계정을 선택해 주세요.");
+    } catch(error) {showError(error);}
+    finally {state.busy=false;render();}
+  });
+  $("retry").addEventListener("click",checkInvitation);
+  $("refresh-membership").addEventListener("click",async()=>{
+    if(state.busy)return;state.busy=true;render();
+    try {await refreshMembership();}
+    catch (_) {$("membership-status").textContent="목록을 가져오지 못했어요. 홈에서 로그인 상태를 확인해 주세요.";}
+    finally {state.busy=false;render();}
+  });
+  // 뒤로 가기로 돌아왔을 때 오래된 로그인·초대 상태를 그대로 사용하지 않는다.
+  window.addEventListener("pageshow",event=>{if(event.persisted)location.reload();});
+  checkInvitation();
+})();
+</script>
+</body>
+</html>

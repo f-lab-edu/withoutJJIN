@@ -7,6 +7,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2Error;
+import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
 
 import java.io.IOException;
 
@@ -15,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class OAuth2LoginFailureHandlerTest {
 
     private final OAuth2LoginFailureHandler handler =
-            new OAuth2LoginFailureHandler();
+            new OAuth2LoginFailureHandler(new HttpSessionRequestCache());
 
     // MockHttpServletRequest 테스트용 HTTP 요청 객체
     // MockHttpServletResponse 상태·헤더·본문을 기록해서 확인할 수 있는 테스트용 응답 객체
