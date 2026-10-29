@@ -15,6 +15,7 @@ import org.springframework.security.web.authentication.SavedRequestAwareAuthenti
 import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
 import org.springframework.security.web.savedrequest.RequestCache;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
 import withoutjjin.withoutjjin.domain.auth.controller.handler.ApiAuthenticationEntryPoint;
 import withoutjjin.withoutjjin.domain.auth.controller.handler.OAuth2LoginFailureHandler;
 import withoutjjin.withoutjjin.domain.auth.oauth.CustomOidcUserService;
@@ -30,9 +31,11 @@ public class SecurityConfig {
     @Bean
     public RequestCache loginRequestCache() {
         HttpSessionRequestCache cache = new HttpSessionRequestCache();
-        // 초대 로그인 복귀 주소만 저장한다. API 요청이나 외부 returnUrl은 저장하지 않는다.
-        cache.setRequestMatcher(PathPatternRequestMatcher.withDefaults()
-                .matcher(HttpMethod.GET, "/invite/continue"));
+        // 로그인 후 돌아갈 내부 화면만 저장한다. API 요청과 외부 returnUrl은 저장하지 않는다.
+        cache.setRequestMatcher(new OrRequestMatcher(
+                PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/invite/continue"),
+                PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/workspaces/{workspaceId}")
+        ));
         return cache;
     }
 
@@ -68,7 +71,10 @@ public class SecurityConfig {
                 .exceptionHandling(exceptions -> exceptions//인증·접근 거부와 관련된 예외를 어떻게 처리할지 설정
                 .defaultAuthenticationEntryPointFor(
                         new LoginUrlAuthenticationEntryPoint("/oauth2/authorization/google"),
-                        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/invite/continue")
+                        new OrRequestMatcher(
+                                PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/invite/continue"),
+                                PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/workspaces/{workspaceId}")
+                        )
                 )
                 .defaultAuthenticationEntryPointFor(
                         apiAuthenticationEntryPoint, // 인증이 필요할 때 실행할 처리 객체

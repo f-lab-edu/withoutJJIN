@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>워크스페이스 · FTFM</title>
+  <style>
+    :root{--ink:#18352c;--muted:#718079;--green:#16785a;--bg:#f6f8f5;--line:#e2e9e3;--paper:#fff}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI","Malgun Gothic",sans-serif}button,select{font:inherit}a{color:inherit}button,a,select{touch-action:manipulation}button{cursor:pointer}button:disabled{cursor:not-allowed;opacity:.5}[hidden]{display:none!important}a:focus-visible,button:focus-visible,select:focus-visible{outline:3px solid #7bc9a9;outline-offset:3px}h1,h2,p{margin:0}.layout{display:grid;grid-template-columns:238px minmax(0,1fr);min-height:100vh}.sidebar{background:#193b30;color:#dce9df;padding:30px 22px;display:flex;flex-direction:column;gap:28px}.brand{display:flex;gap:11px;align-items:center;text-decoration:none;font-size:23px;font-weight:750;letter-spacing:-1px}.mark{height:34px;width:34px;display:grid;place-items:center;border-radius:10px;background:#eff7ef;color:#244a3a;font-size:18px;letter-spacing:-2px;padding-right:2px}.sidebar label{display:block;font-size:11px;color:#a8c0b1;margin-bottom:8px}.sidebar select{width:100%;background:#24483a;color:#f0f6ef;border:1px solid #466151;border-radius:9px;padding:10px 11px;min-width:0}.sidebar nav{display:grid;gap:7px}.nav-button{border:0;background:transparent;color:#c2d6c8;border-radius:10px;padding:12px 14px;text-align:left;display:flex;align-items:center;gap:12px;font-size:13px}.nav-button[aria-pressed=true]{background:#315443;color:white}.nav-button span{margin-left:auto;font-size:11px;background:#527360;padding:1px 7px;border-radius:20px}.back{margin-top:auto;font-size:12px;color:#aac3b2;text-decoration:none}.main{min-width:0}.topbar{min-height:83px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:14px;padding:20px 36px;background:#fff}.breadcrumb{font-size:12px;color:var(--muted)}.breadcrumb a{text-decoration:none}.breadcrumb strong{color:var(--ink);font-weight:600;overflow-wrap:anywhere}.account{display:flex;align-items:center;gap:13px;min-width:0}.account-email{font-size:12px;color:var(--muted);overflow-wrap:anywhere;max-width:260px}.button{display:inline-flex;justify-content:center;align-items:center;gap:8px;padding:10px 15px;min-height:41px;border:1px solid #d6e0d8;border-radius:10px;background:#fff;color:var(--ink);font-size:12px;font-weight:650;text-decoration:none;white-space:nowrap}.button:hover:not(:disabled){background:#f0f6ef}.primary{color:white;background:var(--green);border-color:var(--green)}.primary:hover:not(:disabled){background:#115f47}.quiet{padding:6px 10px;min-height:33px}.content{max-width:1260px;margin:auto;padding:35px 36px 28px}.eyebrow{font-size:10px;font-weight:750;letter-spacing:2.3px;color:var(--green);margin-bottom:9px}.intro{display:flex;justify-content:space-between;align-items:center;gap:20px;margin-bottom:27px}h1{font-size:32px;line-height:1.35;letter-spacing:-1.2px;overflow-wrap:anywhere}.subtitle{color:var(--muted);font-size:13px;margin-top:8px}.intro-actions{display:flex;gap:8px}.stats{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:26px}.stat{padding:19px 22px;background:white;border:1px solid var(--line);border-radius:14px;display:flex;align-items:center;gap:15px}.stat-icon{background:#eef5ed;color:var(--green);border-radius:11px;display:grid;place-items:center;width:42px;height:42px;font-size:20px;flex-shrink:0}.stat-label{color:var(--muted);font-size:11px}.stat-value{font-size:19px;font-weight:650;letter-spacing:-.4px}.stat-value.date{font-size:15px}.card{background:white;border:1px solid var(--line);border-radius:17px;overflow:hidden}.card-head{padding:21px 25px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:15px}.card-head h2{font-size:16px;letter-spacing:-.4px}.tag{display:inline-block;background:#f0f4ee;color:#71836d;border-radius:20px;padding:4px 10px;font-size:10px}.empty{padding:55px 24px 60px;text-align:center}.empty svg{margin-bottom:22px}.empty h2{font-size:19px;letter-spacing:-.6px;margin-bottom:10px}.empty p{font-size:13px;color:var(--muted);max-width:380px;margin:0 auto}.empty .button{margin-top:23px}.table-wrap{overflow:auto}table{border-collapse:collapse;width:100%;text-align:left}th{padding:12px 25px;font-size:11px;color:var(--muted);font-weight:550;background:#fafcf8}td{padding:18px 25px;border-top:1px solid #edf1eb;font-size:13px}.member-name{display:flex;align-items:center;gap:11px;min-width:170px;overflow-wrap:anywhere}.avatar{width:34px;height:34px;flex:none;display:grid;place-items:center;border-radius:50%;background:#eaf2e9;color:#477650;font-size:13px;font-weight:650}.member-label{font-size:10px;border:1px solid #cfe0d0;border-radius:5px;padding:2px 6px;color:#557e5e;white-space:nowrap}.joined-date{white-space:nowrap;font-size:12px;color:var(--muted)}.message{margin-bottom:20px;border:1px solid #efcfc5;background:#fff2ed;color:#974534;padding:14px 17px;border-radius:11px;font-size:13px}.error-state{padding:30px;border:1px solid var(--line);background:white;border-radius:17px}.error-state h2{font-size:21px;margin-bottom:10px}.error-state p{font-size:13px;color:var(--muted);margin-bottom:20px}.error-state .links{display:flex;gap:10px;flex-wrap:wrap}.foot{margin-top:22px;font-size:11px;color:#91a08d}.loading{color:var(--muted);padding:40px 0}@media(max-width:1000px){.layout{grid-template-columns:205px minmax(0,1fr)}.topbar{padding:18px 25px}.content{padding:30px 25px}.account-email{max-width:175px}h1{font-size:28px}}@media(max-width:720px){.layout{grid-template-columns:1fr}.sidebar{padding:18px 20px;gap:15px}.brand{font-size:21px}.sidebar nav{grid-template-columns:1fr 1fr}.sidebar label,.back{display:none}.sidebar select{max-width:100%}.topbar{padding:15px 20px;min-height:69px}.content{padding:26px 20px}.breadcrumb{display:none}.account{width:100%;justify-content:space-between}.account-email{max-width:none}.intro{align-items:start;flex-direction:column;gap:16px}.intro-actions{width:100%}.stats{gap:10px}.stat{padding:14px 13px;gap:9px}.stat-icon{width:30px;height:30px;font-size:16px}.stat-value{font-size:17px}.stat-value.date{font-size:12px}.card-head{padding:18px}.empty{padding:40px 20px}th,td{padding:14px 18px}}
+  </style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <a class="brand" href="/" aria-label="FTFM 홈"><span class="mark" aria-hidden="true">ff</span>FTFM</a>
+    <div><label for="workspace-select">내 워크스페이스</label><select id="workspace-select" disabled aria-label="워크스페이스 변경"><option>불러오는 중…</option></select></div>
+    <nav aria-label="워크스페이스 메뉴"><button id="files-tab" type="button" class="nav-button" aria-pressed="true" disabled>▱ &nbsp; 파일</button><button id="members-tab" type="button" class="nav-button" aria-pressed="false" disabled>◎ &nbsp; 멤버 <span id="nav-member-count">—</span></button></nav>
+    <a class="back" href="/">← 내 워크스페이스 목록</a>
+  </aside>
+  <div class="main">
+    <header class="topbar"><div class="breadcrumb"><a href="/">내 워크스페이스</a> &nbsp; / &nbsp; <strong id="breadcrumb-name">불러오는 중</strong></div><div class="account"><span id="account-email" class="account-email">로그인 확인 중…</span><button id="logout" class="button quiet" type="button" disabled>로그아웃</button></div></header>
+    <main class="content" id="content" aria-busy="true">
+      <p id="loading" class="loading" role="status">워크스페이스를 불러오고 있어요.</p>
+      <p id="message" class="message" role="status" aria-live="polite" hidden></p>
+      <section id="error-state" class="error-state" hidden><h2 id="error-title"></h2><p id="error-copy"></p><div class="links"><a class="button primary" id="login" hidden>Google로 다시 로그인</a><button class="button" id="retry" type="button">다시 확인하기</button><a class="button" href="/">내 워크스페이스 목록</a></div></section>
+      <div id="workspace-content" hidden>
+        <section class="intro"><div><p class="eyebrow">TEAM WORKSPACE</p><h1 id="workspace-name"></h1><p class="subtitle">팀원들과 파일을 모으고 함께 의견을 나누는 공간이에요.</p></div><div class="intro-actions"><button id="refresh" class="button" type="button">새로고침</button><a id="invite-members" class="button primary">팀원 초대하기 ↗</a></div></section>
+        <div class="stats"><div class="stat"><div class="stat-icon" aria-hidden="true">◎</div><div><div class="stat-label">함께하는 멤버</div><div id="member-count" class="stat-value"></div></div></div><div class="stat"><div class="stat-icon" aria-hidden="true">▦</div><div><div class="stat-label">워크스페이스 생성일</div><div id="created-date" class="stat-value date"></div></div></div></div>
+        <section id="files-panel" class="card" aria-labelledby="files-heading"><div class="card-head"><h2 id="files-heading">팀 파일</h2><span class="tag">다음 단계</span></div><div class="empty"><svg width="102" height="78" viewBox="0 0 102 78" fill="none" aria-hidden="true"><ellipse cx="52" cy="71" rx="43" ry="5" fill="#edf3e9"/><path d="M13 21a7 7 0 0 1 7-7h22l9 9h32a7 7 0 0 1 7 7v32a7 7 0 0 1-7 7H20a7 7 0 0 1-7-7V21Z" fill="#edf5e9" stroke="#b3c9ad" stroke-width="1.5"/><path d="M13 35a7 7 0 0 1 7-7h63a7 7 0 0 1 7 7v27a7 7 0 0 1-7 7H20a7 7 0 0 1-7-7V35Z" fill="white" stroke="#b3c9ad" stroke-width="1.5"/><path d="M44 47h15M44 54h23" stroke="#b3c9ad" stroke-width="2" stroke-linecap="round"/></svg><h2>팀 공간이 준비됐어요.</h2><p>지금은 팀 정보와 멤버를 확인할 수 있어요.<br>파일 등록과 피드백 기능은 다음 단계에서 연결할 예정이에요.</p><button id="view-members" class="button" type="button">함께하는 멤버 보기 →</button></div></section>
+        <section id="members-panel" class="card" aria-labelledby="members-heading" hidden><div class="card-head"><h2 id="members-heading">함께하는 멤버</h2><span id="members-summary" class="tag"></span></div><div class="table-wrap"><table><thead><tr><th scope="col">이름</th><th scope="col">가입일</th></tr></thead><tbody id="members"></tbody></table></div></section>
+      </div>
+      <p class="foot">FTFM · File, Team & Feedback Management</p>
+    </main>
+  </div>
+</div>
+<script>
+(() => {
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const match = location.pathname.match(/^\/workspaces\/([1-9]\d*)$/);
+  const workspaceId = match ? Number(match[1]) : null;
+  const validId = Number.isSafeInteger(workspaceId) && workspaceId > 0;
+  const state = {user:null, detail:null, busy:false, panel:"files"};
+
+  async function api(path, options={}) {
+    let response;
+    try {response=await fetch(path,{credentials:"same-origin",cache:"no-store",...options});}
+    catch (_) {throw new Error("서버에 연결하지 못했어요. 연결을 확인하고 다시 시도해 주세요.");}
+    let data=null;try {data=await response.json();} catch (_) {}
+    if(!response.ok){const error=new Error("요청 실패");error.status=response.status;throw error;}
+    return data;
+  }
+  function controls() {
+    $("content").setAttribute("aria-busy",String(state.busy));
+    for(const id of ["refresh","retry"])$(id).disabled=state.busy;
+    $("logout").disabled=state.busy || !state.user;
+    $("workspace-select").disabled=state.busy || !state.detail;
+    for(const id of ["files-tab","members-tab"])$(id).disabled=state.busy || !state.detail;
+  }
+  function clearDetail() {
+    state.detail=null;
+    $("workspace-content").hidden=true;
+    $("members").replaceChildren();
+    $("workspace-name").textContent="";
+    $("breadcrumb-name").textContent="워크스페이스";
+    $("workspace-select").replaceChildren(new Option("워크스페이스 선택", ""));
+    $("nav-member-count").textContent="—";
+    $("invite-members").removeAttribute("href");
+    document.title="워크스페이스 · FTFM";
+  }
+  function setPanel(panel) {
+    state.panel=panel;
+    $("files-panel").hidden=panel!=="files";
+    $("members-panel").hidden=panel!=="members";
+    $("files-tab").setAttribute("aria-pressed",String(panel==="files"));
+    $("members-tab").setAttribute("aria-pressed",String(panel==="members"));
+  }
+  function date(value) {
+    const parsed=new Date(value+"+09:00");
+    return Number.isNaN(parsed.getTime()) ? "—" : parsed.toLocaleDateString("ko-KR",{timeZone:"Asia/Seoul",year:"numeric",month:"long",day:"numeric"});
+  }
+  function render(detail, workspaces) {
+    state.detail=detail;
+    $("workspace-name").textContent=detail.name;
+    $("breadcrumb-name").textContent=detail.name;
+    document.title=detail.name+" · FTFM";
+    $("member-count").textContent=detail.members.length+"명";
+    $("nav-member-count").textContent=String(detail.members.length);
+    $("members-summary").textContent=detail.members.length+"명";
+    $("created-date").textContent=date(detail.createdAt);
+    $("invite-members").href="/?workspace="+workspaceId;
+    $("workspace-select").replaceChildren(...workspaces.map(workspace=>{
+      const option=new Option(workspace.name,String(workspace.id));option.selected=workspace.id===workspaceId;return option;
+    }));
+    $("members").replaceChildren(...detail.members.map(member=>{
+      const row=document.createElement("tr");
+      const cell=document.createElement("td");const person=document.createElement("div");person.className="member-name";
+      const name=member.displayName || "회원";
+      const avatar=document.createElement("span");avatar.className="avatar";avatar.textContent=Array.from(name)[0];avatar.setAttribute("aria-hidden","true");
+      const label=document.createElement("span");label.textContent=name;
+      person.append(avatar,label);
+      for(const text of [member.userId===state.user.id ? "나" : null,member.userId===detail.createdBy ? "만든 사람" : null]) {
+        if(text){const badge=document.createElement("span");badge.className="member-label";badge.textContent=text;person.append(badge);}
+      }
+      cell.append(person);const joined=document.createElement("td");joined.className="joined-date";joined.textContent=date(member.joinedAt);
+      row.append(cell,joined);return row;
+    }));
+    $("workspace-content").hidden=false;setPanel(state.panel);
+  }
+  function showError(error) {
+    clearDetail();
+    const descriptions={
+      400:["주소를 확인해 주세요.","워크스페이스 주소가 올바르지 않아요."],
+      401:["다시 로그인해 주세요.","로그인이 만료됐어요. 로그인하면 이 워크스페이스로 돌아와요."],
+      403:["이 팀에 접근할 수 없어요.","소속된 멤버만 들어올 수 있어요. 초대를 받았다면 먼저 수락해 주세요."],
+      404:["워크스페이스를 찾을 수 없어요.","주소를 확인하거나 내 워크스페이스 목록에서 다시 선택해 주세요."]
+    };
+    const [title,copy]=descriptions[error.status] || ["불러오지 못했어요.",error.status ? "잠시 뒤 다시 시도해 주세요." : error.message];
+    $("error-title").textContent=title;$("error-copy").textContent=copy;
+    $("error-state").hidden=false;
+    $("login").hidden=error.status!==401;
+    if(error.status===401){state.user=null;$("account-email").textContent="로그인 필요";$("login").href="/workspaces/"+workspaceId;}
+  }
+  async function load() {
+    if(state.busy)return;
+    state.busy=true;clearDetail();$("message").hidden=true;$("error-state").hidden=true;$("loading").hidden=false;controls();
+    try {
+      if(!validId){const error=new Error();error.status=400;throw error;}
+      state.user=await api("/api/v1/auth/me");
+      $("account-email").textContent=state.user.email;
+      const detail=await api("/api/v1/workspaces/"+workspaceId);
+      const workspaces=await api("/api/v1/workspaces");
+      render(detail,workspaces);
+    } catch(error){showError(error);}
+    finally {state.busy=false;$("loading").hidden=true;controls();}
+  }
+  $("workspace-select").addEventListener("change",event=>{
+    const id=Number(event.target.value);if(Number.isSafeInteger(id)&&id>0)location.assign("/workspaces/"+id);
+  });
+  $("files-tab").addEventListener("click",()=>setPanel("files"));
+  $("members-tab").addEventListener("click",()=>setPanel("members"));
+  $("view-members").addEventListener("click",()=>setPanel("members"));
+  $("refresh").addEventListener("click",load);
+  $("retry").addEventListener("click",load);
+  $("logout").addEventListener("click",async()=>{
+    if(state.busy || !state.user)return;
+    state.busy=true;controls();
+    try {
+      const me=await api("/api/v1/auth/me");
+      if(me.id!==state.user.id){state.user=me;$("account-email").textContent=me.email;clearDetail();throw new Error("다른 탭에서 로그인 계정이 바뀌었어요. 내 목록에서 다시 들어와 주세요.");}
+      await api("/api/v1/auth/logout",{method:"POST",headers:{"X-CSRF-TOKEN":me.csrfToken}});
+      location.assign("/");
+    } catch(error){
+      if(error.status===401)showError(error);
+      else {$("message").textContent=error.status ? "로그아웃하지 못했어요. 다시 시도해 주세요." : error.message;$("message").hidden=false;}
+    } finally {state.busy=false;controls();}
+  });
+  window.addEventListener("pageshow",event=>{if(event.persisted)location.reload();});
+  load();
+})();
+</script>
+</body>
+</html>

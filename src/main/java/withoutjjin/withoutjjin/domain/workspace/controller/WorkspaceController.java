@@ -2,6 +2,7 @@ package withoutjjin.withoutjjin.domain.workspace.controller;
 
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
@@ -10,10 +11,12 @@ import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import withoutjjin.withoutjjin.domain.workspace.dto.CreateWorkspaceRequest;
 import withoutjjin.withoutjjin.domain.workspace.dto.WorkspaceResponse;
+import withoutjjin.withoutjjin.domain.workspace.dto.WorkspaceDetailResponse;
 import withoutjjin.withoutjjin.domain.workspace.entity.Workspace;
 import withoutjjin.withoutjjin.domain.workspace.service.WorkspaceService;
 
@@ -25,6 +28,16 @@ import java.util.List;
 public class WorkspaceController {
 
     private final WorkspaceService workspaceService;
+
+    @GetMapping("/workspaces/{workspaceId}")
+    public ResponseEntity<WorkspaceDetailResponse> getWorkspace(
+            @PathVariable @Positive Long workspaceId,
+            @AuthenticationPrincipal OidcUser oidcUser
+    ) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(workspaceService.getWorkspace(workspaceId,
+                        oidcUser.getIssuer().toString(), oidcUser.getSubject()));
+    }
 
 
     @PostMapping("/workspaces")
