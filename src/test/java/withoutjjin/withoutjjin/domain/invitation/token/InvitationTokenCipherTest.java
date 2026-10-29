@@ -17,7 +17,7 @@ class InvitationTokenCipherTest {
 
     private String key;
     private InvitationTokenCipher cipher;
-
+    private final SecureRandom secureRandom = new SecureRandom();
     @BeforeEach
     void setUp() {
         key = generateKey();
@@ -112,7 +112,7 @@ class InvitationTokenCipherTest {
 
     private String generateKey() {
         byte[] bytes = new byte[32];
-        new SecureRandom().nextBytes(bytes);
+        secureRandom.nextBytes(bytes);
         return Base64.getEncoder().encodeToString(bytes);
     }
 
