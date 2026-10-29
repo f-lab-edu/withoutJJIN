@@ -1,5 +1,6 @@
 package withoutjjin.withoutjjin.domain.workspace;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -58,7 +59,8 @@ class WorkspaceListIntegrationTest {
     private final List<Long> createdWorkspaceIds = new ArrayList<>();
 
     @Test
-    void 생성한_팀과_참여한_팀만_최신순으로_조회한다() throws Exception {
+    @DisplayName("생성한 팀과 참여한 팀만 최신순으로 조회한다")
+    void listsOnlyCreatedAndJoinedWorkspacesNewestFirst() throws Exception {
         AppUser user = createUser();
         AppUser otherUser = createUser();
         Workspace ownWorkspace = createWorkspace("내가 만든 팀", user);
@@ -80,7 +82,8 @@ class WorkspaceListIntegrationTest {
     }
 
     @Test
-    void 소속이_없으면_다른_팀이_있어도_빈_목록을_반환한다() throws Exception {
+    @DisplayName("소속이 없으면 다른 팀이 있어도 빈 목록을 반환한다")
+    void returnsEmptyListForUserWithoutMemberships() throws Exception {
         AppUser user = createUser();
         AppUser otherUser = createUser();
         createWorkspace("다른 회원의 팀", otherUser);
@@ -92,7 +95,8 @@ class WorkspaceListIntegrationTest {
     }
 
     @Test
-    void 로그인하지_않으면_목록_조회는_401이다() throws Exception {
+    @DisplayName("로그인하지 않으면 목록 조회는 401이다")
+    void returns401ForAnonymousWorkspaceListRequest() throws Exception {
         mockMvc.perform(get("/api/v1/workspaces"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("AUTH_REQUIRED"));
@@ -124,7 +128,7 @@ class WorkspaceListIntegrationTest {
     }
 
     @AfterEach
-    void 이번_테스트에서_만든_데이터만_정리한다() {
+    void cleansUpOnlyDataCreatedByThisTest() {
         for (Long workspaceId : createdWorkspaceIds) {
             jdbcTemplate.update("DELETE FROM workspace_member WHERE workspace_id = ?", workspaceId);
             workspaceRepository.deleteById(workspaceId);
@@ -136,7 +140,8 @@ class WorkspaceListIntegrationTest {
 
 
     @Test
-    void 로그인하지_않으면_팀을_생성할_수_없다() throws Exception {
+    @DisplayName("로그인하지 않으면 팀을 생성할 수 없다")
+    void rejectsAnonymousWorkspaceCreation() throws Exception {
         mockMvc.perform(post("/api/v1/workspaces")
                         .with(csrf().asHeader())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -150,7 +155,8 @@ class WorkspaceListIntegrationTest {
 
 
     @Test
-    void CSRF_토큰이_없으면_팀을_생성할_수_없다() throws Exception {
+    @DisplayName("CSRF 토큰이 없으면 팀을 생성할 수 없다")
+    void rejectsWorkspaceCreationWithoutCsrfToken() throws Exception {
         mockMvc.perform(post("/api/v1/workspaces")
                         .with(oidcLogin())
                         .contentType(MediaType.APPLICATION_JSON)

@@ -1,5 +1,6 @@
 package withoutjjin.withoutjjin.domain.invitation;
 
+import org.junit.jupiter.api.DisplayName;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -74,7 +75,8 @@ class InvitationCreationIntegrationTest {
     }
 
     @Test
-    void 멤버가_초대를_생성하면_해시와_초기상태를_저장한다() throws Exception {
+    @DisplayName("멤버가 초대를 생성하면 해시와 초기상태를 저장한다")
+    void savesTokenHashAndInitialStateWhenMemberCreatesInvitation() throws Exception {
         LocalDateTime before = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
 
         mockMvc.perform(inviteRequest(targetEmail).with(loginAs(inviter)).with(csrf().asHeader()))
@@ -117,7 +119,8 @@ class InvitationCreationIntegrationTest {
     }
 
     @Test
-    void 유효한_초대가_있으면_중복_생성을_거부한다() throws Exception {
+    @DisplayName("유효한 초대가 있으면 중복 생성을 거부한다")
+    void rejectsDuplicateActiveInvitation() throws Exception {
         saveExistingInvitation(LocalDateTime.now(ZoneId.of("Asia/Seoul")).plusDays(1));
         long before = invitationRepository.count();
 
@@ -128,7 +131,8 @@ class InvitationCreationIntegrationTest {
     }
 
     @Test
-    void 기존_초대가_만료되었으면_새_초대를_생성한다() throws Exception {
+    @DisplayName("기존 초대가 만료되었으면 새 초대를 생성한다")
+    void createsNewInvitationWhenPreviousInvitationHasExpired() throws Exception {
         saveExistingInvitation(LocalDateTime.now(ZoneId.of("Asia/Seoul")).minusDays(1));
         long before = invitationRepository.count();
 
@@ -139,7 +143,8 @@ class InvitationCreationIntegrationTest {
     }
 
     @Test
-    void 이미_소속된_회원에게는_초대할_수_없다() throws Exception {
+    @DisplayName("이미 소속된 회원에게는 초대할 수 없다")
+    void rejectsInvitationForExistingMember() throws Exception {
         long before = invitationRepository.count();
 
         mockMvc.perform(inviteRequest(inviter.getEmail()).with(loginAs(inviter)).with(csrf().asHeader()))
@@ -149,7 +154,8 @@ class InvitationCreationIntegrationTest {
     }
 
     @Test
-    void 멤버가_아니면_초대할_수_없다() throws Exception {
+    @DisplayName("멤버가 아니면 초대할 수 없다")
+    void rejectsInvitationFromNonMember() throws Exception {
         AppUser outsider = saveUser();
         long before = invitationRepository.count();
 
@@ -160,7 +166,8 @@ class InvitationCreationIntegrationTest {
     }
 
     @Test
-    void 없는_워크스페이스는_404를_반환한다() throws Exception {
+    @DisplayName("없는 워크스페이스는 404를 반환한다")
+    void returns404ForMissingWorkspace() throws Exception {
         mockMvc.perform(post("/api/v1/workspaces/{workspaceId}/invitations", Long.MAX_VALUE)
                         .with(loginAs(inviter)).with(csrf().asHeader())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -171,7 +178,8 @@ class InvitationCreationIntegrationTest {
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = {"   ", "invalid-email"})
-    void 잘못된_이메일은_저장하지_않는다(String email) throws Exception {
+    @DisplayName("잘못된 이메일은 저장하지 않는다")
+    void rejectsInvalidEmailWithoutSaving(String email) throws Exception {
         long before = invitationRepository.count();
 
         mockMvc.perform(inviteRequest(email).with(loginAs(inviter)).with(csrf().asHeader()))
@@ -181,13 +189,15 @@ class InvitationCreationIntegrationTest {
     }
 
     @Test
-    void 로그인하지_않으면_401을_반환한다() throws Exception {
+    @DisplayName("로그인하지 않으면 401을 반환한다")
+    void returns401ForAnonymousInvitationCreation() throws Exception {
         mockMvc.perform(inviteRequest(targetEmail).with(csrf().asHeader()))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
-    void csrf_토큰이_없으면_403을_반환한다() throws Exception {
+    @DisplayName("csrf 토큰이 없으면 403을 반환한다")
+    void returns403ForInvitationCreationWithoutCsrfToken() throws Exception {
         mockMvc.perform(inviteRequest(targetEmail).with(loginAs(inviter)))
                 .andExpect(status().isForbidden());
     }

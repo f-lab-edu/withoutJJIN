@@ -1,5 +1,6 @@
 package withoutjjin.withoutjjin.global.config;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -20,7 +21,8 @@ import static org.mockito.Mockito.verifyNoInteractions;
 class InvitationEmailSchedulingConfigTest {
 
     @Test
-    void 발송설정을_지정하지_않으면_자동발송을_시작하지_않는다() {
+    @DisplayName("발송설정을 지정하지 않으면 자동발송을 시작하지 않는다")
+    void doesNotStartAutomaticSendingWithoutConfiguration() {
         InvitationEmailWorker worker = mock(InvitationEmailWorker.class);
 
         contextRunner(worker).run(context -> {
@@ -33,7 +35,8 @@ class InvitationEmailSchedulingConfigTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"false", ""})
-    void 발송설정이_true가_아니면_자동발송을_시작하지_않는다(String enabled) {
+    @DisplayName("발송설정이 true가 아니면 자동발송을 시작하지 않는다")
+    void doesNotStartAutomaticSendingUnlessEnabled(String enabled) {
         InvitationEmailWorker worker = mock(InvitationEmailWorker.class);
 
         contextRunner(worker).withPropertyValues("invitation.mail.enabled=" + enabled)
@@ -44,7 +47,8 @@ class InvitationEmailSchedulingConfigTest {
     }
 
     @Test
-    void 활성화하면_주기적으로_실행하고_첫_실행이_실패해도_다시_실행한다() {
+    @DisplayName("활성화하면 주기적으로 실행하고 첫 실행이 실패해도 다시 실행한다")
+    void runsPeriodicallyAndContinuesAfterFirstExecutionFails() {
         InvitationEmailWorker worker = mock(InvitationEmailWorker.class);
         AtomicInteger attempts = new AtomicInteger();
         CountDownLatch secondAttempt = new CountDownLatch(1);

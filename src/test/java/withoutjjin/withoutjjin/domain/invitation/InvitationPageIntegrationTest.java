@@ -1,5 +1,6 @@
 package withoutjjin.withoutjjin.domain.invitation;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -37,7 +38,8 @@ class InvitationPageIntegrationTest {
     @Autowired private ClientRegistrationRepository registrations;
 
     @Test
-    void 로그인_전에_초대화면을_열고_토큰은_HTML에_출력하지_않는다() throws Exception {
+    @DisplayName("로그인 전에 초대화면을 열고 토큰은 HTML에 출력하지 않는다")
+    void servesInvitationPageBeforeLoginWithoutRenderingToken() throws Exception {
         mockMvc.perform(get("/invite").param("token", "page-test-token"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith("text/html"))
@@ -49,7 +51,8 @@ class InvitationPageIntegrationTest {
     }
 
     @Test
-    void 초대에서_로그인하면_Google_로그인을_시작하고_가입은_수행하지_않는다() throws Exception {
+    @DisplayName("초대에서 로그인하면 Google 로그인을 시작하고 가입은 수행하지 않는다")
+    void startsGoogleLoginWithoutJoiningWorkspace() throws Exception {
         mockMvc.perform(get("/invite/continue"))
                 .andExpect(status().isFound())
                 .andExpect(header().string("Location", endsWith("/oauth2/authorization/google")));
@@ -59,7 +62,8 @@ class InvitationPageIntegrationTest {
     }
 
     @Test
-    void 초대에서_시작한_로그인은_성공후_고정된_초대경로로_돌아간다() throws Exception {
+    @DisplayName("초대에서 시작한 로그인은 성공후 고정된 초대경로로 돌아간다")
+    void returnsInvitationLoginToFixedInvitationPath() throws Exception {
         MockHttpServletRequest request = invitationLoginRequest();
         MockHttpServletResponse response = new MockHttpServletResponse();
         requestCache.saveRequest(request, response);
@@ -69,14 +73,16 @@ class InvitationPageIntegrationTest {
     }
 
     @Test
-    void 일반_로그인은_홈으로_돌아간다() throws Exception {
+    @DisplayName("일반 로그인은 홈으로 돌아간다")
+    void returnsNormalLoginToHomePage() throws Exception {
         MockHttpServletResponse response = new MockHttpServletResponse();
         successHandler.onAuthenticationSuccess(new MockHttpServletRequest(), response, null);
         assertThat(response.getRedirectedUrl()).isEqualTo("/");
     }
 
     @Test
-    void API와_외부주소는_로그인_복귀요청으로_저장하지_않는다() {
+    @DisplayName("API와 외부주소는 로그인 복귀요청으로 저장하지 않는다")
+    void doesNotCacheApiOrExternalUrlsAsLoginReturnRequests() {
         for (String path : new String[]{"/api/v1/auth/me", "/api/v1/invitations", "/untrusted"}) {
             MockHttpServletRequest request = new MockHttpServletRequest("GET", path);
             MockHttpServletResponse response = new MockHttpServletResponse();
@@ -87,7 +93,8 @@ class InvitationPageIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"access_denied", "invalid_state_parameter", "authorization_request_not_found", "invalid_token"})
-    void 초대_로그인_취소나_실패는_초대화면으로_돌아가고_저장요청을_지운다(String code) throws Exception {
+    @DisplayName("초대 로그인 취소나 실패는 초대화면으로 돌아가고 저장요청을 지운다")
+    void returnsCanceledOrFailedInvitationLoginToPageAndClearsSavedRequest(String code) throws Exception {
         MockHttpServletRequest request = invitationLoginRequest();
         MockHttpServletResponse response = new MockHttpServletResponse();
         requestCache.saveRequest(request, response);
@@ -104,7 +111,8 @@ class InvitationPageIntegrationTest {
     }
 
     @Test
-    void 초대_로그인만_계정선택을_요청하고_state_nonce_PKCE는_유지한다() {
+    @DisplayName("초대 로그인만 계정선택을 요청하고 state nonce PKCE는 유지한다")
+    void requestsAccountSelectionOnlyForInvitationLoginAndPreservesStateNonceAndPkce() {
         InvitationAuthorizationRequestResolver resolver = new InvitationAuthorizationRequestResolver(
                 new DefaultOAuth2AuthorizationRequestResolver(registrations, "/oauth2/authorization"), requestCache);
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/oauth2/authorization/google");

@@ -1,5 +1,6 @@
 package withoutjjin.withoutjjin.domain.workspace;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -50,7 +51,8 @@ class WorkspaceDetailIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void 만든사람과_초대받아_가입한_멤버_모두_팀과_멤버를_조회한다(boolean asCreator) throws Exception {
+    @DisplayName("만든사람과 초대받아 가입한 멤버 모두 팀과 멤버를 조회한다")
+    void returnsWorkspaceAndMembersForCreatorAndInvitedMember(boolean asCreator) throws Exception {
         AppUser creator = user("만든 사람");
         AppUser invitee = user("참여한 사람");
         Workspace workspace = workspace(creator);
@@ -75,7 +77,8 @@ class WorkspaceDetailIntegrationTest {
     }
 
     @Test
-    void 소속이_아닌_계정은_팀정보와_멤버를_볼_수_없다() throws Exception {
+    @DisplayName("소속이 아닌 계정은 팀정보와 멤버를 볼 수 없다")
+    void preventsNonMemberFromViewingWorkspaceAndMembers() throws Exception {
         Workspace workspace = workspace(user("만든 사람"));
         AppUser outsider = user("다른 회원");
         mockMvc.perform(get("/api/v1/workspaces/" + workspace.getId()).with(login(outsider)))
@@ -85,7 +88,8 @@ class WorkspaceDetailIntegrationTest {
     }
 
     @Test
-    void 탈퇴한_멤버는_같은_주소로_다시_조회할_수_없다() throws Exception {
+    @DisplayName("탈퇴한 멤버는 같은 주소로 다시 조회할 수 없다")
+    void rejectsWorkspaceAccessAfterMembershipRemoval() throws Exception {
         AppUser creator = user("만든 사람");
         Workspace workspace = workspace(creator);
         mockMvc.perform(get("/api/v1/workspaces/" + workspace.getId()).with(login(creator)))
@@ -96,20 +100,23 @@ class WorkspaceDetailIntegrationTest {
     }
 
     @Test
-    void 없는_팀은_404다() throws Exception {
+    @DisplayName("없는 팀은 404다")
+    void returns404ForMissingWorkspace() throws Exception {
         mockMvc.perform(get("/api/v1/workspaces/" + Long.MAX_VALUE).with(login(user("회원"))))
                 .andExpect(status().isNotFound());
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"0", "-1", "abc"})
-    void 잘못된_팀번호는_400이다(String value) throws Exception {
+    @DisplayName("잘못된 팀번호는 400이다")
+    void returns400ForInvalidWorkspaceId(String value) throws Exception {
         mockMvc.perform(get("/api/v1/workspaces/" + value).with(oidcLogin()))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
-    void 비로그인_API는_401이고_팀화면은_Google_로그인으로_연결한다() throws Exception {
+    @DisplayName("비로그인 API는 401이고 팀화면은 Google 로그인으로 연결한다")
+    void returns401ForAnonymousApiAndRedirectsWorkspacePageToGoogleLogin() throws Exception {
         mockMvc.perform(get("/api/v1/workspaces/123"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("AUTH_REQUIRED"));
@@ -119,7 +126,8 @@ class WorkspaceDetailIntegrationTest {
     }
 
     @Test
-    void 로그인한_회원에게_팀화면을_제공하고_실제정보는_API에서_조회한다() throws Exception {
+    @DisplayName("로그인한 회원에게 팀화면을 제공하고 실제정보는 API에서 조회한다")
+    void servesWorkspacePageForAuthenticatedUserAndLoadsDetailsViaApi() throws Exception {
         mockMvc.perform(get("/workspaces/123").with(oidcLogin()))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType("text/html;charset=UTF-8"))
@@ -128,7 +136,8 @@ class WorkspaceDetailIntegrationTest {
     }
 
     @Test
-    void 팀화면에서_시작한_로그인은_같은_팀주소로_돌아간다() throws Exception {
+    @DisplayName("팀화면에서 시작한 로그인은 같은 팀주소로 돌아간다")
+    void returnsWorkspaceLoginToSameWorkspacePath() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/workspaces/123");
         request.setServletPath("/workspaces/123");
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -157,7 +166,7 @@ class WorkspaceDetailIntegrationTest {
     }
 
     @AfterEach
-    void 이번_테스트에서_생성한_데이터만_정리한다() {
+    void cleansUpOnlyDataCreatedByThisTest() {
         for (Long id : workspaceIds) {
             jdbc.update("DELETE FROM workspace_member WHERE workspace_id = ?", id);
             workspaces.deleteById(id);

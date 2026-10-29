@@ -1,5 +1,6 @@
 package withoutjjin.withoutjjin.domain.workspace;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -44,7 +45,7 @@ class WorkspaceServiceRollbackTest {
     private AppUser creator;
 
     @BeforeEach
-    void 테스트_회원을_준비한다() {
+    void setUpTestUser() {
         creator = appUserRepository.saveAndFlush(
                 new AppUser(
                         "https://accounts.google.com",
@@ -57,7 +58,8 @@ class WorkspaceServiceRollbackTest {
     }
 
     @Test
-    void 멤버_등록이_실패하면_팀_생성도_롤백된다() {
+    @DisplayName("멤버 등록이 실패하면 팀 생성도 롤백된다")
+    void rollsBackWorkspaceCreationWhenMembershipSaveFails() {
         DataIntegrityViolationException failure =
                 new DataIntegrityViolationException(
                         "테스트용 멤버 저장 실패"
@@ -69,7 +71,7 @@ class WorkspaceServiceRollbackTest {
             workspaceRepository.flush();
 
             // 아직 Service 트랜잭션 안이므로 생성된 팀이 보인다.
-            assertThat(생성자의_팀_개수()).isEqualTo(1L);
+            assertThat(countWorkspacesCreatedByUser()).isEqualTo(1L);
 
             // 멤버 저장 단계에서 의도적으로 실패시킨다.
             throw failure;
@@ -86,10 +88,10 @@ class WorkspaceServiceRollbackTest {
         ).isSameAs(failure);
 
         // Service 호출이 끝난 후에는 팀 생성까지 롤백되어야 한다. = 서비스의 트랜잭션을 확인
-        assertThat(생성자의_팀_개수()).isZero();
+        assertThat(countWorkspacesCreatedByUser()).isZero();
     }
 
-    private long 생성자의_팀_개수() {
+    private long countWorkspacesCreatedByUser() {
         return jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM workspace WHERE created_by = ?",
                 Long.class,
@@ -98,7 +100,7 @@ class WorkspaceServiceRollbackTest {
     }
 
     @AfterEach
-    void 테스트에서_만든_데이터를_정리한다() {
+    void cleanUpTestData() {
         if (creator == null) {
             return;
         }

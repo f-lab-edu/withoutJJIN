@@ -1,5 +1,6 @@
 package withoutjjin.withoutjjin.domain.invitation;
 
+import org.junit.jupiter.api.DisplayName;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -62,7 +63,8 @@ class InvitationStatusIntegrationTest {
     }
 
     @Test
-    void 멤버는_초대_상태를_조회하고_토큰은_응답에_포함하지_않는다() throws Exception {
+    @DisplayName("멤버는 초대 상태를 조회하고 토큰은 응답에 포함하지 않는다")
+    void returnsInvitationStatusForMemberWithoutExposingToken() throws Exception {
         entityManager.clear();
         mockMvc.perform(get(path()).with(loginAs(member)))
                 .andExpect(status().isOk())
@@ -78,7 +80,8 @@ class InvitationStatusIntegrationTest {
     }
 
     @Test
-    void 재시도_대기_상태와_다음_실행시각을_조회한다() throws Exception {
+    @DisplayName("재시도 대기 상태와 다음 실행시각을 조회한다")
+    void returnsRetryPendingStateAndNextRetryTime() throws Exception {
         LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
         invitation.startProcessing(now);
         invitation.markFailed(now, true);
@@ -92,7 +95,8 @@ class InvitationStatusIntegrationTest {
     }
 
     @Test
-    void SES접수_상태와_초대수락_상태는_구분한다() throws Exception {
+    @DisplayName("SES접수 상태와 초대수락 상태는 구분한다")
+    void distinguishesMailSubmissionFromInvitationAcceptance() throws Exception {
         invitation.startProcessing(LocalDateTime.now(ZoneId.of("Asia/Seoul")));
         invitation.markSubmitted();
         invitations.flush();
@@ -105,19 +109,22 @@ class InvitationStatusIntegrationTest {
     }
 
     @Test
-    void 비로그인_요청은_401을_반환한다() throws Exception {
+    @DisplayName("비로그인 요청은 401을 반환한다")
+    void returns401ForAnonymousStatusRequest() throws Exception {
         mockMvc.perform(get(path())).andExpect(status().isUnauthorized());
     }
 
     @Test
-    void 다른_팀_회원은_이메일을_조회할_수_없다() throws Exception {
+    @DisplayName("다른 팀 회원은 이메일을 조회할 수 없다")
+    void preventsOtherWorkspaceMembersFromViewingInviteeEmail() throws Exception {
         mockMvc.perform(get(path()).with(loginAs(saveUser())))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.targetEmail").doesNotExist());
     }
 
     @Test
-    void 선택한_팀에_없는_초대는_조회할_수_없다() throws Exception {
+    @DisplayName("선택한 팀에 없는 초대는 조회할 수 없다")
+    void rejectsInvitationOutsideSelectedWorkspace() throws Exception {
         Workspace another = workspaces.save(new Workspace("다른 팀", member));
         members.saveAndFlush(new WorkspaceMember(another, member));
 
@@ -127,14 +134,16 @@ class InvitationStatusIntegrationTest {
     }
 
     @Test
-    void 존재하지_않는_초대는_404를_반환한다() throws Exception {
+    @DisplayName("존재하지 않는 초대는 404를 반환한다")
+    void returns404ForMissingInvitation() throws Exception {
         mockMvc.perform(get("/api/v1/workspaces/{workspaceId}/invitations/{id}",
                         workspace.getId(), Long.MAX_VALUE).with(loginAs(member)))
                 .andExpect(status().isNotFound());
     }
 
     @Test
-    void 테스트화면은_공개하지만_API는_로그인이_필요하다() throws Exception {
+    @DisplayName("테스트화면은 공개하지만 API는 로그인이 필요하다")
+    void servesPublicTestPageButRequiresLoginForApi() throws Exception {
         mockMvc.perform(get("/index.html"))
                 .andExpect(status().isOk())
                 .andExpect(result -> assertThat(result.getResponse()

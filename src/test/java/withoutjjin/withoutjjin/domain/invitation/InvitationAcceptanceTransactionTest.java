@@ -1,5 +1,6 @@
 package withoutjjin.withoutjjin.domain.invitation;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -80,7 +81,8 @@ class InvitationAcceptanceTransactionTest {
     }
 
     @Test
-    void 멤버_등록이_실패하면_이미_SQL로_반영한_초대_수락도_롤백한다() {
+    @DisplayName("멤버 등록이 실패하면 이미 SQL로 반영한 초대 수락도 롤백한다")
+    void rollsBackFlushedAcceptanceWhenMembershipSaveFails() {
         String token = saveInvitation();
         IllegalStateException failure = new IllegalStateException("test member insert failure");
         doAnswer(invocation -> {
@@ -99,14 +101,16 @@ class InvitationAcceptanceTransactionTest {
     }
 
     @Test
-    void 같은_초대를_동시에_수락해도_멤버는_한번만_등록한다() throws Exception {
+    @DisplayName("같은 초대를 동시에 수락해도 멤버는 한번만 등록한다")
+    void createsOneMembershipWhenAcceptingSameInvitationConcurrently() throws Exception {
         String token = saveInvitation();
         acceptConcurrently(token, token);
         assertOneMembership();
     }
 
     @Test
-    void 같은_팀의_서로다른_초대를_동시에_수락해도_중복가입하지_않는다() throws Exception {
+    @DisplayName("같은 팀의 서로다른 초대를 동시에 수락해도 중복가입하지 않는다")
+    void preventsDuplicateMembershipWhenAcceptingDifferentInvitationsConcurrently() throws Exception {
         String first = saveInvitation();
         String second = saveInvitation();
         acceptConcurrently(first, second);

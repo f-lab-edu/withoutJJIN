@@ -1,5 +1,6 @@
 package withoutjjin.withoutjjin.domain.invitation;
 
+import org.junit.jupiter.api.DisplayName;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -53,7 +54,8 @@ class InvitationEmailQueryTest {
     }
 
     @Test
-    void 유효한_초대의_첫_발송을_조회한다() {
+    @DisplayName("발송 가능한 PENDING Invitation의 InvitationId를 조회한다")
+    void findsPendingInvitationIdsReadyForSending() {
         Invitation pending = saveInvitation(now.plusDays(1));
         Long expectedId = pending.getId();
         flushAndClear();
@@ -62,7 +64,8 @@ class InvitationEmailQueryTest {
     }
 
     @Test
-    void 재시도_시각이_지났거나_현재와_같은_실패만_조회한다() {
+    @DisplayName("nextRetryAt이 현재시각 이하인 FAILED InvitationId만 조회한다")
+    void findsFailedInvitationIdsWhoseRetryTimeHasArrived() {
         Invitation past = saveFailedInvitation(now.minusSeconds(31));
         Invitation dueNow = saveFailedInvitation(now.minusSeconds(30));
         Invitation future = saveFailedInvitation(now);
@@ -77,7 +80,8 @@ class InvitationEmailQueryTest {
     }
 
     @Test
-    void 만료_수락_취소된_초대는_발송하지_않는다() {
+    @DisplayName("만료되었거나 ACCEPTED CANCELED인 InvitationId는 발송 조회에서 제외한다")
+    void excludesExpiredAcceptedAndCanceledInvitations() {
         Invitation expired = saveInvitation(now.minusSeconds(1));
         Invitation expiresNow = saveInvitation(now);
         Invitation accepted = saveInvitation(now.plusDays(1));
@@ -93,7 +97,8 @@ class InvitationEmailQueryTest {
     }
 
     @Test
-    void 처리중이거나_이미_접수된_발송은_조회하지_않는다() {
+    @DisplayName("PROCESSING SUBMITTED InvitationId는 발송 조회에서 제외한다")
+    void excludesProcessingAndSubmittedInvitations() {
         Invitation processing = saveInvitation(now.plusDays(1));
         processing.startProcessing(now);
         Invitation submitted = saveInvitation(now.plusDays(1));
@@ -107,7 +112,8 @@ class InvitationEmailQueryTest {
     }
 
     @Test
-    void 최종_실패이거나_암호문이_없는_초대는_조회하지_않는다() {
+    @DisplayName("재시도 불가 또는 encryptedToken이 없는 InvitationId는 발송 조회에서 제외한다")
+    void excludesNonRetryableInvitationsAndMissingEncryptedTokens() {
         Invitation failed = saveInvitation(now.plusDays(1));
         failed.startProcessing(now);
         failed.markFailed(now, false);
@@ -124,7 +130,8 @@ class InvitationEmailQueryTest {
     }
 
     @Test
-    void 한번에_조회할_개수를_제한하고_ID순으로_조회한다() {
+    @DisplayName("발송 가능한 InvitationId를 오름차순으로 조회하고 조회 개수를 제한한다")
+    void ordersReadyInvitationIdsAndLimitsBatchSize() {
         saveInvitation(now.plusDays(1));
         saveInvitation(now.plusDays(1));
         saveInvitation(now.plusDays(1));
@@ -139,7 +146,8 @@ class InvitationEmailQueryTest {
     }
 
     @Test
-    void 수신_주소를_제한하면_해당_주소의_발송과_복구_대상만_조회한다() {
+    @DisplayName("recipient가 설정되면 targetEmail이 recipient와 일치하는 InvitationId만 발송과 복구 조회에 포함한다")
+    void filtersSendAndRecoveryQueriesByConfiguredRecipient() {
         Invitation allowed = saveInvitation(now.plusDays(1));
         Invitation excluded = saveInvitation(now.plusDays(1));
         String recipient = allowed.getTargetEmail();

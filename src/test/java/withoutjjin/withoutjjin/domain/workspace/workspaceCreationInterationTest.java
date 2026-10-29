@@ -1,6 +1,7 @@
 package withoutjjin.withoutjjin.domain.workspace;
 
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -38,7 +39,8 @@ public class workspaceCreationInterationTest {
     private AppUserRepository appUserRepository;
 
     @Test
-    void 로그인한_회원이_워크스페이스를_생성한다() throws Exception {
+    @DisplayName("로그인한 회원이 워크스페이스를 생성한다")
+    void createsWorkspaceForAuthenticatedUser() throws Exception {
         // 1. 테스트 회원 저장
 
         String issuer = "https://accounts.google.com";
@@ -70,7 +72,8 @@ public class workspaceCreationInterationTest {
         // 3. 응답이 201이고 팀 이름이 맞는지 확인
     }
     @Test
-    void 빈_이름으로_워크스페이스를_생성할_수_없다()  throws Exception {
+    @DisplayName("빈 이름으로 워크스페이스를 생성할 수 없다")
+    void rejectsWorkspaceWithEmptyName()  throws Exception {
         // 1. 테스트 회원 저장
 
         String issuer = "https://accounts.google.com";
@@ -103,7 +106,8 @@ public class workspaceCreationInterationTest {
 
     @ParameterizedTest
     @MethodSource("invalidWorkspaceNames")
-    void 올바르지_않은_이름은_거부한다(String name) throws Exception {
+    @DisplayName("올바르지 않은 이름은 거부한다")
+    void rejectsInvalidWorkspaceName(String name) throws Exception {
 
 
         String issuer = "https://accounts.google.com";

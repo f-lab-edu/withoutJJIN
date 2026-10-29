@@ -1,5 +1,6 @@
 package withoutjjin.withoutjjin.domain.invitation.token;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -24,7 +25,8 @@ class InvitationTokenCipherTest {
     }
 
     @Test
-    void 암호화한_토큰을_다시_복호화한다() {
+    @DisplayName("암호화한 토큰을 다시 복호화한다")
+    void decryptsEncryptedToken() {
         String token = new InvitationTokenGenerator().generateToken();
         String encrypted = cipher.encrypt(token);
 
@@ -34,7 +36,8 @@ class InvitationTokenCipherTest {
     }
 
     @Test
-    void 같은_원문도_매번_다른_암호문으로_저장한다() {
+    @DisplayName("같은 원문도 매번 다른 암호문으로 저장한다")
+    void encryptsSamePlaintextToDifferentCiphertexts() {
         String first = cipher.encrypt("same-token");
         String second = cipher.encrypt("same-token");
 
@@ -44,7 +47,8 @@ class InvitationTokenCipherTest {
     }
 
     @Test
-    void 같은_키를_사용하는_다른_인스턴스에서도_복원한다() {
+    @DisplayName("같은 키를 사용하는 다른 인스턴스에서도 복원한다")
+    void decryptsAcrossInstancesUsingSameKey() {
         String encrypted = cipher.encrypt("restart-test-token");
         InvitationTokenCipher restartedCipher = new InvitationTokenCipher(key);
 
@@ -52,7 +56,8 @@ class InvitationTokenCipherTest {
     }
 
     @Test
-    void 다른_키로는_복호화하지_못한다() {
+    @DisplayName("다른 키로는 복호화하지 못한다")
+    void rejectsDecryptionWithDifferentKey() {
         String encrypted = cipher.encrypt("test-token");
         InvitationTokenCipher differentCipher = new InvitationTokenCipher(generateKey());
 
@@ -61,7 +66,8 @@ class InvitationTokenCipherTest {
     }
 
     @Test
-    void 암호문을_변조하면_복호화를_거부한다() {
+    @DisplayName("암호문을 변조하면 복호화를 거부한다")
+    void rejectsTamperedCiphertext() {
         String tampered = tamper(cipher.encrypt("test-token"), 12);
 
         assertThatThrownBy(() -> cipher.decrypt(tampered))
@@ -69,7 +75,8 @@ class InvitationTokenCipherTest {
     }
 
     @Test
-    void iv를_변조해도_복호화를_거부한다() {
+    @DisplayName("iv를 변조해도 복호화를 거부한다")
+    void rejectsTamperedInitializationVector() {
         String tampered = tamper(cipher.encrypt("test-token"), 0);
 
         assertThatThrownBy(() -> cipher.decrypt(tampered))
@@ -79,7 +86,8 @@ class InvitationTokenCipherTest {
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = {"   ", "not-base64!", "c2hvcnQ="})
-    void 잘못된_설정키는_거부한다(String invalidKey) {
+    @DisplayName("잘못된 설정키는 거부한다")
+    void rejectsInvalidConfiguredKey(String invalidKey) {
         assertThatThrownBy(() -> new InvitationTokenCipher(invalidKey))
                 .isInstanceOf(IllegalArgumentException.class);
     }
@@ -87,7 +95,8 @@ class InvitationTokenCipherTest {
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = {"v2:AAAA", "v1:not-base64!", "v1:AAAA"})
-    void 잘못된_암호문_형식은_거부한다(String invalidCiphertext) {
+    @DisplayName("잘못된 암호문 형식은 거부한다")
+    void rejectsInvalidCiphertextFormat(String invalidCiphertext) {
         assertThatThrownBy(() -> cipher.decrypt(invalidCiphertext))
                 .isInstanceOf(IllegalArgumentException.class);
     }
@@ -95,7 +104,8 @@ class InvitationTokenCipherTest {
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = {"   "})
-    void 비어있는_원문은_암호화하지_않는다(String token) {
+    @DisplayName("비어있는 원문은 암호화하지 않는다")
+    void rejectsEncryptionOfBlankPlaintext(String token) {
         assertThatThrownBy(() -> cipher.encrypt(token))
                 .isInstanceOf(IllegalArgumentException.class);
     }

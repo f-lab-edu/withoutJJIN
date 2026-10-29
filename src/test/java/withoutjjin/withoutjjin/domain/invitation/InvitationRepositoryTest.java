@@ -1,5 +1,6 @@
 package withoutjjin.withoutjjin.domain.invitation;
 
+import org.junit.jupiter.api.DisplayName;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,7 +43,8 @@ class InvitationRepositoryTest {
     private InvitationTokenCipher tokenCipher;
 
     @Test
-    void 초대를_저장하고_관계와_초기값을_조회한다() {
+    @DisplayName("초대를 저장하고 관계와 초기값을 조회한다")
+    void savesInvitationAndLoadsRelationshipsAndInitialValues() {
         // 1. 초대자 회원 저장
 
         String issuer = "https://accounts.google.com";

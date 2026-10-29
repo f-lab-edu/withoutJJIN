@@ -1,5 +1,6 @@
 package withoutjjin.withoutjjin.domain.invitation.entity;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
@@ -12,7 +13,8 @@ class InvitationSendStateTest {
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 28, 10, 0);
 
     @Test
-    void 첫_발송을_시작하면_처리중으로_변경하고_시작시각을_기록한다() {
+    @DisplayName("첫 발송을 시작하면 처리중으로 변경하고 시작시각을 기록한다")
+    void recordsProcessingStateAndStartTimeForFirstAttempt() {
         Invitation invitation = invitationExpiringAt(NOW.plusDays(1));
 
         invitation.startProcessing(NOW);
@@ -24,7 +26,8 @@ class InvitationSendStateTest {
     }
 
     @Test
-    void 접수_성공이면_발송용_암호문을_정리하고_검증용_해시는_유지한다() {
+    @DisplayName("접수 성공이면 발송용 암호문을 정리하고 검증용 해시는 유지한다")
+    void clearsEncryptedTokenAndPreservesHashAfterSubmission() {
         Invitation invitation = invitationExpiringAt(NOW.plusDays(1));
         invitation.startProcessing(NOW);
 
@@ -39,7 +42,8 @@ class InvitationSendStateTest {
     }
 
     @Test
-    void 일시적_실패는_30초_후_재시도하고_그전에는_시작하지_못한다() {
+    @DisplayName("일시적 실패는 30초 후 재시도하고 그전에는 시작하지 못한다")
+    void schedulesRetryAfterThirtySecondsAndRejectsEarlyAttempt() {
         Invitation invitation = invitationExpiringAt(NOW.plusDays(1));
         invitation.startProcessing(NOW);
 
@@ -63,7 +67,8 @@ class InvitationSendStateTest {
     }
 
     @Test
-    void 재시도_세번이_모두_실패하면_중단하고_암호문을_정리한다() {
+    @DisplayName("재시도 세번이 모두 실패하면 중단하고 암호문을 정리한다")
+    void stopsAndClearsEncryptedTokenAfterThreeFailedRetries() {
         Invitation invitation = invitationExpiringAt(NOW.plusDays(1));
         LocalDateTime now = NOW;
         invitation.startProcessing(now);
@@ -87,7 +92,8 @@ class InvitationSendStateTest {
     }
 
     @Test
-    void 재시도에서_성공하면_횟수를_유지하고_암호문을_정리한다() {
+    @DisplayName("재시도에서 성공하면 횟수를 유지하고 암호문을 정리한다")
+    void preservesRetryCountAndClearsEncryptedTokenAfterSuccessfulRetry() {
         Invitation invitation = invitationExpiringAt(NOW.plusDays(1));
         invitation.startProcessing(NOW);
         invitation.markFailed(NOW, true);
@@ -102,7 +108,8 @@ class InvitationSendStateTest {
     }
 
     @Test
-    void 재시도할_수_없는_실패는_즉시_종료한다() {
+    @DisplayName("재시도할 수 없는 실패는 즉시 종료한다")
+    void stopsImmediatelyAfterNonRetryableFailure() {
         Invitation invitation = invitationExpiringAt(NOW.plusDays(1));
         invitation.startProcessing(NOW);
 
@@ -115,7 +122,8 @@ class InvitationSendStateTest {
     }
 
     @Test
-    void 재시도_시각에_초대가_만료된다면_재시도를_예약하지_않는다() {
+    @DisplayName("재시도 시각에 초대가 만료된다면 재시도를 예약하지 않는다")
+    void doesNotScheduleRetryAtOrAfterInvitationExpiry() {
         Invitation invitation = invitationExpiringAt(NOW.plusSeconds(30));
         invitation.startProcessing(NOW);
 
@@ -126,7 +134,8 @@ class InvitationSendStateTest {
     }
 
     @Test
-    void 처리_도중_초대가_만료되어도_재시도하지_않는다() {
+    @DisplayName("처리 도중 초대가 만료되어도 재시도하지 않는다")
+    void doesNotRetryWhenInvitationExpiresDuringProcessing() {
         Invitation invitation = invitationExpiringAt(NOW.plusMinutes(1));
         invitation.startProcessing(NOW);
 
@@ -137,7 +146,8 @@ class InvitationSendStateTest {
     }
 
     @Test
-    void 이미_처리중이거나_접수된_발송을_다시_시작하지_못한다() {
+    @DisplayName("이미 처리중이거나 접수된 발송을 다시 시작하지 못한다")
+    void rejectsStartingProcessingOrSubmittedMailAgain() {
         Invitation invitation = invitationExpiringAt(NOW.plusDays(1));
         invitation.startProcessing(NOW);
         assertThatThrownBy(() -> invitation.startProcessing(NOW))
@@ -149,7 +159,8 @@ class InvitationSendStateTest {
     }
 
     @Test
-    void 만료된_초대는_발송을_시작하지_못한다() {
+    @DisplayName("만료된 초대는 발송을 시작하지 못한다")
+    void rejectsStartingExpiredInvitation() {
         Invitation invitation = invitationExpiringAt(NOW);
 
         assertThatThrownBy(() -> invitation.startProcessing(NOW))
@@ -158,7 +169,8 @@ class InvitationSendStateTest {
     }
 
     @Test
-    void 발송을_시작하지_않고_성공이나_실패로_변경하지_못한다() {
+    @DisplayName("발송을 시작하지 않고 성공이나 실패로 변경하지 못한다")
+    void rejectsRecordingResultBeforeStarting() {
         Invitation invitation = invitationExpiringAt(NOW.plusDays(1));
 
         assertThatThrownBy(invitation::markSubmitted).isInstanceOf(IllegalStateException.class);

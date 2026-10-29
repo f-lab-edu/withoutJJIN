@@ -1,5 +1,6 @@
 package withoutjjin.withoutjjin.domain.invitation.worker;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -100,7 +101,8 @@ class InvitationEmailWorkerIntegrationTest {
     }
 
     @Test
-    void 처리_시작을_커밋한_뒤_트랜잭션_밖에서_발송하고_접수_성공을_기록한다() {
+    @DisplayName("처리 시작을 커밋한 뒤 트랜잭션 밖에서 발송하고 접수 성공을 기록한다")
+    void commitsClaimBeforeSendingOutsideTransactionAndRecordsSubmission() {
         Invitation invitation = saveInvitation(NOW.plusDays(1));
         doAnswer(invocation -> {
             assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
@@ -120,7 +122,8 @@ class InvitationEmailWorkerIntegrationTest {
     }
 
     @Test
-    void 일시적_실패_후_재시도_시각이_되면_다시_발송한다() {
+    @DisplayName("일시적 실패 후 재시도 시각이 되면 다시 발송한다")
+    void retriesTemporaryFailureWhenRetryTimeArrives() {
         Invitation invitation = saveInvitation(NOW.plusDays(1));
         when(emailSender.sendInvitation(anyString(), anyString(), anyString()))
                 .thenThrow(TooManyRequestsException.builder().statusCode(429).message("test throttling").build())
@@ -144,7 +147,8 @@ class InvitationEmailWorkerIntegrationTest {
     }
 
     @Test
-    void SES_영구_거부는_재시도하지_않는다() {
+    @DisplayName("SES 영구 거부는 재시도하지 않는다")
+    void doesNotRetryPermanentSesRejection() {
         Invitation invitation = saveInvitation(NOW.plusDays(1));
         when(emailSender.sendInvitation(anyString(), anyString(), anyString()))
                 .thenThrow(MessageRejectedException.builder().statusCode(400).message("test rejection").build());
@@ -160,7 +164,8 @@ class InvitationEmailWorkerIntegrationTest {
     }
 
     @Test
-    void SDK_통신_오류는_제한된_재시도를_예약한다() {
+    @DisplayName("SDK 통신 오류는 제한된 재시도를 예약한다")
+    void schedulesLimitedRetriesForSdkCommunicationFailure() {
         Invitation invitation = saveInvitation(NOW.plusDays(1));
         when(emailSender.sendInvitation(anyString(), anyString(), anyString()))
                 .thenThrow(SdkClientException.create("test connection failure"));
@@ -173,7 +178,8 @@ class InvitationEmailWorkerIntegrationTest {
     }
 
     @Test
-    void 복호화할_수_없는_토큰은_발송하지_않는다() {
+    @DisplayName("복호화할 수 없는 토큰은 발송하지 않는다")
+    void doesNotSendUndecryptableToken() {
         Invitation invitation = invitationRepository.saveAndFlush(new Invitation(
                 workspace, inviter, "invitee@example.com", "bad-token-hash", "v1:invalid", NOW.plusDays(1)
         ));
@@ -186,7 +192,8 @@ class InvitationEmailWorkerIntegrationTest {
     }
 
     @Test
-    void 원문과_해시가_맞지_않으면_발송하지_않는다() {
+    @DisplayName("원문과 해시가 맞지 않으면 발송하지 않는다")
+    void doesNotSendTokenWhoseHashDoesNotMatch() {
         Invitation invitation = saveInvitation(NOW.plusDays(1));
         jdbcTemplate.update("update invitation set token_hash = ? where id = ?",
                 "mismatch-" + UUID.randomUUID(), invitation.getId());
@@ -199,7 +206,8 @@ class InvitationEmailWorkerIntegrationTest {
     }
 
     @Test
-    void 만료된_초대는_건너뛴다() {
+    @DisplayName("만료된 초대는 건너뛴다")
+    void skipsExpiredInvitations() {
         Invitation invitation = saveInvitation(NOW);
 
         worker.processInvitation(invitation.getId());
@@ -209,7 +217,8 @@ class InvitationEmailWorkerIntegrationTest {
     }
 
     @Test
-    void 같은_초대를_동시에_처리해도_한번만_발송한다() throws Exception {
+    @DisplayName("같은 InvitationId로 processInvitation을 동시에 호출해도 메일은 한번만 발송한다")
+    void sendsOnceWhenProcessingSameInvitationConcurrently() throws Exception {
         Invitation invitation = saveInvitation(NOW.plusDays(1));
         CountDownLatch sending = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
@@ -238,7 +247,8 @@ class InvitationEmailWorkerIntegrationTest {
     }
 
     @Test
-    void 시간초과_복구_후_이전_작업자의_늦은_결과는_무시한다() {
+    @DisplayName("recoverTimedOut 후 processingStartedAt이 일치하지 않는 MailTask의 결과는 반영하지 않는다")
+    void ignoresStaleTaskResultAfterTimedOutProcessingIsRecovered() {
         Invitation invitation = saveInvitation(NOW.plusDays(1));
         MailTask oldTask = transactions.claim(invitation.getId(), NOW).orElseThrow();
         LocalDateTime recoveredAt = NOW.plusMinutes(6);
@@ -258,7 +268,8 @@ class InvitationEmailWorkerIntegrationTest {
     }
 
     @Test
-    void 처리시간이_지난_작업만_복구후보로_조회한다() {
+    @DisplayName("processingStartedAt이 cutoff 이하인 PROCESSING InvitationId만 조회한다")
+    void findsProcessingInvitationIdsStartedAtOrBeforeCutoff() {
         Invitation stale = saveInvitation(NOW.plusDays(1));
         transactions.claim(stale.getId(), NOW.minusMinutes(5));
         token = tokenGenerator.generateToken();
@@ -271,7 +282,8 @@ class InvitationEmailWorkerIntegrationTest {
     }
 
     @Test
-    void 열린_트랜잭션_안에서_발송_작업자를_호출하지_못한다() {
+    @DisplayName("트랜잭션이 열려있으면 InvitationEmailWorker의 processInvitation 호출을 거부한다")
+    void rejectsProcessingWithinExistingTransaction() {
         Invitation invitation = saveInvitation(NOW.plusDays(1));
 
         new TransactionTemplate(transactionManager).executeWithoutResult(status ->

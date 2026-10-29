@@ -22,9 +22,9 @@
     <main class="content" id="content" aria-busy="true">
       <p id="loading" class="loading" role="status">워크스페이스를 불러오고 있어요.</p>
       <p id="message" class="message" role="status" aria-live="polite" hidden></p>
-      <section id="error-state" class="error-state" hidden><h2 id="error-title"></h2><p id="error-copy"></p><div class="links"><a class="button primary" id="login" hidden>Google로 다시 로그인</a><button class="button" id="retry" type="button">다시 확인하기</button><a class="button" href="/">내 워크스페이스 목록</a></div></section>
+      <section id="error-state" class="error-state" hidden><h2 id="error-title">워크스페이스를 불러오지 못했어요.</h2><p id="error-copy"></p><div class="links"><a class="button primary" id="login" hidden>Google로 다시 로그인</a><button class="button" id="retry" type="button">다시 확인하기</button><a class="button" href="/">내 워크스페이스 목록</a></div></section>
       <div id="workspace-content" hidden>
-        <section class="intro"><div><p class="eyebrow">TEAM WORKSPACE</p><h1 id="workspace-name"></h1><p class="subtitle">팀원들과 파일을 모으고 함께 의견을 나누는 공간이에요.</p></div><div class="intro-actions"><button id="refresh" class="button" type="button">새로고침</button><a id="invite-members" class="button primary">팀원 초대하기 ↗</a></div></section>
+        <section class="intro"><div><p class="eyebrow">TEAM WORKSPACE</p><h1 id="workspace-name">워크스페이스</h1><p class="subtitle">팀원들과 파일을 모으고 함께 의견을 나누는 공간이에요.</p></div><div class="intro-actions"><button id="refresh" class="button" type="button">새로고침</button><a id="invite-members" class="button primary">팀원 초대하기 ↗</a></div></section>
         <div class="stats"><div class="stat"><div class="stat-icon" aria-hidden="true">◎</div><div><div class="stat-label">함께하는 멤버</div><div id="member-count" class="stat-value"></div></div></div><div class="stat"><div class="stat-icon" aria-hidden="true">▦</div><div><div class="stat-label">워크스페이스 생성일</div><div id="created-date" class="stat-value date"></div></div></div></div>
         <section id="files-panel" class="card" aria-labelledby="files-heading"><div class="card-head"><h2 id="files-heading">팀 파일</h2><span class="tag">다음 단계</span></div><div class="empty"><svg width="102" height="78" viewBox="0 0 102 78" fill="none" aria-hidden="true"><ellipse cx="52" cy="71" rx="43" ry="5" fill="#edf3e9"/><path d="M13 21a7 7 0 0 1 7-7h22l9 9h32a7 7 0 0 1 7 7v32a7 7 0 0 1-7 7H20a7 7 0 0 1-7-7V21Z" fill="#edf5e9" stroke="#b3c9ad" stroke-width="1.5"/><path d="M13 35a7 7 0 0 1 7-7h63a7 7 0 0 1 7 7v27a7 7 0 0 1-7 7H20a7 7 0 0 1-7-7V35Z" fill="white" stroke="#b3c9ad" stroke-width="1.5"/><path d="M44 47h15M44 54h23" stroke="#b3c9ad" stroke-width="2" stroke-linecap="round"/></svg><h2>팀 공간이 준비됐어요.</h2><p>지금은 팀 정보와 멤버를 확인할 수 있어요.<br>파일 등록과 피드백 기능은 다음 단계에서 연결할 예정이에요.</p><button id="view-members" class="button" type="button">함께하는 멤버 보기 →</button></div></section>
         <section id="members-panel" class="card" aria-labelledby="members-heading" hidden><div class="card-head"><h2 id="members-heading">함께하는 멤버</h2><span id="members-summary" class="tag"></span></div><div class="table-wrap"><table><thead><tr><th scope="col">이름</th><th scope="col">가입일</th></tr></thead><tbody id="members"></tbody></table></div></section>
@@ -61,7 +61,7 @@
     state.detail=null;
     $("workspace-content").hidden=true;
     $("members").replaceChildren();
-    $("workspace-name").textContent="";
+    $("workspace-name").textContent="워크스페이스";
     $("breadcrumb-name").textContent="워크스페이스";
     $("workspace-select").replaceChildren(new Option("워크스페이스 선택", ""));
     $("nav-member-count").textContent="—";

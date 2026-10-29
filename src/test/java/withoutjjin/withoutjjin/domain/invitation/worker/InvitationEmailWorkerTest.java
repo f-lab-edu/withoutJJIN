@@ -1,5 +1,6 @@
 package withoutjjin.withoutjjin.domain.invitation.worker;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -34,7 +35,8 @@ class InvitationEmailWorkerTest {
     private final Clock clock = Clock.fixed(now.atZone(ZoneId.of("Asia/Seoul")).toInstant(), ZoneId.of("Asia/Seoul"));
 
     @Test
-    void 한_작업의_DB오류가_다른_작업의_처리를_막지_않는다() {
+    @DisplayName("recoverTimedOut과 claim의 DB오류 후에도 후속 InvitationId를 처리한다")
+    void continuesProcessingAfterRecoveryAndClaimDatabaseFailures() {
         LocalDateTime cutoff = now.minusMinutes(5);
         when(transactions.findTimedOutIds(cutoff, 20)).thenReturn(List.of(10L, 11L));
         doThrow(new IllegalStateException("test recovery failure"))
@@ -55,7 +57,8 @@ class InvitationEmailWorkerTest {
             "/invite", "ftp://app.example.com/invite",
             "https://user:password@app.example.com/invite", "https://app.example.com/invite#fragment"
     })
-    void 잘못된_초대화면주소는_시작할_때_거부한다(String pageUrl) {
+    @DisplayName("잘못된 초대화면주소는 시작할 때 거부한다")
+    void rejectsInvalidInvitationPageUrlAtStartup(String pageUrl) {
         assertThatThrownBy(() -> worker(pageUrl)).isInstanceOf(IllegalArgumentException.class);
     }
 

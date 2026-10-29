@@ -1,5 +1,6 @@
-package withoutjjin.withoutjjin.domain.invitation.mail;
+package withoutjjin.withoutjjin.domain.invitation.token.mail;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,6 +16,7 @@ import software.amazon.awssdk.services.sesv2.SesV2Client;
 import software.amazon.awssdk.services.sesv2.model.MessageRejectedException;
 import software.amazon.awssdk.services.sesv2.model.SendEmailRequest;
 import software.amazon.awssdk.services.sesv2.model.SendEmailResponse;
+import withoutjjin.withoutjjin.domain.invitation.mail.InvitationEmailSender;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -41,7 +43,8 @@ class InvitationEmailSenderTest {
     }
 
     @Test
-    void 발신자_수신자_제목_본문을_전달하고_SES_접수번호를_반환한다() {
+    @DisplayName("발신자 수신자 제목 본문을 전달하고 SES 접수번호를 반환한다")
+    void sendsSenderRecipientSubjectAndBodyAndReturnsSesMessageId() {
         when(sesV2Client.sendEmail(any(SendEmailRequest.class)))
                 .thenReturn(SendEmailResponse.builder().messageId("test-message-id").build());
 
@@ -62,7 +65,8 @@ class InvitationEmailSenderTest {
     }
 
     @Test
-    void SES가_거부하면_예외를_작업자에게_전달한다() {
+    @DisplayName("SES가 거부하면 예외를 작업자에게 전달한다")
+    void propagatesSesRejectionToWorker() {
         MessageRejectedException failure = MessageRejectedException.builder()
                 .message("test rejection").build();
         when(sesV2Client.sendEmail(any(SendEmailRequest.class))).thenThrow(failure);
@@ -72,7 +76,8 @@ class InvitationEmailSenderTest {
     }
 
     @Test
-    void 통신_실패도_삼키지_않고_전달한다() {
+    @DisplayName("통신 실패도 삼키지 않고 전달한다")
+    void propagatesCommunicationFailure() {
         SdkClientException failure = SdkClientException.create("test connection failure");
         when(sesV2Client.sendEmail(any(SendEmailRequest.class))).thenThrow(failure);
 
@@ -83,21 +88,24 @@ class InvitationEmailSenderTest {
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = "   ")
-    void 수신자가_없으면_AWS를_호출하지_않는다(String targetEmail) {
+    @DisplayName("수신자가 없으면 AWS를 호출하지 않는다")
+    void doesNotCallAwsWithoutRecipient(String targetEmail) {
         assertThatThrownBy(() -> sender.sendInvitation(targetEmail, "A팀", LINK))
                 .isInstanceOf(IllegalArgumentException.class);
         verifyNoInteractions(sesV2Client);
     }
 
     @Test
-    void 발신자_설정이_비어있으면_생성하지_못한다() {
+    @DisplayName("발신자 설정이 비어있으면 생성하지 못한다")
+    void rejectsBlankSenderConfiguration() {
         assertThatThrownBy(() -> new InvitationEmailSender(sesV2Client, ""))
                 .isInstanceOf(IllegalArgumentException.class);
         verifyNoInteractions(sesV2Client);
     }
 
     @Test
-    void Spring이_설정한_발신자와_SES_클라이언트를_주입한다() {
+    @DisplayName("Spring이 설정한 발신자와 SES 클라이언트를 주입한다")
+    void injectsConfiguredSenderAndSesClient() {
         new ApplicationContextRunner()
                 .withBean(SesV2Client.class, () -> sesV2Client)
                 .withUserConfiguration(InvitationEmailSender.class)

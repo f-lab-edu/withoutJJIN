@@ -1,5 +1,6 @@
 package withoutjjin.withoutjjin.global.config;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -19,7 +20,8 @@ class SesConfigTest {
             .withPropertyValues("aws.ses.region=ap-northeast-2");
 
     @Test
-    void 설정에서_인증정보와_리전을_읽어_SES_클라이언트를_생성한다() {
+    @DisplayName("설정에서 인증정보와 리전을 읽어 SES 클라이언트를 생성한다")
+    void createsSesClientFromConfiguredCredentialsAndRegion() {
         // 실제 AWS 키나 네트워크 호출을 사용하지 않는다.
         contextRunner.withPropertyValues(
                 "aws.credentials.access-key-id=local-test-key-id",
@@ -35,7 +37,8 @@ class SesConfigTest {
     }
 
     @Test
-    void 키를_직접_설정하지_않으면_기본_인증정보_탐색을_사용한다() {
+    @DisplayName("키를 직접 설정하지 않으면 기본 인증정보 탐색을 사용한다")
+    void usesDefaultCredentialsProviderWithoutExplicitKeys() {
         contextRunner.run(context -> {
             assertThat(context).hasNotFailed().hasSingleBean(SesV2Client.class);
             assertThat(context.getBean(AwsCredentialsProvider.class))
@@ -49,7 +52,8 @@ class SesConfigTest {
             "aws.credentials.access-key-id=local-test-key-id",
             "aws.credentials.secret-access-key=local-test-secret"
     })
-    void 키_두개_중_하나만_설정하면_시작하지_않는다(String partialCredentials) {
+    @DisplayName("키 두개 중 하나만 설정하면 시작하지 않는다")
+    void rejectsPartiallyConfiguredCredentials(String partialCredentials) {
         contextRunner.withPropertyValues(partialCredentials).run(context -> {
             assertThat(context).hasFailed();
             assertThat(context.getStartupFailure()).hasRootCauseInstanceOf(IllegalArgumentException.class);
@@ -57,7 +61,8 @@ class SesConfigTest {
     }
 
     @Test
-    void 빈_리전은_거부한다() {
+    @DisplayName("빈 리전은 거부한다")
+    void rejectsBlankRegion() {
         contextRunner.withPropertyValues("aws.ses.region=").run(context -> {
             assertThat(context).hasFailed();
             assertThat(context.getStartupFailure()).hasRootCauseInstanceOf(IllegalArgumentException.class);

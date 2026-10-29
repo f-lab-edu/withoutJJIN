@@ -1,5 +1,6 @@
 package withoutjjin.withoutjjin.domain.invitation;
 
+import org.junit.jupiter.api.DisplayName;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -75,7 +76,8 @@ class InvitationAcceptanceIntegrationTest {
     }
 
     @Test
-    void 로그인_전에도_유효한_초대의_최소_정보를_확인한다() throws Exception {
+    @DisplayName("로그인 전에도 유효한 초대의 최소 정보를 확인한다")
+    void previewsMinimalInvitationDetailsBeforeLogin() throws Exception {
         mockMvc.perform(get("/api/v1/invitations").param("token", token))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Cache-Control", "no-store"))
@@ -91,7 +93,8 @@ class InvitationAcceptanceIntegrationTest {
     }
 
     @Test
-    void 없는_토큰의_확인과_수락은_404를_반환한다() throws Exception {
+    @DisplayName("없는 토큰의 확인과 수락은 404를 반환한다")
+    void returns404ForPreviewAndAcceptanceWithUnknownToken() throws Exception {
         String unknown = tokens.generateToken();
         mockMvc.perform(get("/api/v1/invitations").param("token", unknown))
                 .andExpect(status().isNotFound());
@@ -99,20 +102,23 @@ class InvitationAcceptanceIntegrationTest {
     }
 
     @Test
-    void 확인_요청에_토큰이_없으면_400을_반환한다() throws Exception {
+    @DisplayName("확인 요청에 토큰이 없으면 400을 반환한다")
+    void returns400ForPreviewWithoutToken() throws Exception {
         mockMvc.perform(get("/api/v1/invitations"))
                 .andExpect(status().isBadRequest());
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"", "   "})
-    void 빈_토큰의_확인은_400을_반환한다(String value) throws Exception {
+    @DisplayName("빈 토큰의 확인은 400을 반환한다")
+    void returns400ForPreviewWithBlankToken(String value) throws Exception {
         mockMvc.perform(get("/api/v1/invitations").param("token", value))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
-    void 너무_긴_토큰은_확인과_수락에서_거부한다() throws Exception {
+    @DisplayName("너무 긴 토큰은 확인과 수락에서 거부한다")
+    void rejectsOversizedTokenForPreviewAndAcceptance() throws Exception {
         String tooLong = "a".repeat(257);
         mockMvc.perform(get("/api/v1/invitations").param("token", tooLong))
                 .andExpect(status().isBadRequest());
@@ -121,7 +127,8 @@ class InvitationAcceptanceIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(ints = {-1, 0})
-    void 만료시각이_현재와_같거나_지났으면_확인과_수락을_거부한다(int seconds) throws Exception {
+    @DisplayName("만료시각이 현재와 같거나 지났으면 확인과 수락을 거부한다")
+    void rejectsPreviewAndAcceptanceAtOrAfterExpiry(int seconds) throws Exception {
         invitation = saveInvitation(NOW.plusSeconds(seconds));
         mockMvc.perform(get("/api/v1/invitations").param("token", token))
                 .andExpect(status().isGone());
@@ -130,7 +137,8 @@ class InvitationAcceptanceIntegrationTest {
     }
 
     @Test
-    void 취소된_초대는_확인과_수락을_거부한다() throws Exception {
+    @DisplayName("취소된 초대는 확인과 수락을 거부한다")
+    void rejectsPreviewAndAcceptanceOfCanceledInvitation() throws Exception {
         entityManager.createQuery("update Invitation i set i.invitationStatus = :status where i.id = :id")
                 .setParameter("status", InvitationStatus.CANCELED).setParameter("id", invitation.getId())
                 .executeUpdate();
@@ -142,7 +150,8 @@ class InvitationAcceptanceIntegrationTest {
     }
 
     @Test
-    void 인증된_초대_이메일의_회원이_수락하면_멤버와_초대_상태를_저장한다() throws Exception {
+    @DisplayName("인증된 초대 이메일의 회원이 수락하면 멤버와 초대 상태를 저장한다")
+    void savesMembershipAndAcceptedStateForVerifiedInvitee() throws Exception {
         accept(token, loginAs(invitee, true))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Cache-Control", "no-store"))
@@ -161,7 +170,8 @@ class InvitationAcceptanceIntegrationTest {
     }
 
     @Test
-    void 로그인_이메일과_초대_이메일은_대소문자를_구분하지_않고_비교한다() throws Exception {
+    @DisplayName("로그인 이메일과 초대 이메일은 대소문자를 구분하지 않고 비교한다")
+    void comparesLoginAndInvitationEmailsIgnoringCase() throws Exception {
         OidcLoginRequestPostProcessor login = oidcLogin().idToken(t -> t
                 .claim("iss", invitee.getIssuer()).subject(invitee.getSubject())
                 .claim("email", invitee.getEmail().toUpperCase(java.util.Locale.ROOT))
@@ -170,19 +180,22 @@ class InvitationAcceptanceIntegrationTest {
     }
 
     @Test
-    void 다른_이메일_계정은_수락할_수_없다() throws Exception {
+    @DisplayName("다른 이메일 계정은 수락할 수 없다")
+    void rejectsAcceptanceWithDifferentEmail() throws Exception {
         accept(token, loginAs(creator, true)).andExpect(status().isForbidden());
         assertNotJoined();
     }
 
     @Test
-    void DB에서_이메일이_인증됐어도_현재_로그인_결과가_미인증이면_거부한다() throws Exception {
+    @DisplayName("DB에서 이메일이 인증됐어도 현재 로그인 결과가 미인증이면 거부한다")
+    void rejectsUnverifiedLoginEvenWhenDatabaseEmailIsVerified() throws Exception {
         accept(token, loginAs(invitee, false)).andExpect(status().isForbidden());
         assertNotJoined();
     }
 
     @Test
-    void 현재_로그인_결과에_이메일_인증_정보가_없어도_거부한다() throws Exception {
+    @DisplayName("현재 로그인 결과에 이메일 인증 정보가 없어도 거부한다")
+    void rejectsLoginWithoutEmailVerificationClaim() throws Exception {
         OidcLoginRequestPostProcessor login = oidcLogin().idToken(t -> t
                 .claim("iss", invitee.getIssuer()).subject(invitee.getSubject())
                 .claim("email", invitee.getEmail()));
@@ -191,7 +204,8 @@ class InvitationAcceptanceIntegrationTest {
     }
 
     @Test
-    void 요청본문에_초대이메일과_인증여부를_넣어도_로그인계정을_대신할_수_없다() throws Exception {
+    @DisplayName("요청본문에 초대이메일과 인증여부를 넣어도 로그인계정을 대신할 수 없다")
+    void doesNotTrustEmailAndVerificationFieldsInRequestBody() throws Exception {
         mockMvc.perform(post("/api/v1/invitations/accept").with(loginAs(creator, true))
                         .with(csrf().asHeader()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"token\":\"" + token + "\",\"email\":\"" + invitee.getEmail()
@@ -201,7 +215,8 @@ class InvitationAcceptanceIntegrationTest {
     }
 
     @Test
-    void 같은_수락_요청은_만료_후_재전송해도_중복가입_없이_성공한다() throws Exception {
+    @DisplayName("같은 수락 요청은 만료 후 재전송해도 중복가입 없이 성공한다")
+    void acceptsRepeatedRequestAfterExpiryWithoutDuplicateMembership() throws Exception {
         accept(token, loginAs(invitee, true)).andExpect(status().isOk());
         long count = members.count();
         when(clock.instant()).thenReturn(NOW.plusDays(2).atZone(ZONE).toInstant());
@@ -210,7 +225,8 @@ class InvitationAcceptanceIntegrationTest {
     }
 
     @Test
-    void 이미_멤버인_상태에서_유효한_초대를_수락해도_중복가입하지_않는다() throws Exception {
+    @DisplayName("이미 멤버인 상태에서 유효한 초대를 수락해도 중복가입하지 않는다")
+    void acceptsValidInvitationWithoutDuplicatingExistingMembership() throws Exception {
         members.saveAndFlush(new WorkspaceMember(workspace, invitee));
         long count = members.count();
         accept(token, loginAs(invitee, true)).andExpect(status().isOk());
@@ -218,14 +234,16 @@ class InvitationAcceptanceIntegrationTest {
     }
 
     @Test
-    void 이미_수락한_링크는_미리보기에서_409를_반환한다() throws Exception {
+    @DisplayName("이미 수락한 링크는 미리보기에서 409를 반환한다")
+    void returns409ForPreviewOfAcceptedInvitation() throws Exception {
         accept(token, loginAs(invitee, true)).andExpect(status().isOk());
         mockMvc.perform(get("/api/v1/invitations").param("token", token))
                 .andExpect(status().isConflict());
     }
 
     @Test
-    void 탈퇴한_회원은_사용했던_초대링크로_다시_가입하지_못한다() throws Exception {
+    @DisplayName("탈퇴한 회원은 사용했던 초대링크로 다시 가입하지 못한다")
+    void preventsFormerMemberFromRejoiningWithUsedInvitation() throws Exception {
         accept(token, loginAs(invitee, true)).andExpect(status().isOk());
         entityManager.createQuery("delete from WorkspaceMember m where m.workspace.id = :workspaceId and m.user.id = :userId")
                 .setParameter("workspaceId", workspace.getId()).setParameter("userId", invitee.getId())
@@ -236,14 +254,16 @@ class InvitationAcceptanceIntegrationTest {
     }
 
     @Test
-    void 비로그인_수락은_401을_반환한다() throws Exception {
+    @DisplayName("비로그인 수락은 401을 반환한다")
+    void returns401ForAnonymousAcceptance() throws Exception {
         mockMvc.perform(post("/api/v1/invitations/accept").with(csrf().asHeader())
                         .contentType(MediaType.APPLICATION_JSON).content(body(token)))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
-    void CSRF토큰_없이_수락하면_403을_반환한다() throws Exception {
+    @DisplayName("CSRF토큰 없이 수락하면 403을 반환한다")
+    void returns403ForAcceptanceWithoutCsrfToken() throws Exception {
         mockMvc.perform(post("/api/v1/invitations/accept").with(loginAs(invitee, true))
                         .contentType(MediaType.APPLICATION_JSON).content(body(token)))
                 .andExpect(status().isForbidden());
@@ -252,7 +272,8 @@ class InvitationAcceptanceIntegrationTest {
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = {"   "})
-    void 빈_수락_토큰은_400을_반환한다(String value) throws Exception {
+    @DisplayName("빈 수락 토큰은 400을 반환한다")
+    void returns400ForAcceptanceWithBlankToken(String value) throws Exception {
         accept(value, loginAs(invitee, true)).andExpect(status().isBadRequest());
     }
 
