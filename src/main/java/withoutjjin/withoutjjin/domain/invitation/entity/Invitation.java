@@ -15,10 +15,13 @@ import java.util.Objects;
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@Table(name = "invitation", indexes = @Index(
+@Table(name = "invitation", indexes = {@Index(
         name = "idx_invitation_email_schedule",
         columnList = "invitation_status,email_send_status,next_retry_at,expires_at"
-))
+), @Index(
+        name = "idx_invitation_email_processing",
+        columnList = "email_send_status,processing_started_at"
+)})
 public class Invitation {
 
     // 최초 발송을 제외하고 최대 3회 재시도한다.
@@ -101,23 +104,12 @@ public class Invitation {
 
     public void startProcessing(LocalDateTime now) {
         Objects.requireNonNull(now, "처리 시작 시각이 필요합니다.");
-
-        if (invitationStatus != InvitationStatus.PENDING || !expiresAt.isAfter(now)) {
-            throw new IllegalStateException("유효한 대기 중 초대만 발송할 수 있습니다.");
-        }
-
-        if (encryptedToken == null || encryptedToken.isBlank()) {
-            throw new IllegalStateException("발송할 초대 토큰 암호문이 없습니다.");
+        if (!isReadyToSend(now)) {
+            throw new IllegalStateException("발송 가능한 초대의 처리만 시작할 수 있습니다.");
         }
 
         if (emailSendStatus == EmailSendStatus.FAILED) {
-            if (nextRetryAt == null || nextRetryAt.isAfter(now)
-                    || retryCount >= RETRY_DELAYS_SECONDS.length) {
-                throw new IllegalStateException("재시도할 수 있는 시점이나 상태가 아닙니다.");
-            }
             retryCount++;
-        } else if (emailSendStatus != EmailSendStatus.PENDING) {
-            throw new IllegalStateException("이미 처리 중이거나 발송 요청이 접수된 초대입니다.");
         }
 
         emailSendStatus = EmailSendStatus.PROCESSING;
@@ -125,8 +117,19 @@ public class Invitation {
         nextRetryAt = null;
     }
 
+    public boolean isReadyToSend(LocalDateTime now) {
+        Objects.requireNonNull(now, "조회 시각이 필요합니다.");
+        if (invitationStatus != InvitationStatus.PENDING || !expiresAt.isAfter(now)
+                || encryptedToken == null || encryptedToken.isBlank()) {
+            return false;
+        }
+        return emailSendStatus == EmailSendStatus.PENDING
+                || (emailSendStatus == EmailSendStatus.FAILED && nextRetryAt != null
+                && !nextRetryAt.isAfter(now) && retryCount < RETRY_DELAYS_SECONDS.length);
+    }
+
     public void markSubmitted() {
-        ensureProcessing();
+        ensureProcessing(); // 처리 상태인지 확인
 
         // SUBMITTED는 메일 서비스의 요청 접수 성공이며, 메일함 배달 완료는 아니다.
         emailSendStatus = EmailSendStatus.SUBMITTED;
@@ -137,7 +140,7 @@ public class Invitation {
 
     public void markFailed(LocalDateTime now, boolean retryable) {
         Objects.requireNonNull(now, "실패 시각이 필요합니다.");
-        ensureProcessing();
+        ensureProcessing(); // 준비상태인지 확인
 
         emailSendStatus = EmailSendStatus.FAILED;
         processingStartedAt = null;

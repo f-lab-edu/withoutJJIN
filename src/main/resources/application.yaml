@@ -40,6 +40,15 @@ spring:
 invitation:
   token:
     encryption-key: ${INVITATION_TOKEN_ENCRYPTION_KEY}
+  mail:
+    # 명시적으로 켠 환경에서만 대기 중인 초대 메일을 자동 발송한다.
+    enabled: ${INVITATION_MAIL_ENABLED:false}
+    # 개발 발송을 특정 수신 주소로 제한한다. 비어 있으면 수신 주소를 제한하지 않는다.
+    allowed-recipient: ${INVITATION_MAIL_ALLOWED_RECIPIENT:}
+    # 한 번의 처리가 끝난 뒤 다음 실행까지 기다리는 시간이다.
+    poll-delay: ${INVITATION_MAIL_POLL_DELAY:10s}
+    # 초대 확인 화면 주소. 실제 배포 시 프론트엔드 주소로 설정한다.
+    page-url: ${INVITATION_PAGE_URL:http://localhost:8080/invite}
 
 aws:
   credentials:
