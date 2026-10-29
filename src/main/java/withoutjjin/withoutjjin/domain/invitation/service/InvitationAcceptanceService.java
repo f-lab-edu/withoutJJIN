@@ -47,8 +47,10 @@ public class InvitationAcceptanceService {
                 .orElseThrow(this::notFound);
         validatePending(invitation, LocalDateTime.now(clock));
         return new InvitationPreviewResponse(
-                invitation.getWorkspace().getId(), invitation.getWorkspace().getName(),
-                invitation.getInvitationStatus(), invitation.getExpiresAt()
+                invitation.getWorkspace().getId(),
+                invitation.getWorkspace().getName(),
+                invitation.getInvitationStatus(),
+                invitation.getExpiresAt()
         );
     }
 
@@ -56,11 +58,16 @@ public class InvitationAcceptanceService {
     public InvitationAcceptanceResponse acceptInvitation(
             String token, String issuer, String subject, String authenticatedEmail, boolean emailVerified
     ) {
-        if (!emailVerified || authenticatedEmail == null || authenticatedEmail.isBlank()) {
+        if (!emailVerified ||
+                authenticatedEmail == null ||
+                authenticatedEmail.isBlank())
+        {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "인증된 이메일이 있는 계정으로 로그인해 주세요.");
         }
+
         Invitation invitation = invitations.findByTokenHashForUpdate(tokens.hashToken(token))
                 .orElseThrow(this::notFound);
+
         if (!invitation.getTargetEmail().equalsIgnoreCase(authenticatedEmail)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "초대받은 이메일의 Google 계정으로 로그인해 주세요.");
         }

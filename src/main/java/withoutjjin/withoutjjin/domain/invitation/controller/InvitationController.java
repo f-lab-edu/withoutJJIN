@@ -35,7 +35,8 @@ public class InvitationController {
     private final InvitationAcceptanceService invitationAcceptanceService;
 
     // 링크를 가진 사람에게만 최소한의 초대 정보를 보여 준다. 이메일과 토큰은 반환하지 않는다.
-    @GetMapping("/invitations")
+    @GetMapping("/invitations") //토큰으로 초대를 조회하고 유효한 초대 정보 반환
+
     public ResponseEntity<InvitationPreviewResponse> previewInvitation(
             @RequestParam @NotBlank @Size(max = 256) String token
     ) {
@@ -56,8 +57,10 @@ public class InvitationController {
                 ));
     }
 
+
+
     @GetMapping("/workspaces/{workspaceId}/invitations/{invitationId}")
-    public ResponseEntity<InvitationStatusResponse> getInvitationStatus(
+    public ResponseEntity<InvitationStatusResponse> getInvitationStatus( // 초대 상태 조회
             @AuthenticationPrincipal OidcUser oidcUser,
             @PathVariable Long workspaceId,
             @PathVariable Long invitationId
@@ -68,7 +71,7 @@ public class InvitationController {
     }
 
     @PostMapping("/workspaces/{workspaceId}/invitations")
-    public ResponseEntity<InvitationResponse> createInvitation(
+    public ResponseEntity<InvitationResponse> createInvitation( // 초대 생성
             @AuthenticationPrincipal OidcUser oidcUser,
             @PathVariable Long workspaceId,
             @Valid @RequestBody CreateRequestInvitation request

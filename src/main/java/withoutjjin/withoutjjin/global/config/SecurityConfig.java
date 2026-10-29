@@ -7,11 +7,18 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
+import org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizationRequestResolver;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
+import org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler;
+import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
+import org.springframework.security.web.savedrequest.RequestCache;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import withoutjjin.withoutjjin.domain.auth.controller.handler.ApiAuthenticationEntryPoint;
 import withoutjjin.withoutjjin.domain.auth.controller.handler.OAuth2LoginFailureHandler;
 import withoutjjin.withoutjjin.domain.auth.oauth.CustomOidcUserService;
+import withoutjjin.withoutjjin.domain.auth.oauth.InvitationAuthorizationRequestResolver;
 
 @Configuration
 @RequiredArgsConstructor
@@ -19,14 +26,35 @@ public class SecurityConfig {
 
     private final CustomOidcUserService customOidcUserService;
     private final ApiAuthenticationEntryPoint apiAuthenticationEntryPoint;
-    private final OAuth2LoginFailureHandler oAuth2LoginFailureHandler;
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http)
+    public RequestCache loginRequestCache() {
+        HttpSessionRequestCache cache = new HttpSessionRequestCache();
+        // 초대 로그인 복귀 주소만 저장한다. API 요청이나 외부 returnUrl은 저장하지 않는다.
+        cache.setRequestMatcher(PathPatternRequestMatcher.withDefaults()
+                .matcher(HttpMethod.GET, "/invite/continue"));
+        return cache;
+    }
+
+    @Bean
+    public SavedRequestAwareAuthenticationSuccessHandler loginSuccessHandler(RequestCache requestCache) {
+        SavedRequestAwareAuthenticationSuccessHandler handler = new SavedRequestAwareAuthenticationSuccessHandler();
+        handler.setRequestCache(requestCache);
+        handler.setDefaultTargetUrl("/");
+        return handler;
+    }
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http, RequestCache requestCache,
+            SavedRequestAwareAuthenticationSuccessHandler loginSuccessHandler,
+            OAuth2LoginFailureHandler oAuth2LoginFailureHandler,
+            ClientRegistrationRepository clientRegistrations)
             throws Exception {
         http
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, "/api/v1/invitations").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/invite", "/invite.html").permitAll()
                         .requestMatchers(
                                 "/",
                                 "/index.html",
@@ -36,7 +64,12 @@ public class SecurityConfig {
                         ).permitAll() //permitAll(): 로그인 전에도 접근 허용.
                         .anyRequest().authenticated() //나머지 요청은 로그인 필요.
                 )
+                .requestCache(cache -> cache.requestCache(requestCache))
                 .exceptionHandling(exceptions -> exceptions//인증·접근 거부와 관련된 예외를 어떻게 처리할지 설정
+                .defaultAuthenticationEntryPointFor(
+                        new LoginUrlAuthenticationEntryPoint("/oauth2/authorization/google"),
+                        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/invite/continue")
+                )
                 .defaultAuthenticationEntryPointFor(
                         apiAuthenticationEntryPoint, // 인증이 필요할 때 실행할 처리 객체
                         PathPatternRequestMatcher
@@ -45,7 +78,11 @@ public class SecurityConfig {
                 )
                 )
                 .oauth2Login(oauth -> oauth
-                        .defaultSuccessUrl("/", true) // 로그인 후 테스트 화면으로 돌아온다.
+                        .successHandler(loginSuccessHandler) // 초대에서 시작했으면 초대 화면으로 복귀한다.
+                        .authorizationEndpoint(endpoint -> endpoint.authorizationRequestResolver(
+                                new InvitationAuthorizationRequestResolver(
+                                        new DefaultOAuth2AuthorizationRequestResolver(
+                                                clientRegistrations, "/oauth2/authorization"), requestCache)))
                         .userInfoEndpoint(userInfo -> userInfo
                                 .oidcUserService(customOidcUserService)
                                 //Google 사용자 정보를 처리할 때 우리가 만든 클래스를 사용하도록 연결.
