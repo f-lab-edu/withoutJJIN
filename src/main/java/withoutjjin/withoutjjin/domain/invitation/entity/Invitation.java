@@ -162,6 +162,17 @@ public class Invitation {
         encryptedToken = null;
     }
 
+    public void accept(LocalDateTime now) {
+        Objects.requireNonNull(now, "수락 시각이 필요합니다.");
+        if (invitationStatus != InvitationStatus.PENDING || !expiresAt.isAfter(now)) {
+            throw new IllegalStateException("유효한 대기 상태의 초대만 수락할 수 있습니다.");
+        }
+        invitationStatus = InvitationStatus.ACCEPTED;
+        encryptedToken = null;
+        nextRetryAt = null;
+        // 이미 진행 중인 SES 요청은 이후 작업자가 결과를 기록할 수 있게 처리 시각을 유지한다.
+    }
+
     private void ensureProcessing() {
         if (emailSendStatus != EmailSendStatus.PROCESSING) {
             throw new IllegalStateException("처리 중인 발송 작업만 결과를 기록할 수 있습니다.");

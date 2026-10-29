@@ -16,6 +16,12 @@ import java.util.Optional;
 
 public interface InvitationRepository extends JpaRepository<Invitation, Long> {
 
+    Optional<Invitation> findByTokenHash(String tokenHash);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select i from Invitation i where i.tokenHash = :tokenHash")
+    Optional<Invitation> findByTokenHashForUpdate(@Param("tokenHash") String tokenHash);
+
     Optional<Invitation> findByIdAndWorkspaceId(Long id, Long workspaceId);
 
     boolean existsByWorkspaceIdAndTargetEmailAndInvitationStatusAndExpiresAtAfter(
