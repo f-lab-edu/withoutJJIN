@@ -1,5 +1,6 @@
 package withoutjjin.withoutjjin.domain.auth;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -29,7 +30,8 @@ class AuthIntegrationTest {
     private AppUserRepository repository;
 
     @Test
-    void 로그인하지_않으면_내_정보_조회는_401이다() throws Exception { // 인증없이 접근
+    @DisplayName("로그인하지 않으면 내 정보 조회는 401이다")
+    void returns401ForAnonymousProfileRequest() throws Exception { // 인증없이 접근
         mockMvc.perform(get("/api/v1/auth/me"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("AUTH_REQUIRED"));
@@ -37,7 +39,8 @@ class AuthIntegrationTest {
 
 
     @Test
-    void 로그인한_회원의_정보를_조회한다() throws Exception {
+    @DisplayName("로그인한 회원의 정보를 조회한다")
+    void returnsAuthenticatedUserProfile() throws Exception {
         String issuer = "https://accounts.google.com";
         String subject = UUID.randomUUID().toString();
 
@@ -63,14 +66,16 @@ class AuthIntegrationTest {
     }
 
     @Test
-    void CSRF_토큰_없이_로그아웃하면_403이다() throws Exception { // 세션으로 사용자를 판별할수없어서 CSRF토큰으로 판별
+    @DisplayName("CSRF 토큰 없이 로그아웃하면 403이다")
+    void rejectsLogoutWithoutCsrfToken() throws Exception { // 세션으로 사용자를 판별할수없어서 CSRF토큰으로 판별
         mockMvc.perform(post("/api/v1/auth/logout")
                         .with(oidcLogin()))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void 유효한_CSRF_토큰으로_로그아웃하면_204이다() throws Exception {
+    @DisplayName("유효한 CSRF 토큰으로 로그아웃하면 204이다")
+    void logsOutWithValidCsrfToken() throws Exception {
         mockMvc.perform(post("/api/v1/auth/logout")
                         .with(oidcLogin())
                         .with(csrf()))

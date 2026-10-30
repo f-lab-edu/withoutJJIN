@@ -1,6 +1,7 @@
 package withoutjjin.withoutjjin.domain.workspace;
 
 
+import org.junit.jupiter.api.DisplayName;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
 import org.junit.jupiter.api.Test;
@@ -35,7 +36,8 @@ public class WorkspaceRepositoryTest {
     @Autowired
     EntityManager em;
     @Test
-    void 워크스페이스와_멤버십을_저장하고_관계를_조회한다() throws Exception { // 인증없이 접근
+    @DisplayName("워크스페이스와 멤버십을 저장하고 관계를 조회한다")
+    void savesWorkspaceAndMembershipAndLoadsRelationships() throws Exception { // 인증없이 접근
 
 
         String issuer = "https://accounts.google.com";
@@ -99,7 +101,8 @@ public class WorkspaceRepositoryTest {
     }
 
     @Test
-    void 같은_팀에_같은_회원을_중복_등록할_수_없다() {
+    @DisplayName("같은 팀에 같은 회원을 중복 등록할 수 없다")
+    void rejectsDuplicateMembershipForSameWorkspaceAndUser() {
         AppUser user = appUserRepository.save(
                 new AppUser(
                         "https://accounts.google.com",

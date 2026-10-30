@@ -6,13 +6,22 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
+import org.springframework.security.web.savedrequest.RequestCache;
+import org.springframework.security.web.savedrequest.SavedRequest;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.net.URI;
 
 @Component
 public class OAuth2LoginFailureHandler   implements AuthenticationFailureHandler {
+
+    private final RequestCache requestCache;
+
+    public OAuth2LoginFailureHandler(RequestCache requestCache) {
+        this.requestCache = requestCache;
+    }
 
 
     @Override
@@ -28,6 +37,23 @@ public class OAuth2LoginFailureHandler   implements AuthenticationFailureHandler
 
         if (exception instanceof OAuth2AuthenticationException oauthException) {
             errorCode = oauthException.getError().getErrorCode();
+        }
+
+        SavedRequest saved = requestCache.getRequest(request, response);
+        boolean invitationLogin = saved != null && "GET".equals(saved.getMethod())
+                && (request.getContextPath() + "/invite/continue")
+                .equals(URI.create(saved.getRedirectUrl()).getPath());
+        requestCache.removeRequest(request, response);
+        if (invitationLogin) {
+            String reason = switch (errorCode) {
+                case "access_denied" -> "LOGIN_CANCELED";
+                case "authorization_request_not_found", "invalid_state_parameter" -> "OAUTH_STATE_INVALID";
+                default -> "GOOGLE_AUTH_FAILED";
+            };
+            // 고정된 내부 화면으로만 이동한다. 예외 내용이나 초대 토큰을 URL에 넣지 않는다.
+            response.setStatus(HttpServletResponse.SC_SEE_OTHER);
+            response.setHeader("Location", "/invite?loginError=" + reason);
+            return;
         }
 
         // 로그인 시도 기록이 없거나 state가 일치하지 않는 경우

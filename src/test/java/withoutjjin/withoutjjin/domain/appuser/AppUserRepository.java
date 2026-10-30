@@ -1,11 +1,11 @@
-package withoutjjin.withoutjjin;
+package withoutjjin.withoutjjin.domain.appuser;
 
+import org.junit.jupiter.api.DisplayName;
 import jakarta.persistence.EntityManager;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 import withoutjjin.withoutjjin.domain.user.entity.AppUser;
 import withoutjjin.withoutjjin.domain.user.repository.AppUserRepository;
@@ -23,7 +23,8 @@ class AppUserRepositoryTest {
     // 트랜잭션test리스너가 테스트 전후 데이터를 관리하는 해서 flush 날려도 커밋하지않고 롤백
 
     @Test
-    void 회원을_저장하고_Google계정으로_조회한다() {
+    @DisplayName("회원을 저장하고 Google계정으로 조회한다")
+    void savesUserAndFindsByGoogleAccount() {
         AppUser user = new AppUser(
                 "https://accounts.google.com",
                 "test-google-account-001",

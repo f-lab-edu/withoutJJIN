@@ -1,5 +1,6 @@
 package withoutjjin.withoutjjin.domain.auth.controller.handler;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -7,6 +8,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2Error;
+import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
 
 import java.io.IOException;
 
@@ -15,7 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class OAuth2LoginFailureHandlerTest {
 
     private final OAuth2LoginFailureHandler handler =
-            new OAuth2LoginFailureHandler();
+            new OAuth2LoginFailureHandler(new HttpSessionRequestCache());
 
     // MockHttpServletRequest 테스트용 HTTP 요청 객체
     // MockHttpServletResponse 상태·헤더·본문을 기록해서 확인할 수 있는 테스트용 응답 객체
@@ -33,7 +35,8 @@ class OAuth2LoginFailureHandlerTest {
 
 
     @Test
-    void 접근을_거부하면_취소안내로_이동한다() throws IOException {
+    @DisplayName("접근을 거부하면 취소안내로 이동한다")
+    void redirectsAccessDeniedToCancellationNotice() throws IOException {
         MockHttpServletResponse response = handleFailure("access_denied");
         assertThat(response.getStatus()).isEqualTo(303);
         assertThat(response.getHeader("Location"))
@@ -46,7 +49,8 @@ class OAuth2LoginFailureHandlerTest {
             "authorization_request_not_found",
             "invalid_state_parameter"
     })
-    void 로그인시도_연결에_실패하면_400을_반환한다(
+    @DisplayName("로그인시도 연결에 실패하면 400을 반환한다")
+    void returns400WhenLoginAttemptCannotBeMatched(
             String errorCode
     ) throws IOException {
         MockHttpServletResponse response = handleFailure(errorCode);
@@ -61,7 +65,8 @@ class OAuth2LoginFailureHandlerTest {
 
 
     @Test
-    void 그외_인증실패는_일반실패안내로_이동한다() throws IOException {
+    @DisplayName("그외 인증실패는 일반실패안내로 이동한다")
+    void redirectsOtherAuthenticationFailuresToFailureNotice() throws IOException {
         MockHttpServletResponse response = handleFailure("invalid_token");
 
         assertThat(response.getStatus()).isEqualTo(303);
