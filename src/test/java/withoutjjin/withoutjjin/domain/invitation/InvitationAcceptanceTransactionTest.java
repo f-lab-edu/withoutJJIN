@@ -6,6 +6,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
@@ -38,7 +39,8 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
 // 테스트 트랜잭션을 열지 않고, 실제 서비스의 커밋·롤백과 동시 호출을 검사한다.
-@SpringBootTest(properties = "invitation.mail.enabled=false")
+@SpringBootTest
+@ActiveProfiles("test")
 class InvitationAcceptanceTransactionTest {
 
     private static final ZoneId ZONE = ZoneId.of("Asia/Seoul");

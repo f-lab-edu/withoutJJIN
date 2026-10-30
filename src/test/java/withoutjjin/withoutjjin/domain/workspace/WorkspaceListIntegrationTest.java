@@ -5,6 +5,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -30,7 +31,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 // Controller가 Service 밖에서 DTO로 변환해도 필요한 팀 정보를 사용할 수 있어야 한다.
-@SpringBootTest(properties = "spring.jpa.open-in-view=false")
+@SpringBootTest
+@ActiveProfiles("test")
 @AutoConfigureMockMvc
 class WorkspaceListIntegrationTest {
 

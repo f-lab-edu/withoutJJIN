@@ -6,6 +6,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.data.domain.Pageable;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -52,6 +53,7 @@ import static org.mockito.Mockito.when;
 
 // 테스트 전체 트랜잭션을 사용하지 않아, 실제 서비스의 커밋과 잠금 범위를 확인한다.
 @SpringBootTest(properties = "invitation.mail.page-url=https://app.example.com/invite")
+@ActiveProfiles("test")
 class InvitationEmailWorkerIntegrationTest {
 
     private static final ZoneId ZONE = ZoneId.of("Asia/Seoul");

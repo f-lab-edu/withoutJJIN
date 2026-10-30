@@ -1,0 +1,11 @@
+# Spring 통합 테스트 공통 설정. @ActiveProfiles("test")로 적용한다.
+spring:
+  jpa:
+    open-in-view: false
+
+invitation:
+  mail:
+    # 로컬 실행에서 자동 발송을 켜 두어도 테스트에서는 스케줄러를 시작하지 않는다.
+    enabled: false
+    # 발송 조회 테스트가 특정 개발용 수신 주소에 종속되지 않도록 한다.
+    allowed-recipient: ""
