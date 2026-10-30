@@ -7,6 +7,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -35,7 +36,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 // 테스트 전체의 영속성 컨텍스트에 기대지 않고, Service에서 준비한 응답으로 조회되는지 검사한다.
-@SpringBootTest(properties = {"spring.jpa.open-in-view=false", "invitation.mail.enabled=false"})
+@SpringBootTest
+@ActiveProfiles("test")
 @AutoConfigureMockMvc
 class WorkspaceDetailIntegrationTest {
 

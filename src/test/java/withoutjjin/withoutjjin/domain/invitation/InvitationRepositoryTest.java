@@ -5,6 +5,7 @@ import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 import withoutjjin.withoutjjin.domain.invitation.entity.EmailSendStatus;
 import withoutjjin.withoutjjin.domain.invitation.entity.Invitation;
@@ -24,6 +25,7 @@ import java.util.UUID;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
 @SpringBootTest
+@ActiveProfiles("test")
 @Transactional
 class InvitationRepositoryTest {
 
