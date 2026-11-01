@@ -9,3 +9,6 @@ invitation:
     enabled: false
     # 발송 조회 테스트가 특정 개발용 수신 주소에 종속되지 않도록 한다.
     allowed-recipient: ""
+aws:
+  s3:
+    bucket: ftfm-test-bucket
