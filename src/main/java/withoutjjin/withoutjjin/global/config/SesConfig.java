@@ -17,7 +17,7 @@ import java.time.Duration;
 public class SesConfig {
 
     @Bean
-    public AwsCredentialsProvider sesCredentialsProvider(
+    public AwsCredentialsProvider awsCredentialsProvider(
             @Value("${aws.credentials.access-key-id:}") String accessKeyId,
             @Value("${aws.credentials.secret-access-key:}") String secretAccessKey
     ) {
