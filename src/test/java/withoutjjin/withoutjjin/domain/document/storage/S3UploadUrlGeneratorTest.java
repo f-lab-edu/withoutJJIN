@@ -46,7 +46,10 @@ class S3UploadUrlGeneratorTest {
                     generator, "uploadUrlExpiration", "5m"
             );
 
+            Instant before = Instant.now();
             GeneratedUploadUrl result = generator.generate(10L);
+            Instant after = Instant.now();
+
             URI uri = URI.create(result.uploadUrl());
 
             assertThat(uri.getScheme()).isEqualTo("https");
@@ -56,12 +59,23 @@ class S3UploadUrlGeneratorTest {
                     .startsWith("workspaces/10/uploads/");
             assertThat(uri.getPath())
                     .isEqualTo("/" + result.storageKey());
+
+            //X-Amz-Signature는 AWS SDK가 계산한 서명값을 넣는 항목 이름
             assertThat(uri.getRawQuery())
                     .contains("X-Amz-Signature=");
 
+            // URL에 유효기간 300초가 설정됐는지 확인
+            assertThat(uri.getRawQuery().split("&"))
+                    .contains("X-Amz-Expires=300");
 
+            // 반환된 만료 시각도 생성 시점에서 약 5분 뒤인지 확인
+            assertThat(result.expiresAt()).isBetween(
+                    before.plusSeconds(299),
+                    after.plusSeconds(301)
+            );
 
         }
+
 
 
 
