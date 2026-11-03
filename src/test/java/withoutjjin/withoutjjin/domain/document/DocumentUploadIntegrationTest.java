@@ -3,6 +3,9 @@ package withoutjjin.withoutjjin.domain.document;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -22,6 +25,7 @@ import withoutjjin.withoutjjin.domain.workspace.repository.WorkspaceRepository;
 
 import java.time.Instant;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -180,11 +184,74 @@ class DocumentUploadIntegrationTest {
                               "contentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                             }
                             """))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isNotFound()); // 404
 
         verifyNoInteractions(uploadUrlGenerator);
     }
 
+
+    @ParameterizedTest
+    @MethodSource("invalidFileInfos")
+    @DisplayName("허용 기준을 벗어난 파일 정보는 거부한다")
+    void rejectsInvalidFileInfo(
+            String fileName,
+            long fileSize,
+            String contentType
+    ) throws Exception {
+        String requestBody = """
+            {
+              "fileName": "%s",
+              "fileSize": %d,
+              "contentType": "%s"
+            }
+            """.formatted(fileName, fileSize, contentType);
+
+        mockMvc.perform(post(
+                        "/api/v1/workspaces/{workspaceId}/uploads",
+                        workspace.getId()
+                )
+                        .with(oidcLogin().idToken(token -> token
+                                .claim("iss", member.getIssuer())
+                                .subject(member.getSubject())))
+                        .with(csrf().asHeader())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(uploadUrlGenerator);
+    }
+
+    static Stream<Arguments> invalidFileInfos() {
+        String docxContentType =
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+        return Stream.of(
+                // 최대 용량보다 1바이트 큼
+                Arguments.of(
+                        "기획서.docx",
+                        20L * 1024 * 1024 + 1,
+                        docxContentType
+                ),
+                // 허용하지 않는 확장자
+                Arguments.of(
+                        "기획서.pdf",
+                        1024L,
+                        docxContentType
+                ),
+                // 이름 중간에 docx가 있어도 실제 확장자는 exe
+                Arguments.of(
+                        "기획서.docx.exe",
+                        1024L,
+                        docxContentType
+                ),
+                // 확장자는 맞지만 Content-Type이 다름
+                Arguments.of(
+                        "기획서.docx",
+                        1024L,
+                        "application/pdf"
+                )
+        );
+    }
 
 
 
