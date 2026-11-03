@@ -132,7 +132,7 @@ class DocumentUploadIntegrationTest {
                         workspace.getId()
                 )
                         .with(oidcLogin().idToken(token -> token
-                                .claim("iss", outsider.getIssuer())
+                                .claim("iss", outsider.getIssuer())  // 로그인 유저 정보 등록
                                 .subject(outsider.getSubject())))
                         .with(csrf().asHeader())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -143,9 +143,59 @@ class DocumentUploadIntegrationTest {
                               "contentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                             }
                             """))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden()); // 응답 403
 
         // 권한이 없으면 URL 생성 단계까지 진행하면 안 된다.
         verifyNoInteractions(uploadUrlGenerator);
     }
+
+
+
+
+    @Test
+    @DisplayName("존재하지 않는 워크스페이스에는 업로드 URL을 발급하지 않는다")
+    void rejectsUploadUrlForMissingWorkspace() throws Exception {
+        // 확실히 존재하지 않는 ID를 준비한다.
+        Workspace deletedWorkspace = workspaceRepository.saveAndFlush(
+                new Workspace("삭제할테스트팀", member)
+        );
+        Long missingWorkspaceId = deletedWorkspace.getId();
+
+        workspaceRepository.delete(deletedWorkspace);
+        workspaceRepository.flush();
+
+        mockMvc.perform(post(
+                        "/api/v1/workspaces/{workspaceId}/uploads",
+                        missingWorkspaceId
+                )
+                        .with(oidcLogin().idToken(token -> token
+                                .claim("iss", member.getIssuer())
+                                .subject(member.getSubject())))
+                        .with(csrf().asHeader())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {
+                              "fileName": "기획서.docx",
+                              "fileSize": 1024,
+                              "contentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                            }
+                            """))
+                .andExpect(status().isNotFound());
+
+        verifyNoInteractions(uploadUrlGenerator);
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 }
