@@ -1,5 +1,6 @@
 package withoutjjin.withoutjjin.domain.document;
 
+import org.junit.jupiter.params.provider.ValueSource;
 import tools.jackson.databind.json.JsonMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -317,10 +318,97 @@ class DocumentUploadIntegrationTest {
                 Arguments.of("기획서.docx", 1024L, ""),
                 Arguments.of("기획서.docx", 1024L, "   ")
         );
+
+
+
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {1, 20L * 1024 * 1024})
+    @DisplayName("최소 크기와 최대 허용 크기의 파일은 URL을 발급받는다")
+    void issuesUploadUrlAtAllowedSizeBoundaries(long fileSize) throws Exception {
+        String uploadUrl = "https://example.invalid/upload";
+        String storageKey =
+                "workspaces/" + workspace.getId() + "/uploads/boundary-test";
+
+        when(uploadUrlGenerator.generate(workspace.getId()))
+                .thenReturn(new GeneratedUploadUrl(
+                        uploadUrl,
+                        storageKey,
+                        Instant.parse("2030-01-01T00:00:00Z")
+                ));
+
+        CreateUploadUrlRequest request = new CreateUploadUrlRequest(
+                "기획서.docx",
+                fileSize,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        );
+
+        mockMvc.perform(post(
+                        "/api/v1/workspaces/{workspaceId}/uploads",
+                        workspace.getId()
+                )
+                        .with(oidcLogin().idToken(token -> token
+                                .claim("iss", member.getIssuer())
+                                .subject(member.getSubject())))
+                        .with(csrf().asHeader())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(jsonMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.uploadUrl").value(uploadUrl));
+
+        verify(uploadUrlGenerator).generate(workspace.getId());
+    }
+
+
+    @Test
+    @DisplayName("비로그인 사용자는 업로드 URL을 발급받을 수 없다")
+    void rejectsUploadUrlForUnauthenticatedUser() throws Exception {
+        CreateUploadUrlRequest request = new CreateUploadUrlRequest(
+                "기획서.docx",
+                1024L,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        );
+
+        mockMvc.perform(post(
+                        "/api/v1/workspaces/{workspaceId}/uploads",
+                        workspace.getId()
+                )
+                        .with(csrf().asHeader())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(jsonMapper.writeValueAsString(request)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTH_REQUIRED"));
+
+        verifyNoInteractions(uploadUrlGenerator);
     }
 
 
 
+    @Test
+    @DisplayName("CSRF 토큰이 없으면 업로드 URL 발급을 거부한다")
+    void rejectsUploadUrlWithoutCsrfToken() throws Exception {
+        CreateUploadUrlRequest request = new CreateUploadUrlRequest(
+                "기획서.docx",
+                1024L,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        );
+
+        mockMvc.perform(post(
+                        "/api/v1/workspaces/{workspaceId}/uploads",
+                        workspace.getId()
+                )
+//                        .with(csrf().asHeader())
+                        .with(oidcLogin().idToken(token -> token
+                                .claim("iss", member.getIssuer())
+                                .subject(member.getSubject())))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(jsonMapper.writeValueAsString(request)))
+
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(uploadUrlGenerator);
+    }
 
 
 
