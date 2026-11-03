@@ -1,5 +1,6 @@
 package withoutjjin.withoutjjin.domain.document;
 
+import tools.jackson.databind.json.JsonMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -14,6 +15,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+import withoutjjin.withoutjjin.domain.document.dto.CreateUploadUrlRequest;
 import withoutjjin.withoutjjin.domain.document.storage.GeneratedUploadUrl;
 import withoutjjin.withoutjjin.domain.document.storage.S3UploadUrlGenerator;
 import withoutjjin.withoutjjin.domain.user.entity.AppUser;
@@ -38,6 +40,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @Transactional
 class DocumentUploadIntegrationTest {
+
+
+    @Autowired
+    private JsonMapper jsonMapper;
+
 
     @Autowired
     private MockMvc mockMvc;
@@ -250,6 +257,65 @@ class DocumentUploadIntegrationTest {
                         1024L,
                         "application/pdf"
                 )
+        );
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidBasicFileInfos")
+    @DisplayName("파일 정보의 필수값과 기본 조건을 검증한다")
+    void rejectsInvalidBasicFileInfo(
+            String fileName,
+            Long fileSize,
+            String contentType
+    ) throws Exception {
+        CreateUploadUrlRequest request = new CreateUploadUrlRequest(
+                fileName, fileSize, contentType
+        );
+
+        // 요청 DTO를 JSON 문자열로 변환한다.
+        String requestBody = jsonMapper.writeValueAsString(request);
+
+        mockMvc.perform(post(
+                        "/api/v1/workspaces/{workspaceId}/uploads",
+                        workspace.getId()
+                )
+                        .with(oidcLogin().idToken(token -> token
+                                .claim("iss", member.getIssuer())
+                                .subject(member.getSubject())))
+                        .with(csrf().asHeader())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody)) // jsonMapper를 이용해서 DTO를 제이슨형태로 바꿔서 전달
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(uploadUrlGenerator);
+    }
+
+    static Stream<Arguments> invalidBasicFileInfos() {
+        String docxContentType =
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+        return Stream.of(
+                // 파일명: null, 빈 문자열, 공백
+                Arguments.of(null, 1024L, docxContentType),
+                Arguments.of("", 1024L, docxContentType),
+                Arguments.of("   ", 1024L, docxContentType),
+
+                // 파일명: 256자 — 허용 최대 길이는 255자
+                Arguments.of(
+                        "a".repeat(251) + ".docx",
+                        1024L,
+                        docxContentType
+                ),
+
+                // 파일 크기: null, 0, 음수
+                Arguments.of("기획서.docx", null, docxContentType),
+                Arguments.of("기획서.docx", 0L, docxContentType),
+                Arguments.of("기획서.docx", -1L, docxContentType),
+
+                // 파일 형식: null, 빈 문자열, 공백
+                Arguments.of("기획서.docx", 1024L, null),
+                Arguments.of("기획서.docx", 1024L, ""),
+                Arguments.of("기획서.docx", 1024L, "   ")
         );
     }
 
