@@ -23,8 +23,7 @@ import withoutjjin.withoutjjin.domain.workspace.repository.WorkspaceRepository;
 import java.time.Instant;
 import java.util.UUID;
 
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -113,5 +112,40 @@ class DocumentUploadIntegrationTest {
 
         // 3. 권한·파일 검증을 통과해 생성기가 한 번 호출됐는지 확인
         verify(uploadUrlGenerator).generate(workspace.getId());
+    }
+
+
+    @Test
+    @DisplayName("워크스페이스 비멤버는 업로드 URL을 발급받을 수 없다")
+    void rejectsUploadUrlForNonMember() throws Exception {
+        // 회원은 생성하지만, 해당 워크스페이스의 멤버로 등록하지 않는다.
+        AppUser outsider = appUserRepository.saveAndFlush(new AppUser(
+                "https://accounts.google.com",
+                UUID.randomUUID().toString(),
+                "outsider@example.com",
+                true,
+                "비멤버"
+        ));
+
+        mockMvc.perform(post(
+                        "/api/v1/workspaces/{workspaceId}/uploads",
+                        workspace.getId()
+                )
+                        .with(oidcLogin().idToken(token -> token
+                                .claim("iss", outsider.getIssuer())
+                                .subject(outsider.getSubject())))
+                        .with(csrf().asHeader())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {
+                              "fileName": "기획서.docx",
+                              "fileSize": 1024,
+                              "contentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                            }
+                            """))
+                .andExpect(status().isForbidden());
+
+        // 권한이 없으면 URL 생성 단계까지 진행하면 안 된다.
+        verifyNoInteractions(uploadUrlGenerator);
     }
 }
