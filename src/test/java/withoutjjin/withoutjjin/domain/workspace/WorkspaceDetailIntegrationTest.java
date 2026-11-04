@@ -148,6 +148,14 @@ class WorkspaceDetailIntegrationTest {
         assertThat(response.getRedirectedUrl()).startsWith("http://localhost/workspaces/123");
     }
 
+    @Test
+    @DisplayName("로그인한 회원에게 업로드 모듈을 JavaScript 형식으로 제공한다")
+    void servesUploadModuleAsJavaScriptForAuthenticatedUser() throws Exception {
+        mockMvc.perform(get("/js/workspace-upload.mjs").with(oidcLogin()))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", containsString("javascript")));
+    }
+
     private AppUser user(String name) {
         AppUser user = users.saveAndFlush(new AppUser("https://accounts.google.com",
                 UUID.randomUUID().toString(), "workspace-detail-test@example.com", true, name));

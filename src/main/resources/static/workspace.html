@@ -373,6 +373,18 @@
             margin-top: 23px
         }
 
+        .upload-form {
+            display: grid;
+            justify-items: start;
+            gap: 15px;
+            padding: 25px;
+        }
+
+        .upload-form label { font-weight: 650; }
+        .upload-form input { font: inherit; max-width: 100%; }
+        .upload-form code { overflow-wrap: anywhere; }
+        .upload-form [data-error="true"] { color: #974534; }
+
         .table-wrap {
             overflow: auto
         }
@@ -653,20 +665,16 @@
                     </div>
                 </div>
                 <section id="files-panel" class="card" aria-labelledby="files-heading">
-                    <div class="card-head"><h2 id="files-heading">팀 파일</h2><span class="tag">다음 단계</span></div>
-                    <div class="empty">
-                        <svg width="102" height="78" viewBox="0 0 102 78" fill="none" aria-hidden="true">
-                            <ellipse cx="52" cy="71" rx="43" ry="5" fill="#edf3e9"/>
-                            <path d="M13 21a7 7 0 0 1 7-7h22l9 9h32a7 7 0 0 1 7 7v32a7 7 0 0 1-7 7H20a7 7 0 0 1-7-7V21Z"
-                                  fill="#edf5e9" stroke="#b3c9ad" stroke-width="1.5"/>
-                            <path d="M13 35a7 7 0 0 1 7-7h63a7 7 0 0 1 7 7v27a7 7 0 0 1-7 7H20a7 7 0 0 1-7-7V35Z"
-                                  fill="white" stroke="#b3c9ad" stroke-width="1.5"/>
-                            <path d="M44 47h15M44 54h23" stroke="#b3c9ad" stroke-width="2" stroke-linecap="round"/>
-                        </svg>
-                        <h2>팀 공간이 준비됐어요.</h2>
-                        <p>지금은 팀 정보와 멤버를 확인할 수 있어요.<br>파일 등록과 피드백 기능은 다음 단계에서 연결할 예정이에요.</p>
-                        <button id="view-members" class="button" type="button">함께하는 멤버 보기 →</button>
-                    </div>
+                    <div class="card-head"><h2 id="files-heading">Word 파일 업로드</h2><span class="tag">DOCX · 최대 20MiB</span></div>
+                    <form id="upload-form" class="upload-form">
+                        <label for="upload-file">업로드할 Word 파일</label>
+                        <p id="upload-help" class="subtitle">.docx 파일을 선택해 주세요. 현재는 원본 파일을 저장할 수 있어요.</p>
+                        <input id="upload-file" type="file" accept=".docx" aria-describedby="upload-help" required disabled>
+                        <button id="upload-submit" class="button primary" type="submit" disabled>파일 업로드</button>
+                        <p id="upload-status" role="status" aria-live="polite" hidden></p>
+                        <p id="upload-result" class="subtitle" hidden>저장 위치: <code id="upload-key"></code></p>
+                    </form>
+                    <div class="card-head"><button id="view-members" class="button" type="button">함께하는 멤버 보기 →</button></div>
                 </section>
                 <section id="members-panel" class="card" aria-labelledby="members-heading" hidden>
                     <div class="card-head"><h2 id="members-heading">함께하는 멤버</h2><span id="members-summary"
@@ -688,7 +696,8 @@
         </main>
     </div>
 </div>
-<script>
+<script type="module">
+    import {uploadWorkspaceFile, validateUploadFile} from "/js/workspace-upload.mjs";
     (() => {
         "use strict";
         const $ = id => document.getElementById(id);
@@ -721,12 +730,18 @@
             $("content").setAttribute("aria-busy", String(state.busy));
             for (const id of ["refresh", "retry"]) $(id).disabled = state.busy;
             $("logout").disabled = state.busy || !state.user;
+            $("upload-file").disabled = state.busy || !state.detail;
+            $("upload-submit").disabled = state.busy || !state.detail || !$("upload-file").files.length;
             $("workspace-select").disabled = state.busy || !state.detail;
             for (const id of ["files-tab", "members-tab"]) $(id).disabled = state.busy || !state.detail;
         }
 
         function clearDetail() {
             state.detail = null;
+            $("upload-form").reset();
+            $("upload-status").hidden = true;
+            $("upload-result").hidden = true;
+            $("upload-key").textContent = "";
             $("workspace-content").hidden = true;
             $("members").replaceChildren();
             $("workspace-name").textContent = "워크스페이스";
@@ -849,6 +864,51 @@
                 controls();
             }
         }
+
+        function uploadStatus(message, isError = false) {
+            $("upload-status").textContent = message;
+            $("upload-status").dataset.error = String(isError);
+            $("upload-status").hidden = false;
+        }
+
+        $("upload-file").addEventListener("change", () => {
+            $("upload-result").hidden = true;
+            $("upload-key").textContent = "";
+            $("upload-status").hidden = true;
+            try {
+                const file = $("upload-file").files[0];
+                if (file) validateUploadFile(file);
+            } catch (error) {
+                $("upload-file").value = "";
+                uploadStatus(error.message, true);
+            }
+            controls();
+        });
+
+        $("upload-form").addEventListener("submit", async event => {
+            event.preventDefault();
+            if (state.busy || !state.user || !state.detail) return;
+            const file = $("upload-file").files[0];
+            state.busy = true;
+            $("upload-result").hidden = true;
+            controls();
+            try {
+                const result = await uploadWorkspaceFile({
+                    workspaceId, file, expectedUserId: state.user.id,
+                    onProgress: uploadStatus
+                });
+                $("upload-key").textContent = result.storageKey;
+                $("upload-result").hidden = false;
+                uploadStatus(file.name + " 파일을 저장했어요.");
+                $("upload-file").value = "";
+            } catch (error) {
+                if (error.status === 401) showError(error);
+                uploadStatus(error.message, true);
+            } finally {
+                state.busy = false;
+                controls();
+            }
+        });
 
         $("workspace-select").addEventListener("change", event => {
             const id = Number(event.target.value);
