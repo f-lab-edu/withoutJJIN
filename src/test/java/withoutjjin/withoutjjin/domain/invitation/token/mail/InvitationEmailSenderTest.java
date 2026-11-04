@@ -64,6 +64,7 @@ class InvitationEmailSenderTest {
         assertThat(messageId).isEqualTo("test-message-id");
     }
 
+
     @Test
     @DisplayName("SES가 거부하면 예외를 작업자에게 전달한다")
     void propagatesSesRejectionToWorker() {
