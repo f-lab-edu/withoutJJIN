@@ -28,7 +28,7 @@ public class S3UploadUrlGenerator {
 //    그래서 주소가 오래 남거나 다른 사람에게 전달됐을 때도 업로드 권한이 계속 유지되면 곤란하지.
 
 
-    public GeneratedUploadUrl generate(Long workspaceId) {
+    public GeneratedUploadUrl generate(Long workspaceId) { //업로드를 위한 URL생성
         if (bucket == null || bucket.isBlank()) {
             throw new IllegalStateException("S3 버킷 이름을 설정해야 합니다.");
         }

@@ -58,6 +58,7 @@ public class StoreFile {
         if (workspace == null) {
             throw new IllegalArgumentException("파일의 워크스페이스가 필요합니다.");
         }
+
         validateText(objectKey, 512, "파일 저장 키");
         validateText(fileName, 255, "파일 이름");
         validateText(mediaType, 255, "파일 형식");
