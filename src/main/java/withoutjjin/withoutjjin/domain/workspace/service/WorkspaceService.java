@@ -67,10 +67,14 @@ public class WorkspaceService {
     }
 
     @Transactional(readOnly = true)
-    public  Workspace getWorkSpaceForMember(Long workspaceId, String issuer, String subject) {
-        //유저 존재확인 
+    public Workspace getWorkSpaceForMember(Long workspaceId, String issuer, String subject) {
         AppUser user = appUserService.getByIssuerAndSubject(issuer, subject);
+        return getWorkSpaceForMember(workspaceId, user);
+    }
 
+    // 이미 조회한 회원을 전달받아 같은 권한 검사를 재사용한다.
+    @Transactional(readOnly = true)
+    public Workspace getWorkSpaceForMember(Long workspaceId, AppUser user) {
         //워크스페이스 존재 확인 
         Workspace workspace = workspaceRepository.findById(workspaceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,

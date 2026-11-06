@@ -1,5 +1,6 @@
 package withoutjjin.withoutjjin.domain.document;
 
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.params.provider.ValueSource;
 import tools.jackson.databind.json.JsonMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,6 +18,11 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 import withoutjjin.withoutjjin.domain.document.dto.CreateUploadUrlRequest;
+import withoutjjin.withoutjjin.domain.document.entity.DocumentUpload;
+import withoutjjin.withoutjjin.domain.document.entity.DocumentUploadStatus;
+import withoutjjin.withoutjjin.domain.document.entity.StoreFile;
+import withoutjjin.withoutjjin.domain.document.repository.DocumentUploadRepository;
+import withoutjjin.withoutjjin.domain.document.repository.StoreFileRepository;
 import withoutjjin.withoutjjin.domain.document.storage.GeneratedUploadUrl;
 import withoutjjin.withoutjjin.domain.document.storage.S3UploadUrlGenerator;
 import withoutjjin.withoutjjin.domain.user.entity.AppUser;
@@ -27,9 +33,12 @@ import withoutjjin.withoutjjin.domain.workspace.repository.WorkspaceMemberReposi
 import withoutjjin.withoutjjin.domain.workspace.repository.WorkspaceRepository;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.UUID;
 import java.util.stream.Stream;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
@@ -63,11 +72,25 @@ class DocumentUploadIntegrationTest {
     @MockitoBean
     private S3UploadUrlGenerator uploadUrlGenerator;
 
+    @Autowired
+    private DocumentUploadRepository documentUploadRepository;
+
+    @Autowired
+    private StoreFileRepository storeFileRepository;
+
+    @Autowired
+    private EntityManager entityManager;
+
+    private long initialUploadCount;
+    private long initialFileCount;
+
     private AppUser member;
     private Workspace workspace;
 
     @BeforeEach
     void setUp() {
+        initialUploadCount = documentUploadRepository.count();
+        initialFileCount = storeFileRepository.count();
         member = appUserRepository.saveAndFlush(new AppUser(
                 "https://accounts.google.com",
                 UUID.randomUUID().toString(),
@@ -100,7 +123,7 @@ class DocumentUploadIntegrationTest {
                 ));
 
         // 2. 로그인한 멤버가 정상적인 파일 정보로 요청
-        mockMvc.perform(post(
+        var result = mockMvc.perform(post(
                         "/api/v1/workspaces/{workspaceId}/uploads",
                         workspace.getId()
                 )
@@ -120,7 +143,31 @@ class DocumentUploadIntegrationTest {
                 .andExpect(header().string("Cache-Control", "no-store"))
                 .andExpect(jsonPath("$.uploadUrl").value(uploadUrl))
                 .andExpect(jsonPath("$.storageKey").value(storageKey))
-                .andExpect(jsonPath("$.expiresAt").value(expiresAt.toString()));
+                .andExpect(jsonPath("$.expiresAt").value(expiresAt.toString()))
+                .andExpect(jsonPath("$.uploadId").isNumber())
+                .andReturn();
+
+        Long uploadId = jsonMapper.readTree(result.getResponse().getContentAsString())
+                .get("uploadId").asLong();
+        entityManager.flush();
+        entityManager.clear();
+        DocumentUpload saved = documentUploadRepository.findById(uploadId).orElseThrow();
+        StoreFile file = storeFileRepository.findById(saved.getOriginalFile().getId()).orElseThrow();
+        assertThat(saved.getWorkspace().getId()).isEqualTo(workspace.getId());
+        assertThat(saved.getCreatedBy().getId()).isEqualTo(member.getId());
+        assertThat(saved.getStatus()).isEqualTo(DocumentUploadStatus.PENDING);
+        assertThat(saved.getReservedBytes()).isEqualTo(1024L);
+        assertThat(saved.getExpiresAt()).isEqualTo(LocalDateTime.ofInstant(expiresAt, ZoneId.of("Asia/Seoul")));
+        assertThat(saved.getDocument()).isNull();
+        assertThat(saved.getReviewPdfFile()).isNull();
+        assertThat(file.getWorkspace().getId()).isEqualTo(workspace.getId());
+        assertThat(file.getObjectKey()).isEqualTo(storageKey);
+        assertThat(file.getFileName()).isEqualTo("기획서.docx");
+        assertThat(file.getSizeBytes()).isEqualTo(1024L);
+        assertThat(file.getMediaType()).isEqualTo(
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+        assertThat(documentUploadRepository.count()).isEqualTo(initialUploadCount + 1);
+        assertThat(storeFileRepository.count()).isEqualTo(initialFileCount + 1);
 
         // 3. 권한·파일 검증을 통과해 생성기가 한 번 호출됐는지 확인
         verify(uploadUrlGenerator).generate(workspace.getId());
@@ -159,6 +206,7 @@ class DocumentUploadIntegrationTest {
 
         // 권한이 없으면 URL 생성 단계까지 진행하면 안 된다.
         verifyNoInteractions(uploadUrlGenerator);
+        assertNoUploadRecords();
     }
 
 
@@ -195,6 +243,7 @@ class DocumentUploadIntegrationTest {
                 .andExpect(status().isNotFound()); // 404
 
         verifyNoInteractions(uploadUrlGenerator);
+        assertNoUploadRecords();
     }
 
 
@@ -227,6 +276,12 @@ class DocumentUploadIntegrationTest {
                 .andExpect(status().isBadRequest());
 
         verifyNoInteractions(uploadUrlGenerator);
+        assertNoUploadRecords();
+    }
+
+    private void assertNoUploadRecords() {
+        assertThat(documentUploadRepository.count()).isEqualTo(initialUploadCount);
+        assertThat(storeFileRepository.count()).isEqualTo(initialFileCount);
     }
 
     static Stream<Arguments> invalidFileInfos() {
@@ -289,6 +344,7 @@ class DocumentUploadIntegrationTest {
                 .andExpect(status().isBadRequest());
 
         verifyNoInteractions(uploadUrlGenerator);
+        assertNoUploadRecords();
     }
 
     static Stream<Arguments> invalidBasicFileInfos() {
@@ -355,7 +411,8 @@ class DocumentUploadIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(jsonMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.uploadUrl").value(uploadUrl));
+                .andExpect(jsonPath("$.uploadUrl").value(uploadUrl))
+                .andExpect(jsonPath("$.uploadId").isNumber());
 
         verify(uploadUrlGenerator).generate(workspace.getId());
     }
@@ -381,6 +438,7 @@ class DocumentUploadIntegrationTest {
                 .andExpect(jsonPath("$.code").value("AUTH_REQUIRED"));
 
         verifyNoInteractions(uploadUrlGenerator);
+        assertNoUploadRecords();
     }
 
 
@@ -408,6 +466,7 @@ class DocumentUploadIntegrationTest {
                 .andExpect(status().isForbidden());
 
         verifyNoInteractions(uploadUrlGenerator);
+        assertNoUploadRecords();
     }
 
 
