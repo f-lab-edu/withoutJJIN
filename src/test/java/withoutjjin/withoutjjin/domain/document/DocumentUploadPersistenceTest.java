@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 import withoutjjin.withoutjjin.domain.document.entity.Document;
 import withoutjjin.withoutjjin.domain.document.entity.DocumentUpload;
@@ -89,11 +90,14 @@ class DocumentUploadPersistenceTest {
     }
 
     @Test
-    @DisplayName("문서와 원본 및 PDF 파일이 아직 없는 준비 작업도 저장할 수 있다")
-    void permitsUnassignedDocumentAndFilesWhilePending() {
+    @DisplayName("파일 연결이 없는 준비 작업을 여러 건 저장할 수 있다")
+    void permitsMultipleUploadsWithUnassignedFilesWhilePending() {
         DocumentUpload upload = new DocumentUpload(workspace, null, requester, null, 0L, expiresAt);
+        DocumentUpload second = new DocumentUpload(workspace, null, requester, null, 0L, expiresAt);
         documentUploadRepository.saveAndFlush(upload);
+        documentUploadRepository.saveAndFlush(second);
         Long id = upload.getId();
+        Long secondId = second.getId();
         entityManager.clear();
 
         DocumentUpload found = documentUploadRepository.findById(id).orElseThrow();
@@ -102,6 +106,10 @@ class DocumentUploadPersistenceTest {
         assertThat(found.getReviewPdfFile()).isNull();
         assertThat(found.getReservedBytes()).isZero();
         assertThat(found.getStatus()).isEqualTo(DocumentUploadStatus.PENDING);
+        DocumentUpload foundSecond = documentUploadRepository.findById(secondId).orElseThrow();
+        assertThat(foundSecond.getId()).isNotEqualTo(id);
+        assertThat(foundSecond.getOriginalFile()).isNull();
+        assertThat(foundSecond.getReviewPdfFile()).isNull();
     }
 
     @Test
@@ -152,6 +160,37 @@ class DocumentUploadPersistenceTest {
         assertThatThrownBy(() -> new DocumentUpload(workspace, document, requester, null, 0L, expiresAt))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("같은 워크스페이스");
+    }
+
+    @Test
+    @DisplayName("같은 원본 파일을 서로 다른 업로드 요청에 중복 연결할 수 없다")
+    void rejectsOriginalFileSharedByMultipleUploads() {
+        StoreFile original = storeFileRepository.saveAndFlush(file(workspace,
+                "workspaces/" + workspace.getId() + "/uploads/" + UUID.randomUUID()));
+        documentUploadRepository.saveAndFlush(new DocumentUpload(
+                workspace, null, requester, original, 1024L, expiresAt));
+
+        DocumentUpload duplicate = new DocumentUpload(
+                workspace, null, requester, original, 1024L, expiresAt);
+        assertThatThrownBy(() -> documentUploadRepository.saveAndFlush(duplicate))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("같은 PDF 파일을 서로 다른 업로드 요청에 중복 연결할 수 없다")
+    void rejectsReviewPdfSharedByMultipleUploads() {
+        StoreFile pdf = storeFileRepository.saveAndFlush(new StoreFile(workspace,
+                "workspaces/" + workspace.getId() + "/reviews/" + UUID.randomUUID(),
+                "기획서.pdf", "application/pdf", 2048L));
+        DocumentUpload first = new DocumentUpload(workspace, null, requester, null, 0L, expiresAt);
+        // PDF 연결 기능은 후속 작업이므로 테스트에서만 값을 넣어 ORM 매핑을 검증한다.
+        ReflectionTestUtils.setField(first, "reviewPdfFile", pdf);
+        documentUploadRepository.saveAndFlush(first);
+
+        DocumentUpload second = new DocumentUpload(workspace, null, requester, null, 0L, expiresAt);
+        ReflectionTestUtils.setField(second, "reviewPdfFile", pdf);
+        assertThatThrownBy(() -> documentUploadRepository.saveAndFlush(second))
+                .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     private StoreFile file(Workspace owner, String key) {
