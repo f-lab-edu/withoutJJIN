@@ -68,11 +68,11 @@ public class DocumentService {
         DocumentUpload upload = documentUploadRepository.save(
                 new DocumentUpload(
                 workspace,
-        null,
+        null,  // 문서 등록하기전
                 requester,
-                originalFile,
+                originalFile, // 원본 파일
                 request.fileSize(),
-                expiresAt
+                expiresAt // 마감 기한
         ));
 
         return new CreateUploadUrlResponse(
