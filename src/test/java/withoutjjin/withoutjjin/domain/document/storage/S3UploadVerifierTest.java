@@ -6,7 +6,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import withoutjjin.withoutjjin.domain.document.entity.StoreFile;
 import withoutjjin.withoutjjin.domain.workspace.entity.Workspace;
 
@@ -81,5 +83,39 @@ class S3UploadVerifierTest {
         assertThatThrownBy(() -> verifier.verify(storeFile))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("StoreFile.mediaType");
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {404, 403, 500})
+    @DisplayName("S3 조회가 실패하면 S3UploadVerifier도 예외를 전달한다")
+    void propagatesS3ReadFailure(int statusCode) {
+        S3Exception failure = (S3Exception) S3Exception.builder()
+                .statusCode(statusCode)
+                .message("S3 조회 실패")
+                .build();
+
+        when(reader.head(storeFile.getObjectKey()))
+                .thenThrow(failure);
+
+        assertThatThrownBy(() -> verifier.verify(storeFile))
+                .isSameAs(failure);
+
+        verify(reader).head(storeFile.getObjectKey());
+    }
+
+    @Test
+    @DisplayName("통신 오류가 발생하면 S3UploadVerifier도 예외를 전달한다")
+    void propagatesConnectionFailure() {
+        SdkClientException failure = SdkClientException.builder()
+                .message("S3 연결 실패")
+                .build();
+
+        when(reader.head(storeFile.getObjectKey()))
+                .thenThrow(failure);
+
+        assertThatThrownBy(() -> verifier.verify(storeFile))
+                .isSameAs(failure);
+
+        verify(reader).head(storeFile.getObjectKey());
     }
 }
