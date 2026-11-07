@@ -1,0 +1,15 @@
+[
+  {
+    "AllowedOrigins": [
+      "http://localhost:8080"
+    ],
+    "AllowedMethods": [
+      "PUT"
+    ],
+    "AllowedHeaders": [
+      "Content-Type",
+      "If-None-Match"
+    ],
+    "ExposeHeaders": []
+  }
+]

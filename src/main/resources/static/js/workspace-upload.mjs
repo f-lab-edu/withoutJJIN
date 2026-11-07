@@ -57,13 +57,19 @@ export async function uploadWorkspaceFile({workspaceId, file, expectedUserId,
     try {
         response = await fetchImpl(upload.uploadUrl, {
             method: "PUT", credentials: "omit",
-            headers: {"Content-Type": DOCX_CONTENT_TYPE}, body: file
+            headers: {
+                "Content-Type": DOCX_CONTENT_TYPE,
+                "If-None-Match": "*"
+            }, body: file
         });
     } catch (_) {
         // 응답을 받지 못해도 S3에 저장됐을 수 있으므로 자동 재전송하지 않는다.
         throw new Error("업로드 결과를 확인하지 못했어요. 네트워크 연결을 확인해 주세요.");
     }
     if (!response.ok) {
+        if (response.status === 412) {
+            throw new Error("이미 사용한 업로드 주소예요. 파일을 다시 선택해 새 업로드를 시작해 주세요. (HTTP 412)");
+        }
         throw new Error(`파일을 저장하지 못했어요. 잠시 뒤 다시 시도해 주세요. (HTTP ${response.status})`);
     }
     return {storageKey: upload.storageKey};
