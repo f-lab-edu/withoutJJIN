@@ -14,11 +14,15 @@ public class S3UploadVerifier {
     private final S3ObjectReader s3ObjectReader;
 
     public void verify(StoreFile storeFile) { // 파일이 제대로 왔는지 확인하는 과정
-        HeadObjectResponse response = // 응답을 받음
-                s3ObjectReader.head(storeFile.getObjectKey());
+        verify(storeFile.getObjectKey(), storeFile.getSizeBytes(), storeFile.getMediaType());
+    }
+
+    // 트랜잭션 밖에서 엔티티를 지연 로딩하지 않도록 검증할 스칼라 값을 전달받는다.
+    public void verify(String objectKey, Long sizeBytes, String mediaType) {
+        HeadObjectResponse response = s3ObjectReader.head(objectKey);
 
         if (!Objects.equals(
-                storeFile.getSizeBytes(), //파일 용량
+                sizeBytes, // StoreFile.sizeBytes
                 response.contentLength()// 콘덴트 길이가 같은지 확인
         )) {
             throw new IllegalStateException(
@@ -26,7 +30,7 @@ public class S3UploadVerifier {
             );
         }
 
-        if (!storeFile.getMediaType()
+        if (!mediaType
                 .equalsIgnoreCase(response.contentType())) {
             throw new IllegalStateException(
                     "S3 Content-Type이 StoreFile.mediaType과 일치하지 않습니다."
