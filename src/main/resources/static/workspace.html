@@ -384,6 +384,12 @@
         .upload-form input { font: inherit; max-width: 100%; }
         .upload-form code { overflow-wrap: anywhere; }
         .upload-form [data-error="true"] { color: #974534; }
+        .upload-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+        .upload-result { width: 100%; padding: 18px; border: 1px solid var(--line); border-radius: 12px; }
+        .upload-result p { margin: 0 0 12px; }
+        .upload-result summary { cursor: pointer; }
+        .upload-result dl { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; margin: 14px 0; }
+        .upload-result dd { margin: 0; overflow-wrap: anywhere; }
 
         .table-wrap {
             overflow: auto
@@ -668,11 +674,26 @@
                     <div class="card-head"><h2 id="files-heading">Word 파일 업로드</h2><span class="tag">DOCX · 최대 20MiB</span></div>
                     <form id="upload-form" class="upload-form">
                         <label for="upload-file">업로드할 Word 파일</label>
-                        <p id="upload-help" class="subtitle">.docx 파일을 선택해 주세요. 현재는 원본 파일을 저장할 수 있어요.</p>
+                        <p id="upload-help" class="subtitle">.docx 파일을 선택하면 원본을 저장하고 문서로 등록해요.</p>
                         <input id="upload-file" type="file" accept=".docx" aria-describedby="upload-help" required disabled>
                         <button id="upload-submit" class="button primary" type="submit" disabled>파일 업로드</button>
                         <p id="upload-status" role="status" aria-live="polite" hidden></p>
-                        <p id="upload-result" class="subtitle" hidden>저장 위치: <code id="upload-key"></code></p>
+                        <div class="upload-actions">
+                            <button id="upload-retry" class="button primary" type="button" hidden>문서 등록 다시 시도</button>
+                            <a id="upload-login" class="button" hidden>Google로 다시 로그인</a>
+                            <button id="upload-new" class="button" type="button" hidden>새 업로드 시작</button>
+                        </div>
+                        <div id="upload-result" class="upload-result" hidden>
+                            <p><strong id="upload-filename"></strong> 문서 등록이 완료됐어요.</p>
+                            <details id="upload-details">
+                                <summary>등록 정보 확인</summary>
+                                <dl>
+                                    <dt>Document.id</dt><dd id="upload-document-id"></dd>
+                                    <dt>DocumentVersion.id</dt><dd id="upload-version-id"></dd>
+                                    <dt>S3 저장 키</dt><dd><code id="upload-key"></code></dd>
+                                </dl>
+                            </details>
+                        </div>
                     </form>
                     <div class="card-head"><button id="view-members" class="button" type="button">함께하는 멤버 보기 →</button></div>
                 </section>
@@ -697,14 +718,15 @@
     </div>
 </div>
 <script type="module">
-    import {uploadWorkspaceFile, validateUploadFile} from "/js/workspace-upload.mjs";
+    import {uploadWorkspaceFile, validateUploadFile, completeWorkspaceUpload, UploadCompletionError}
+        from "/js/workspace-upload.mjs";
     (() => {
         "use strict";
         const $ = id => document.getElementById(id);
         const match = location.pathname.match(/^\/workspaces\/([1-9]\d*)$/);
         const workspaceId = match ? Number(match[1]) : null;
         const validId = Number.isSafeInteger(workspaceId) && workspaceId > 0;
-        const state = {user: null, detail: null, busy: false, panel: "files"};
+        const state = {user: null, detail: null, busy: false, panel: "files", pendingUpload: null};
 
         async function api(path, options = {}) {
             let response;
@@ -730,8 +752,15 @@
             $("content").setAttribute("aria-busy", String(state.busy));
             for (const id of ["refresh", "retry"]) $(id).disabled = state.busy;
             $("logout").disabled = state.busy || !state.user;
-            $("upload-file").disabled = state.busy || !state.detail;
-            $("upload-submit").disabled = state.busy || !state.detail || !$("upload-file").files.length;
+            $("upload-form").setAttribute("aria-busy", String(state.busy));
+            $("upload-file").disabled = state.busy || !state.detail || !!state.pendingUpload;
+            $("upload-submit").disabled = state.busy || !state.detail || !!state.pendingUpload || !$("upload-file").files.length;
+            $("upload-retry").hidden = !state.detail || !state.pendingUpload;
+            $("upload-new").hidden = !state.detail || !state.pendingUpload;
+            $("upload-retry").disabled = state.busy;
+            $("upload-new").disabled = state.busy;
+            // 완료 API 처리 중에는 로그인 링크도 숨긴다.
+            $("upload-login").hidden = state.busy || $("upload-login").dataset.required !== "true";
             $("workspace-select").disabled = state.busy || !state.detail;
             for (const id of ["files-tab", "members-tab"]) $(id).disabled = state.busy || !state.detail;
         }
@@ -742,6 +771,7 @@
             $("upload-status").hidden = true;
             $("upload-result").hidden = true;
             $("upload-key").textContent = "";
+            $("upload-login").dataset.required = "false";
             $("workspace-content").hidden = true;
             $("members").replaceChildren();
             $("workspace-name").textContent = "워크스페이스";
@@ -856,6 +886,7 @@
                 const detail = await api("/api/v1/workspaces/" + workspaceId);
                 const workspaces = await api("/api/v1/workspaces");
                 render(detail, workspaces);
+                restorePendingUpload();
             } catch (error) {
                 showError(error);
             } finally {
@@ -871,7 +902,64 @@
             $("upload-status").hidden = false;
         }
 
+        function pendingStorageKey(userId) {
+            return "ftfm.pending-upload." + workspaceId + "." + userId;
+        }
+
+        function setPendingUpload(pending) {
+            const previous = state.pendingUpload;
+            state.pendingUpload = pending;
+            // 탭을 새로고침하거나 재로그인해도 같은 DocumentUpload.id로 재시도한다.
+            // 세션 쿠키, CSRF 토큰, presigned URL은 저장하지 않는다.
+            try {
+                if (pending) sessionStorage.setItem(pendingStorageKey(pending.expectedUserId), JSON.stringify(pending));
+                else if (previous) sessionStorage.removeItem(pendingStorageKey(previous.expectedUserId));
+            } catch (_) {
+                // 브라우저 저장소를 사용할 수 없어도 현재 화면에서는 재시도할 수 있다.
+            }
+        }
+
+        function restorePendingUpload() {
+            let pending = state.pendingUpload;
+            try {
+                const stored = sessionStorage.getItem(pendingStorageKey(state.user.id));
+                if (stored) pending = JSON.parse(stored);
+            } catch (_) {
+            }
+            const matchesUser = pending?.expectedUserId === state.user.id;
+            const validPending = matchesUser && pending.workspaceId === workspaceId
+                && Number.isSafeInteger(pending.uploadId) && pending.uploadId > 0
+                && typeof pending.fileName === "string" && pending.fileName.length <= 255;
+            state.pendingUpload = validPending ? pending : null;
+            if (state.pendingUpload) {
+                uploadStatus(pending.fileName + " 문서 등록 결과를 다시 확인해 주세요. 파일을 다시 업로드하지 않고 등록만 재시도해요.");
+            }
+        }
+
+        function showUploadResult(result, fileName, storageKey) {
+            setPendingUpload(null);
+            $("upload-filename").textContent = fileName;
+            $("upload-document-id").textContent = String(result.documentId);
+            $("upload-version-id").textContent = String(result.documentVersionId);
+            $("upload-key").textContent = storageKey || "—";
+            $("upload-details").open = false;
+            $("upload-result").hidden = false;
+            $("upload-login").dataset.required = "false";
+            $("upload-file").value = "";
+            uploadStatus(fileName + " 문서 등록이 완료됐어요.");
+        }
+
+        function showCompletionFailure(error, pending) {
+            setPendingUpload(error.canRetry ? pending : null);
+            $("upload-file").value = "";
+            $("upload-result").hidden = true;
+            $("upload-login").dataset.required = String(error.status === 401);
+            $("upload-login").href = "/workspaces/" + workspaceId;
+            uploadStatus(error.message, true);
+        }
+
         $("upload-file").addEventListener("change", () => {
+            if (state.busy || state.pendingUpload) return;
             $("upload-result").hidden = true;
             $("upload-key").textContent = "";
             $("upload-status").hidden = true;
@@ -887,27 +975,58 @@
 
         $("upload-form").addEventListener("submit", async event => {
             event.preventDefault();
-            if (state.busy || !state.user || !state.detail) return;
+            if (state.busy || !state.user || !state.detail || state.pendingUpload) return;
             const file = $("upload-file").files[0];
+            const expectedUserId = state.user.id;
             state.busy = true;
             $("upload-result").hidden = true;
             controls();
             try {
-                const result = await uploadWorkspaceFile({
-                    workspaceId, file, expectedUserId: state.user.id,
-                    onProgress: uploadStatus
-                });
-                $("upload-key").textContent = result.storageKey;
-                $("upload-result").hidden = false;
-                uploadStatus(file.name + " 파일을 저장했어요.");
-                $("upload-file").value = "";
+                const result = await uploadWorkspaceFile({workspaceId, file, expectedUserId, onProgress: uploadStatus});
+                showUploadResult(result, file.name, result.storageKey);
             } catch (error) {
-                if (error.status === 401) showError(error);
-                uploadStatus(error.message, true);
+                if (error instanceof UploadCompletionError) {
+                    showCompletionFailure(error, {
+                        workspaceId, uploadId: error.uploadId, expectedUserId,
+                        fileName: error.fileName, storageKey: error.storageKey
+                    });
+                } else {
+                    if (error.status === 401) showError(error);
+                    uploadStatus(error.message, true);
+                }
             } finally {
                 state.busy = false;
                 controls();
             }
+        });
+
+        $("upload-retry").addEventListener("click", async () => {
+            if (state.busy || !state.detail || !state.pendingUpload) return;
+            const pending = state.pendingUpload;
+            state.busy = true;
+            controls();
+            try {
+                const result = await completeWorkspaceUpload({
+                    uploadId: pending.uploadId, expectedUserId: pending.expectedUserId, onProgress: uploadStatus
+                });
+                showUploadResult(result, pending.fileName, pending.storageKey);
+            } catch (error) {
+                showCompletionFailure(error, pending);
+            } finally {
+                state.busy = false;
+                controls();
+            }
+        });
+
+        $("upload-new").addEventListener("click", () => {
+            if (state.busy) return;
+            setPendingUpload(null);
+            $("upload-form").reset();
+            $("upload-result").hidden = true;
+            $("upload-login").dataset.required = "false";
+            uploadStatus("파일을 선택해 새 업로드를 시작해 주세요.");
+            controls();
+            $("upload-file").focus();
         });
 
         $("workspace-select").addEventListener("change", event => {
