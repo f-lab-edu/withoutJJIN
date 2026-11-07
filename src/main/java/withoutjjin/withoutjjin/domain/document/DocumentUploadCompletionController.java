@@ -22,6 +22,8 @@ public class DocumentUploadCompletionController {
 
     @PostMapping("/{uploadId}/complete")
     public ResponseEntity<CompleteUploadResponse> completeUpload(
+            // 브라우저가 S3에 Word 파일을 업로드한 뒤,
+          // Document로 등록해 달라고 요청하는 시점
             @PathVariable @Positive Long uploadId,
             @AuthenticationPrincipal OidcUser oidcUser
     ) {
