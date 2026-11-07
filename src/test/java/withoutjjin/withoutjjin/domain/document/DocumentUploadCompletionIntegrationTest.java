@@ -10,6 +10,9 @@ import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
@@ -48,9 +51,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 // Service의 실제 커밋·롤백을 검증하므로 테스트 전체를 트랜잭션으로 감싸지 않는다.
 @SpringBootTest
+@AutoConfigureMockMvc
 @ActiveProfiles("test")
 class DocumentUploadCompletionIntegrationTest {
 
@@ -60,6 +68,7 @@ class DocumentUploadCompletionIntegrationTest {
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
     @Autowired private DocumentUploadCompletionService service;
+    @Autowired private MockMvc mockMvc;
     @Autowired private AppUserRepository users;
     @Autowired private WorkspaceRepository workspaces;
     @Autowired private WorkspaceMemberRepository members;
@@ -90,6 +99,32 @@ class DocumentUploadCompletionIntegrationTest {
         upload = uploads.saveAndFlush(new DocumentUpload(
                 workspace, null, requester, originalFile, 1024L,
                 LocalDateTime.ofInstant(NOW.plusSeconds(300), ZONE)));
+    }
+
+    @Test
+    @DisplayName("완료 API가 실제 Service와 DB에 Document·DocumentVersion을 등록하고 ID들을 응답한다")
+    void registersDocumentThroughCompletionApi() throws Exception {
+        var response = mockMvc.perform(post(
+                        "/api/v1/uploads/{uploadId}/complete", upload.getId())
+                        .with(oidcLogin().idToken(token -> token
+                                .claim("iss", requester.getIssuer())
+                                .subject(requester.getSubject())))
+                        .with(csrf().asHeader()))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.uploadId").value(upload.getId()));
+
+        Long documentId = jdbc.queryForObject(
+                "SELECT document_id FROM document_upload WHERE id = ?", Long.class, upload.getId());
+        Long versionId = jdbc.queryForObject(
+                "SELECT id FROM document_version WHERE document_id = ? AND version_number = 1",
+                Long.class, documentId);
+        response.andExpect(jsonPath("$.documentId").value(documentId))
+                .andExpect(jsonPath("$.documentVersionId").value(versionId));
+        assertThat(countDocuments()).isEqualTo(1);
+        assertThat(countVersions()).isEqualTo(1);
+        assertThat(status()).isEqualTo("COMPLETED");
+        verify(verifier).verify(originalFile.getObjectKey(), 1024L, MEDIA_TYPE);
     }
 
     @Test
