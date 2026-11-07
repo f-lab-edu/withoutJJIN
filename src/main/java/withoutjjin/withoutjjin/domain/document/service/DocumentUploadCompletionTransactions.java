@@ -51,15 +51,31 @@ public class DocumentUploadCompletionTransactions {
 
     @Transactional(readOnly = true)
     public PreparedUpload prepare(Long uploadId, String issuer, String subject) {
-        DocumentUpload upload = findAuthorizedUpload(uploadId, issuer, subject, false);
-        if (upload.getStatus() == DocumentUploadStatus.COMPLETED) {
-            return new PreparedUpload(null, null, null, null, completedResponse(upload));
+        DocumentUpload upload = findAuthorizedUpload(
+                uploadId,
+                issuer, subject,
+                false);
+
+        if (upload.getStatus() == DocumentUploadStatus.COMPLETED) {  //이미 완료상태
+            // 이미 완료했으므로 S3를 다시 검증할 필요가 없어. 따라서 앞의 네 필드는 사용하지 않고,
+            // completedResponse에 기존 처리 결과를 담아.
+            return new PreparedUpload(
+                    null,
+                    null,
+                    null,
+                    null,
+                    completedResponse(upload));
         }
+
         StoreFile originalFile = validatePendingUpload(upload);
         // 엔티티 대신 스칼라 값을 반환하여 트랜잭션 밖에서 지연 로딩하지 않는다.
         return new PreparedUpload(
-                originalFile.getId(), originalFile.getObjectKey(),
-                originalFile.getSizeBytes(), originalFile.getMediaType(), null);
+                originalFile.getId(),
+                originalFile.getObjectKey(),
+                originalFile.getSizeBytes(),
+                originalFile.getMediaType(),
+                null);
+
     }
 
     // 잠금 대기 전에 시작된 이전 조회 시점 때문에 첫 DocumentVersion을 놓치지 않도록 한다.
@@ -81,10 +97,22 @@ public class DocumentUploadCompletionTransactions {
         }
 
         Document document = documents.save(new Document(
-                originalFile.getFileName(), 0, upload.getCreatedBy(), null, upload.getWorkspace()));
+                originalFile.getFileName(),
+                0,
+                upload.getCreatedBy(),
+                null,
+                upload.getWorkspace()));
+
         DocumentVersion version = versions.save(new DocumentVersion(
-                1, "", null, document, originalFile.getObjectKey(),
-                originalFile.getFileName(), originalFile.getSizeBytes(), upload.getCreatedBy()));
+                1,
+                "",
+                null,
+                document,
+                originalFile.getObjectKey(),
+                originalFile.getFileName(),
+                originalFile.getSizeBytes(),
+                upload.getCreatedBy()));
+
         document.updateRevision(1);
         upload.complete(document);
 
@@ -125,6 +153,7 @@ public class DocumentUploadCompletionTransactions {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT, "DocumentUpload.originalFile이 없습니다.");
         }
+
         return upload.getOriginalFile();
     }
 

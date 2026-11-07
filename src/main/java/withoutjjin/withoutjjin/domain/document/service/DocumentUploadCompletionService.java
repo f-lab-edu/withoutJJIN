@@ -19,17 +19,22 @@ public class DocumentUploadCompletionService {
     private final S3UploadVerifier s3UploadVerifier;
 
     // 외부 S3 요청 중에는 호출자의 DB 트랜잭션도 유지하지 않는다.
+//    트랜잭션 없이 실행. 호출자가 시작한 트랜잭션이 있다면 잠시 중단
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public CompleteUploadResponse completeUpload(
             Long uploadId, String issuer, String subject) {
-        var prepared = transactions.prepare(uploadId, issuer, subject);
+        var prepared = transactions.prepare(uploadId, issuer, subject); // 트랜잭션 : 업로드 준비상태
+
         if (prepared.completedResponse() != null) {
             return prepared.completedResponse();
         }
 
         try {
             s3UploadVerifier.verify(
-                    prepared.objectKey(), prepared.sizeBytes(), prepared.mediaType());
+                    prepared.objectKey(),
+                    prepared.sizeBytes(),
+                    prepared.mediaType()
+            );
         } catch (S3Exception exception) {
             HttpStatus status = exception.statusCode() == 404
                     ? HttpStatus.NOT_FOUND : HttpStatus.BAD_GATEWAY;

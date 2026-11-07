@@ -17,7 +17,9 @@ public class S3UploadVerifier {
         verify(storeFile.getObjectKey(), storeFile.getSizeBytes(), storeFile.getMediaType());
     }
 
-    // 트랜잭션 밖에서 엔티티를 지연 로딩하지 않도록 검증할 스칼라 값을 전달받는다.
+
+
+    // 트랜잭션 밖에서 엔티티를 지연 로딩하지 않도록 검증할 스칼라(엔티티밖으로 꺼내놓은 값) 값을 전달받는다.
     public void verify(String objectKey, Long sizeBytes, String mediaType) {
         HeadObjectResponse response = s3ObjectReader.head(objectKey);
 
