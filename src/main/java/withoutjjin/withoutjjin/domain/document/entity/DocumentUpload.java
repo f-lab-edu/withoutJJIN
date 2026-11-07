@@ -61,8 +61,12 @@ public class DocumentUpload {
 
 
 
-    public DocumentUpload(Workspace workspace, Document document, AppUser createdBy,
-                          StoreFile originalFile, Long reservedBytes, LocalDateTime expiresAt) {
+    public DocumentUpload(Workspace workspace,
+                          Document document,
+                          AppUser createdBy,
+                          StoreFile originalFile,
+                          Long reservedBytes,
+                          LocalDateTime expiresAt) {
         if (workspace == null || createdBy == null) {
             throw new IllegalArgumentException("워크스페이스와 업로드 요청자가 필요합니다.");
         }
@@ -81,6 +85,33 @@ public class DocumentUpload {
         this.reservedBytes = reservedBytes;
         this.expiresAt = expiresAt;
         this.status = DocumentUploadStatus.PENDING;
+    }
+
+
+
+    // S3 검증과 DocumentVersion 등록은 Service에서 처리한 뒤 호출한다.
+    public void complete(Document completedDocument) { // 상태변경
+        if (status != DocumentUploadStatus.PENDING) {
+            throw new IllegalStateException("PENDING 상태의 업로드 요청만 완료할 수 있습니다.");
+        }
+        if (completedDocument == null) {
+            throw new IllegalArgumentException("완료 처리할 Document가 필요합니다.");
+        }
+        if (originalFile == null) {
+            throw new IllegalStateException("원본 파일이 연결된 업로드 요청만 완료할 수 있습니다.");
+        }
+        validateWorkspace(completedDocument.getWorkspace());
+
+        boolean differentDocument = document != null
+                && document != completedDocument
+                && (document.getId() == null
+                || !document.getId().equals(completedDocument.getId()));
+        if (differentDocument) {
+            throw new IllegalArgumentException("이미 연결된 Document를 다른 Document로 변경할 수 없습니다.");
+        }
+
+        this.document = completedDocument;
+        this.status = DocumentUploadStatus.COMPLETED;
     }
 
     private void validateWorkspace(Workspace relatedWorkspace) {
