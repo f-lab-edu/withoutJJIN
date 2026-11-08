@@ -1,9 +1,12 @@
 package withoutjjin.withoutjjin.domain.document;
 
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -113,6 +116,44 @@ class DocumentConversionJobPersistenceTest {
         assertThatThrownBy(() -> repository.saveAndFlush(new DocumentConversionJob(upload, secondVersion)))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("uk_conversion_job_document_upload");
+    }
+
+    @Test
+    @DisplayName("DocumentConversionJob을 비관적 쓰기 잠금으로 조회한다")
+    void readsJobWithPessimisticWriteLock() {
+        Long jobId = repository.saveAndFlush(new DocumentConversionJob(upload, version)).getId();
+        entityManager.clear();
+
+        DocumentConversionJob locked = repository.findByIdForUpdate(jobId).orElseThrow();
+
+        assertThat(locked.getId()).isEqualTo(jobId);
+        assertThat(entityManager.getLockMode(locked)).isEqualTo(LockModeType.PESSIMISTIC_WRITE);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = DocumentConversionJobStatus.class, names = {"COMPLETED", "FAILED"})
+    @DisplayName("변환 작업의 실행·완료·실패 상태 변경을 DB에 저장한다")
+    void persistsJobStatusTransitions(DocumentConversionJobStatus finalStatus) {
+        Long jobId = repository.saveAndFlush(new DocumentConversionJob(upload, version)).getId();
+        entityManager.clear();
+
+        DocumentConversionJob found = repository.findByIdForUpdate(jobId).orElseThrow();
+        found.startProcessing();
+        repository.flush();
+        assertThat(entityManager.createNativeQuery("select status from document_conversion_job where id = :id")
+                .setParameter("id", jobId).getSingleResult()).isEqualTo("PROCESSING");
+
+        if (finalStatus == DocumentConversionJobStatus.COMPLETED) {
+            found.complete();
+        } else {
+            found.fail();
+        }
+        repository.flush();
+        entityManager.clear();
+
+        assertThat(repository.findById(jobId).orElseThrow().getStatus()).isEqualTo(finalStatus);
+        assertThat(entityManager.createNativeQuery("select status from document_conversion_job where id = :id")
+                .setParameter("id", jobId).getSingleResult()).isEqualTo(finalStatus.name());
     }
 
     private DocumentVersion version(int versionNumber) {
