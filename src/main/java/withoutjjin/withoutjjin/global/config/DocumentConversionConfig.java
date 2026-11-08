@@ -20,9 +20,8 @@ public class DocumentConversionConfig {
             @Value("${document.conversion.read-timeout}") Duration readTimeout
     ) {
         if (baseUrl.getHost() == null
-                || !("http".equalsIgnoreCase(baseUrl.getScheme())
-                || "https".equalsIgnoreCase(baseUrl.getScheme()))) {
-            throw new IllegalArgumentException("변환 서버 주소는 HTTP 또는 HTTPS 주소여야 합니다.");
+                || !"http".equalsIgnoreCase(baseUrl.getScheme())) {
+            throw new IllegalArgumentException("변환 서버 주소는 HTTP 주소여야 합니다.");
         }
         if (connectTimeout.isZero() || connectTimeout.isNegative()
                 || readTimeout.isZero() || readTimeout.isNegative()) {
