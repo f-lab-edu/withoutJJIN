@@ -8,11 +8,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import withoutjjin.withoutjjin.domain.document.dto.CompleteUploadResponse;
 import withoutjjin.withoutjjin.domain.document.entity.Document;
+import withoutjjin.withoutjjin.domain.document.entity.DocumentConversionJob;
 import withoutjjin.withoutjjin.domain.document.entity.DocumentUpload;
 import withoutjjin.withoutjjin.domain.document.entity.DocumentUploadStatus;
 import withoutjjin.withoutjjin.domain.document.entity.DocumentVersion;
 import withoutjjin.withoutjjin.domain.document.entity.StoreFile;
 import withoutjjin.withoutjjin.domain.document.repository.DocumentRepository;
+import withoutjjin.withoutjjin.domain.document.repository.DocumentConversionJobRepository;
 import withoutjjin.withoutjjin.domain.document.repository.DocumentUploadRepository;
 import withoutjjin.withoutjjin.domain.document.repository.DocumentVersionRepository;
 import withoutjjin.withoutjjin.domain.user.entity.AppUser;
@@ -29,6 +31,7 @@ public class DocumentUploadCompletionTransactions {
     private final DocumentUploadRepository uploads;
     private final DocumentRepository documents;
     private final DocumentVersionRepository versions;
+    private final DocumentConversionJobRepository conversionJobs;
     private final AppUserService appUserService;
     private final WorkspaceService workspaceService;
     private final Clock clock;
@@ -37,6 +40,7 @@ public class DocumentUploadCompletionTransactions {
             DocumentUploadRepository uploads,
             DocumentRepository documents,
             DocumentVersionRepository versions,
+            DocumentConversionJobRepository conversionJobs,
             AppUserService appUserService,
             WorkspaceService workspaceService,
             @Qualifier("documentUploadClock") Clock clock
@@ -44,6 +48,7 @@ public class DocumentUploadCompletionTransactions {
         this.uploads = uploads;
         this.documents = documents;
         this.versions = versions;
+        this.conversionJobs = conversionJobs;
         this.appUserService = appUserService;
         this.workspaceService = workspaceService;
         this.clock = clock;
@@ -115,6 +120,8 @@ public class DocumentUploadCompletionTransactions {
 
         document.updateRevision(1);
         upload.complete(document);
+        // Document·DocumentVersion 등록과 업로드 완료 상태를 변환 대기 작업과 함께 커밋한다.
+        conversionJobs.save(new DocumentConversionJob(upload, version));
 
         return new CompleteUploadResponse(upload.getId(), document.getId(), version.getId());
     }
