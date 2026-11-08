@@ -15,6 +15,7 @@ public class InvitationEmailScheduler {
     }
 
     @Scheduled(
+            scheduler = "invitationEmailTaskScheduler",
             initialDelayString = "${invitation.mail.poll-delay:10s}",
             fixedDelayString = "${invitation.mail.poll-delay:10s}"
     )

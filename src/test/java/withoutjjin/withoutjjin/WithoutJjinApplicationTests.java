@@ -8,6 +8,7 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.core.env.Environment;
 import org.springframework.test.context.ActiveProfiles;
 import withoutjjin.withoutjjin.domain.invitation.worker.InvitationEmailScheduler;
+import withoutjjin.withoutjjin.domain.document.worker.DocumentConversionScheduler;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -22,13 +23,16 @@ class WithoutJjinApplicationTests {
     private ApplicationContext applicationContext;
 
     @Test
-    @DisplayName("테스트 공통 설정을 적용하고 자동 메일 발송 스케줄러를 시작하지 않는다")
+    @DisplayName("테스트 공통 설정을 적용하고 메일·PDF 자동 실행 스케줄러를 시작하지 않는다")
     void contextLoads() {
         assertThat(environment.getActiveProfiles()).contains("test");
         assertThat(environment.getProperty("invitation.mail.enabled", Boolean.class)).isFalse();
         assertThat(environment.getProperty("invitation.mail.allowed-recipient")).isEmpty();
         assertThat(environment.getProperty("spring.jpa.open-in-view", Boolean.class)).isFalse();
         assertThat(applicationContext.getBeansOfType(InvitationEmailScheduler.class)).isEmpty();
+        assertThat(environment.getProperty("document.conversion.worker.enabled", Boolean.class)).isFalse();
+        assertThat(applicationContext.getBeansOfType(DocumentConversionScheduler.class)).isEmpty();
+        assertThat(applicationContext.containsBean("documentConversionTaskScheduler")).isFalse();
     }
 
 
