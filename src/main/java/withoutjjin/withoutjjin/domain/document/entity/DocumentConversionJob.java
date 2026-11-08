@@ -8,6 +8,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.PrePersist;
@@ -23,7 +24,9 @@ import java.time.ZoneId;
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@Table(name = "document_conversion_job", uniqueConstraints = {
+@Table(name = "document_conversion_job",
+        indexes = @Index(name = "idx_conversion_job_status_created_id", columnList = "status, created_at, id"),
+        uniqueConstraints = {
         @UniqueConstraint(name = "uk_conversion_job_document_upload", columnNames = "document_upload_id"),
         @UniqueConstraint(name = "uk_conversion_job_document_version", columnNames = "document_version_id")
 })
