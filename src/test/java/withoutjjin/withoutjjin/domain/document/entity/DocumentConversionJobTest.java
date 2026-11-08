@@ -2,6 +2,8 @@ package withoutjjin.withoutjjin.domain.document.entity;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import withoutjjin.withoutjjin.domain.user.entity.AppUser;
 import withoutjjin.withoutjjin.domain.workspace.entity.Workspace;
 
@@ -79,6 +81,82 @@ class DocumentConversionJobTest {
 
         assertThatThrownBy(() -> new DocumentConversionJob(upload, version))
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("저장 키");
+    }
+
+    @Test
+    @DisplayName("PENDING 변환 작업을 PROCESSING으로 변경한다")
+    void startsPendingJob() {
+        DocumentConversionJob job = jobWithStatus(DocumentConversionJobStatus.PENDING);
+
+        job.startProcessing();
+
+        assertThat(job.getStatus()).isEqualTo(DocumentConversionJobStatus.PROCESSING);
+    }
+
+    @Test
+    @DisplayName("PROCESSING 변환 작업을 COMPLETED로 변경한다")
+    void completesProcessingJob() {
+        DocumentConversionJob job = jobWithStatus(DocumentConversionJobStatus.PROCESSING);
+
+        job.complete();
+
+        assertThat(job.getStatus()).isEqualTo(DocumentConversionJobStatus.COMPLETED);
+    }
+
+    @Test
+    @DisplayName("PROCESSING 변환 작업을 FAILED로 변경한다")
+    void failsProcessingJob() {
+        DocumentConversionJob job = jobWithStatus(DocumentConversionJobStatus.PROCESSING);
+
+        job.fail();
+
+        assertThat(job.getStatus()).isEqualTo(DocumentConversionJobStatus.FAILED);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = DocumentConversionJobStatus.class, names = {"PROCESSING", "COMPLETED", "FAILED"})
+    @DisplayName("PENDING이 아닌 변환 작업을 다시 시작하지 않는다")
+    void rejectsStartingNonPendingJob(DocumentConversionJobStatus status) {
+        DocumentConversionJob job = jobWithStatus(status);
+
+        assertThatThrownBy(job::startProcessing)
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("PENDING");
+        assertThat(job.getStatus()).isEqualTo(status);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = DocumentConversionJobStatus.class, names = {"PENDING", "COMPLETED", "FAILED"})
+    @DisplayName("PROCESSING이 아닌 변환 작업을 완료하지 않는다")
+    void rejectsCompletingNonProcessingJob(DocumentConversionJobStatus status) {
+        DocumentConversionJob job = jobWithStatus(status);
+
+        assertThatThrownBy(job::complete)
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("PROCESSING");
+        assertThat(job.getStatus()).isEqualTo(status);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = DocumentConversionJobStatus.class, names = {"PENDING", "COMPLETED", "FAILED"})
+    @DisplayName("PROCESSING이 아닌 변환 작업을 실패로 변경하지 않는다")
+    void rejectsFailingNonProcessingJob(DocumentConversionJobStatus status) {
+        DocumentConversionJob job = jobWithStatus(status);
+
+        assertThatThrownBy(job::fail)
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("PROCESSING");
+        assertThat(job.getStatus()).isEqualTo(status);
+    }
+
+    private DocumentConversionJob jobWithStatus(DocumentConversionJobStatus status) {
+        DocumentConversionJob job = new DocumentConversionJob(completedUpload(), version(document, original.getObjectKey()));
+        if (status != DocumentConversionJobStatus.PENDING) {
+            job.startProcessing();
+        }
+        if (status == DocumentConversionJobStatus.COMPLETED) {
+            job.complete();
+        } else if (status == DocumentConversionJobStatus.FAILED) {
+            job.fail();
+        }
+        return job;
     }
 
     private DocumentUpload pendingUpload() {

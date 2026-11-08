@@ -75,6 +75,27 @@ public class DocumentConversionJob {
         this.status = DocumentConversionJobStatus.PENDING;
     }
 
+    public void startProcessing() {
+        requireStatus(DocumentConversionJobStatus.PENDING);
+        this.status = DocumentConversionJobStatus.PROCESSING;
+    }
+
+    public void complete() {
+        requireStatus(DocumentConversionJobStatus.PROCESSING);
+        this.status = DocumentConversionJobStatus.COMPLETED;
+    }
+
+    public void fail() {
+        requireStatus(DocumentConversionJobStatus.PROCESSING);
+        this.status = DocumentConversionJobStatus.FAILED;
+    }
+
+    private void requireStatus(DocumentConversionJobStatus expected) {
+        if (status != expected) {
+            throw new IllegalStateException(expected + " 상태의 DocumentConversionJob만 변경할 수 있습니다.");
+        }
+    }
+
     @PrePersist
     private void onCreate() {
         this.createdAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
