@@ -31,8 +31,8 @@ class DocumentConversionConfigTest {
     private final DocumentConversionConfig config = new DocumentConversionConfig();
 
     @ParameterizedTest
-    @ValueSource(strings = {"ftp://converter.test", "/relative-path", "http:/missing-host"})
-    @DisplayName("HTTP와 HTTPS가 아닌 변환 서버 주소를 거부한다")
+    @ValueSource(strings = {"https://converter.test", "ftp://converter.test", "/relative-path", "http:/missing-host"})
+    @DisplayName("호스트가 없거나 HTTP가 아닌 변환 서버 주소를 거부한다")
     void rejectsInvalidBaseUrl(String address) {
         assertThatThrownBy(() -> config.wordPdfRestClient(URI.create(address), Duration.ofSeconds(1), Duration.ofSeconds(1)))
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("HTTP");
