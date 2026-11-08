@@ -99,3 +99,20 @@ export function createDocumentListController({workspaceId, expectedUserId, fetch
 
     return {refresh, stop() { stopped = true; generation++; cancel(); }};
 }
+
+
+// 열 때마다 로그인 계정을 다시 확인하고, 발급된 서명 URL은 브라우저 저장소에 보관하지 않는다.
+export async function fetchDocumentPdfUrl({documentId, expectedUserId, fetchImpl = fetch, signal}) {
+    requireId(documentId);
+    requireId(expectedUserId);
+    await requireCurrentUser(fetchImpl, expectedUserId, signal);
+    const result = await requestJson(fetchImpl, `/api/v1/documents/${documentId}/pdf-url`, signal);
+    let url;
+    try { url = new URL(result?.pdfUrl); }
+    catch (_) { throw new DocumentRequestError("PDF 조회 주소를 확인할 수 없어요."); }
+    if (url.protocol !== "https:" || url.username || url.password
+            || !Number.isFinite(Date.parse(result?.expiresAt)) || Date.parse(result.expiresAt) <= Date.now()) {
+        throw new DocumentRequestError("PDF 조회 주소가 잘못됐거나 만료됐어요. PDF를 다시 열어 주세요.");
+    }
+    return {pdfUrl: url.href, expiresAt: result.expiresAt};
+}
