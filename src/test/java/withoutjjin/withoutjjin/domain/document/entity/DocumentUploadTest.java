@@ -171,6 +171,113 @@ class DocumentUploadTest {
         assertThat(linkedUpload.getStatus()).isEqualTo(DocumentUploadStatus.COMPLETED);
     }
 
+    @Test
+    @DisplayName("완료된 업로드에 같은 워크스페이스의 PDF를 연결하고 원본을 유지한다")
+    void attachesPdfToCompletedUpload() {
+        Document document = document(workspace);
+        upload.complete(document);
+        StoreFile pdf = pdf(workspace, "workspaces/10/review-pdfs/result.pdf");
+
+        upload.attachReviewPdf(pdf);
+
+        assertThat(upload.getReviewPdfFile()).isSameAs(pdf);
+        assertThat(upload.getOriginalFile()).isSameAs(originalFile);
+        assertThat(upload.getDocument()).isSameAs(document);
+        assertThat(upload.getStatus()).isEqualTo(DocumentUploadStatus.COMPLETED);
+    }
+
+    @Test
+    @DisplayName("PDF가 없으면 reviewPdfFile을 변경하지 않는다")
+    void rejectsMissingReviewPdf() {
+        upload.complete(document(workspace));
+
+        assertThatThrownBy(() -> upload.attachReviewPdf(null))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("StoreFile");
+
+        assertThat(upload.getReviewPdfFile()).isNull();
+    }
+
+    @Test
+    @DisplayName("다른 워크스페이스의 PDF를 연결하지 않는다")
+    void rejectsReviewPdfFromAnotherWorkspace() {
+        upload.complete(document(workspace));
+        StoreFile pdf = pdf(new Workspace("다른 팀", requester), "workspaces/20/review-pdfs/result.pdf");
+
+        assertThatThrownBy(() -> upload.attachReviewPdf(pdf))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("같은 워크스페이스");
+
+        assertThat(upload.getReviewPdfFile()).isNull();
+    }
+
+    @Test
+    @DisplayName("PDF가 아닌 StoreFile을 reviewPdfFile에 연결하지 않는다")
+    void rejectsNonPdfStoreFile() {
+        upload.complete(document(workspace));
+
+        assertThatThrownBy(() -> upload.attachReviewPdf(originalFile))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("application/pdf");
+
+        assertThat(upload.getReviewPdfFile()).isNull();
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = DocumentUploadStatus.class, names = {"PENDING", "FAILED", "EXPIRED"})
+    @DisplayName("완료되지 않은 업로드에는 PDF를 연결하지 않는다")
+    void rejectsReviewPdfForNonCompletedUpload(DocumentUploadStatus status) {
+        ReflectionTestUtils.setField(upload, "status", status);
+        StoreFile pdf = pdf(workspace, "workspaces/10/review-pdfs/result.pdf");
+
+        assertThatThrownBy(() -> upload.attachReviewPdf(pdf))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("COMPLETED");
+
+        assertThat(upload.getReviewPdfFile()).isNull();
+        assertThat(upload.getStatus()).isEqualTo(status);
+    }
+
+    @Test
+    @DisplayName("이미 연결된 PDF를 다른 PDF로 교체하지 않는다")
+    void rejectsReplacingReviewPdf() {
+        upload.complete(document(workspace));
+        StoreFile first = pdf(workspace, "workspaces/10/review-pdfs/first.pdf");
+        upload.attachReviewPdf(first);
+        StoreFile second = pdf(workspace, "workspaces/10/review-pdfs/second.pdf");
+
+        assertThatThrownBy(() -> upload.attachReviewPdf(second))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("이미");
+
+        assertThat(upload.getReviewPdfFile()).isSameAs(first);
+    }
+
+    @Test
+    @DisplayName("원본과 저장 키가 같은 PDF를 연결하지 않는다")
+    void rejectsReviewPdfUsingOriginalKey() {
+        upload.complete(document(workspace));
+        StoreFile pdf = pdf(workspace, originalFile.getObjectKey());
+
+        assertThatThrownBy(() -> upload.attachReviewPdf(pdf))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("저장 키");
+
+        assertThat(upload.getReviewPdfFile()).isNull();
+    }
+
+    @Test
+    @DisplayName("Workspace 객체가 달라도 같은 Workspace ID이면 PDF를 연결한다")
+    void acceptsReviewPdfWithSameWorkspaceId() {
+        ReflectionTestUtils.setField(workspace, "id", 10L);
+        upload.complete(document(workspace));
+        Workspace reloaded = new Workspace("다시 조회한 팀", requester);
+        ReflectionTestUtils.setField(reloaded, "id", 10L);
+        StoreFile pdf = pdf(reloaded, "workspaces/10/review-pdfs/result.pdf");
+
+        upload.attachReviewPdf(pdf);
+
+        assertThat(upload.getReviewPdfFile()).isSameAs(pdf);
+    }
+
+    private StoreFile pdf(Workspace owner, String key) {
+        return new StoreFile(owner, key, "기획서.pdf", "application/pdf", 2048L);
+    }
+
     private Document document(Workspace documentWorkspace) {
         return new Document("기획서", 1, requester, null, documentWorkspace);
     }
