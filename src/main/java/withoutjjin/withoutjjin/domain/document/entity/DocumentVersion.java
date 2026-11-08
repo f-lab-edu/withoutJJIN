@@ -97,6 +97,16 @@ public class DocumentVersion {
         this.uploadedBy = uploadedBy;
     }
 
+    public void recordPageCount(Integer pageCount) {
+        if (pageCount == null || pageCount < 1) {
+            throw new IllegalArgumentException("페이지 수는 1 이상이어야 합니다.");
+        }
+        if (this.pageCount != null) {
+            throw new IllegalStateException("DocumentVersion.pageCount가 이미 기록되어 있습니다.");
+        }
+        this.pageCount = pageCount;
+    }
+
     @PrePersist
     private void onCreate() {
         this.createdAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));

@@ -114,6 +114,26 @@ public class DocumentUpload {
         this.status = DocumentUploadStatus.COMPLETED;
     }
 
+    public void attachReviewPdf(StoreFile pdfFile) {
+        if (status != DocumentUploadStatus.COMPLETED) {
+            throw new IllegalStateException("COMPLETED 상태의 DocumentUpload에만 PDF를 연결할 수 있습니다.");
+        }
+        if (pdfFile == null) {
+            throw new IllegalArgumentException("PDF용 StoreFile이 필요합니다.");
+        }
+        validateWorkspace(pdfFile.getWorkspace());
+        if (!"application/pdf".equals(pdfFile.getMediaType())) {
+            throw new IllegalArgumentException("application/pdf 형식의 StoreFile만 연결할 수 있습니다.");
+        }
+        if (originalFile != null && originalFile.getObjectKey().equals(pdfFile.getObjectKey())) {
+            throw new IllegalArgumentException("PDF와 원본 파일의 저장 키는 달라야 합니다.");
+        }
+        if (reviewPdfFile != null) {
+            throw new IllegalStateException("DocumentUpload.reviewPdfFile이 이미 연결되어 있습니다.");
+        }
+        this.reviewPdfFile = pdfFile;
+    }
+
     private void validateWorkspace(Workspace relatedWorkspace) {
         boolean sameWorkspace = workspace == relatedWorkspace
                 || (workspace.getId() != null && relatedWorkspace != null
