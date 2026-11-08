@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import withoutjjin.withoutjjin.domain.document.dto.DocumentListResponse;
+import withoutjjin.withoutjjin.domain.document.dto.PdfUrlResponse;
 import withoutjjin.withoutjjin.domain.document.service.DocumentQueryService;
 
 import java.util.List;
@@ -29,6 +30,16 @@ public class DocumentQueryController {
     ) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
                 .body(documentQueryService.getDocuments(workspaceId,
+                        oidcUser.getIssuer().toString(), oidcUser.getSubject()));
+    }
+
+    @GetMapping("/documents/{documentId}/pdf-url")
+    public ResponseEntity<PdfUrlResponse> getPdfUrl(
+            @PathVariable @Positive Long documentId,
+            @AuthenticationPrincipal OidcUser oidcUser
+    ) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(documentQueryService.getPdfUrl(documentId,
                         oidcUser.getIssuer().toString(), oidcUser.getSubject()));
     }
 }
