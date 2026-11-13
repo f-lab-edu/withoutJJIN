@@ -63,7 +63,13 @@ export function createWorkspacePdfViewer({container, loadLibrary = loadPdfJs,
                 canvas.dataset.pageNumber = String(pageNumber);
                 canvas.setAttribute("role", "img");
                 canvas.setAttribute("aria-label", `PDF ${pageNumber}페이지`);
-                container.append(canvas);
+                const pageElement = container.ownerDocument.createElement("div");
+                pageElement.className = "pdf-page";
+                pageElement.style.width = viewport.width + "px";
+                pageElement.dataset.pageNumber = String(pageNumber);
+                pageElement.dataset.ready = "false";
+                pageElement.append(canvas);
+                container.append(pageElement);
                 session.renderTask = page.render({
                     canvasContext: canvas.getContext("2d"), viewport,
                     transform: ratio === 1 ? null : [ratio, 0, 0, ratio, 0, 0]
@@ -71,6 +77,7 @@ export function createWorkspacePdfViewer({container, loadLibrary = loadPdfJs,
                 await session.renderTask.promise;
                 if (!isCurrent()) return null;
                 session.renderTask = null;
+                pageElement.dataset.ready = "true";
                 page.cleanup();
             }
             return pdf.numPages;

@@ -15,6 +15,8 @@ function fixture({pageCount = 2, library, getPage, render} = {}) {
         replaceChildren() { this.children = []; },
         append(node) { this.children.push(node); },
         ownerDocument: {createElement(tag) {
+            if (tag === "div") return {style: {}, dataset: {}, children: [],
+                append(...nodes) { this.children.push(...nodes); }};
             assert.equal(tag, "canvas");
             const canvas = {style: {}, dataset: {}, attributes: {},
                 setAttribute(name, value) { this.attributes[name] = value; },
@@ -47,6 +49,8 @@ test("renders every page with page numbers and a high-DPI canvas", async () => {
     const f = fixture();
     assert.equal(await f.viewer.open("https://example.invalid/private.pdf?signature=secret"), 2);
     assert.equal(f.container.children.length, 2);
+    assert.ok(f.container.children.every(page => page.className === "pdf-page" && page.dataset.ready === "true"));
+    assert.deepEqual(f.container.children.map(page => page.dataset.pageNumber), ["1", "2"]);
     assert.deepEqual(f.canvases.map(c => c.dataset.pageNumber), ["1", "2"]);
     assert.equal(f.canvases[0].width, 1200);
     assert.equal(f.canvases[0].height, 1600);

@@ -3,11 +3,11 @@
 워크스페이스의 `PDF 보기`를 누르면 `/workspaces/{workspaceId}/documents/{documentId}/review` 전용 화면으로 이동합니다.
 `document-review.mjs`에서 문서의 소속·로그인 계정과 변환 완료 상태를 확인한 뒤,
 `workspace-pdf-viewer.mjs`를 통해 PDF.js로 페이지별 canvas를 그립니다.
-왼쪽은 PDF, 오른쪽은 피드백 패널이며 현재 피드백 패널은 배치만 구현했습니다.
+왼쪽은 PDF, 오른쪽은 선택한 영역의 페이지 번호를 표시하는 피드백 패널입니다.
 문서 제목과 버전은 기존 문서 목록 API에서 조회한 최신 버전을 표시합니다.
-영역 선택, 피드백 저장·조회 및 과거 버전 선택은 후속 작업입니다.
+PDF 드래그 영역 선택과 취소를 지원합니다. 피드백 저장·조회 및 과거 버전 선택은 후속 작업입니다.
 기존 `GET /api/v1/documents/{documentId}/pdf-url` 응답의 `pdfUrl`을 사용합니다.
-페이지 번호는 각 canvas의 `data-page-number`에 기록합니다. 영역 선택과 코멘트 저장은 후속 작업입니다.
+페이지 번호는 각 canvas의 `data-page-number`에 기록합니다. 선택 좌표는 브라우저 메모리에서 관리하며 코멘트 DB 저장은 후속 작업입니다.
 
 ## 로컬 적용
 
@@ -43,3 +43,36 @@ node --test src/test/js/document-review.test.mjs src/test/js/workspace-pdf-viewe
 - `DocumentReviewPageTest` 2개 통과: HTML 경로·no-store 응답, 로그인 후 동일 화면 복귀용 RequestCache 검사.
 - 임시 API 응답과 2페이지 테스트 PDF를 사용하는 Chrome 검증 통과: 제목·버전, 오른쪽 패널, 실제 PDF.js 그리기, 모바일 가로 넘침 확인.
 - 위 브라우저 검증은 실제 AWS 계정이나 사용자의 문서에 접근하지 않습니다. 실제 S3 CORS 적용은 별도로 필요합니다.
+
+
+## PDF 영역 선택
+
+- PDF를 연 뒤 `영역 선택`이 켜져 있으면 드래그로 사각형을 선택합니다.
+- 한 번에 한 영역만 선택합니다. 다른 페이지에서 선택하면 기존 영역을 교체합니다.
+- 선택 취소 버튼 또는 PDF 영역에 포커스가 있는 상태에서 Esc로 취소합니다.
+- 드래그 중 Esc나 pointercancel은 진행 중 선택만 취소하고 이전 확정 영역을 유지합니다.
+- 터치로 PDF를 스크롤하려면 영역 선택 모드를 끕니다.
+- 페이지 밖으로 드래그해도 처음 선택한 페이지의 경계를 넘지 않습니다.
+- 좌표는 페이지 왼쪽 위 기준의 `pageNumber`, `x`, `y`, `width`, `height`로 관리합니다.
+  `x`, `y`, `width`, `height`는 페이지 너비·높이에 대한 0~1 비율이며 CSS 사각형도 %로 표시합니다.
+  canvas 내부 픽셀 수나 기기의 devicePixelRatio에 의존하지 않습니다.
+- PDF 다시 열기 또는 화면 이동 시 선택을 지웁니다. 아직 서버나 DB에는 저장하지 않습니다.
+
+검증: 관련 JavaScript 테스트 30개(선택 15개 포함)와 실제 Chrome 마우스 드래그,
+스크롤 후 2페이지 역방향 선택, 모바일 크기 변경 후 위치 유지, Esc 취소와 모드 전환을 확인했습니다.
+브라우저 검증에는 임시 API 응답과 테스트 PDF를 사용했습니다.
+
+```powershell
+node --test src/test/js/pdf-area-selection.test.mjs src/test/js/workspace-pdf-viewer.test.mjs src/test/js/document-review.test.mjs
+```
+
+참고: https://developer.mozilla.org/en-US/docs/Web/API/Pointer_events
+참고: https://developer.mozilla.org/en-US/docs/Web/API/Element/getBoundingClientRect
+
+
+### 영역 색상 선택
+
+`영역 색상`에서 초록·노랑·파랑·분홍을 선택할 수 있습니다.
+선택한 영역이 있으면 색상만 즉시 변경하고 페이지 번호·좌표는 유지합니다.
+선택 취소와 PDF 다시 열기 이후에도 같은 화면에서는 선택한 색상을 다음 드래그에 사용합니다.
+선택 정보에 `color`(green/yellow/blue/pink)를 포함하며, 현재는 DB에 저장하지 않습니다.

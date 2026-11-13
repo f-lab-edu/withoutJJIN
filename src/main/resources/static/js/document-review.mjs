@@ -1,5 +1,7 @@
 import {DocumentRequestError, fetchWorkspaceDocuments, fetchDocumentPdfUrl} from "./workspace-documents.mjs";
-import {createWorkspacePdfViewer} from "./workspace-pdf-viewer.mjs?v=pdfjs-6.5.438";
+import {createWorkspacePdfViewer} from "./workspace-pdf-viewer.mjs?v=area-selection-1";
+
+import {createPdfAreaSelector} from "./pdf-area-selection.mjs?v=selection-color-1";
 
 export function parseReviewPath(pathname) {
     const match = pathname.match(/^\/workspaces\/([1-9]\d*)\/documents\/([1-9]\d*)\/review$/);
@@ -76,8 +78,31 @@ export function initializeDocumentReview() {
     }
     $("workspace-back").href = "/workspaces/" + path.workspaceId;
     const viewer = createWorkspacePdfViewer({container: $("pdf-pages")});
+    let pdfReady = false, selectionMode = true;
+    const selector = createPdfAreaSelector({container: $("pdf-pages"), onChange(area) {
+        $("selection-summary").hidden = !area;
+        $("feedback-placeholder").hidden = Boolean(area);
+        $("selection-clear").disabled = !area;
+        $("selection-page").textContent = area ? area.pageNumber + "페이지에서 영역을 선택했어요." : "";
+        // 다음 단계의 피드백 요청에 사용할 수 있는 페이지 기준 좌표다. 현재는 DB에 저장하지 않는다.
+        for (const field of ["pageNumber", "x", "y", "width", "height", "color"]) {
+            if (area) $("selection-summary").dataset[field] = String(area[field]);
+            else delete $("selection-summary").dataset[field];
+        }
+    }});
+    selector.setColor($("selection-color").value);
+    $("selection-color").addEventListener("change", event => { selector.setColor(event.target.value); });
+    function syncSelectionMode() {
+        const enabled = pdfReady && selectionMode;
+        selector.setEnabled(enabled);
+        $("selection-mode").disabled = !pdfReady;
+        $("selection-mode").setAttribute("aria-pressed", String(enabled));
+    }
     const controller = createDocumentReviewController({...path, viewer, view: {
         reset() {
+            pdfReady = false;
+            selector.clearSelection();
+            syncSelectionMode();
             $("pdf-new-tab").removeAttribute("href");
             $("pdf-new-tab").hidden = true;
             $("review-login").hidden = true;
@@ -112,11 +137,16 @@ export function initializeDocumentReview() {
             $("pdf-new-tab").hidden = false;
         },
         ready(pageCount) {
+            pdfReady = true;
+            syncSelectionMode();
             $("pdf-placeholder").hidden = true;
             $("page-count").textContent = pageCount + "페이지";
             $("pdf-status").textContent = "PDF " + pageCount + "페이지를 표시했어요.";
         },
         error(message, status) {
+            pdfReady = false;
+            selector.clearSelection();
+            syncSelectionMode();
             $("pdf-status").textContent = message;
             $("pdf-status").dataset.error = "true";
             $("pdf-placeholder").textContent = "PDF를 표시하지 못했어요.";
@@ -124,6 +154,12 @@ export function initializeDocumentReview() {
         }
     }});
     $("pdf-renew").addEventListener("click", () => { void controller.load(); });
+    $("selection-mode").addEventListener("click", () => {
+        selectionMode = !selectionMode;
+        syncSelectionMode();
+    });
+    $("selection-clear").addEventListener("click", selector.clearSelection);
     window.addEventListener("pagehide", controller.stop);
+    window.addEventListener("pageshow", event => { if (event.persisted) void controller.load(); });
     void controller.load();
 }
