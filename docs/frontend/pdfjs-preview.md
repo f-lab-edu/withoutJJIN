@@ -4,7 +4,7 @@
 `document-review.mjs`에서 문서의 소속·로그인 계정과 변환 완료 상태를 확인한 뒤,
 `workspace-pdf-viewer.mjs`를 통해 PDF.js로 페이지별 canvas를 그립니다.
 왼쪽은 PDF, 오른쪽은 선택한 영역의 페이지 번호를 표시하는 피드백 패널입니다.
-문서 제목과 버전은 기존 문서 목록 API에서 조회한 최신 버전을 표시합니다.
+문서 제목은 문서 목록 API에서 조회하고, 표시할 버전 번호는 PDF URL 응답의 versionNumber를 사용합니다.
 PDF 드래그 영역 선택과 취소를 지원합니다. 피드백 저장·조회 및 과거 버전 선택은 후속 작업입니다.
 기존 `GET /api/v1/documents/{documentId}/pdf-url` 응답의 `pdfUrl`을 사용합니다.
 페이지 번호는 각 canvas의 `data-page-number`에 기록합니다. 선택 좌표는 브라우저 메모리에서 관리하며 코멘트 DB 저장은 후속 작업입니다.
@@ -76,3 +76,23 @@ node --test src/test/js/pdf-area-selection.test.mjs src/test/js/workspace-pdf-vi
 선택한 영역이 있으면 색상만 즉시 변경하고 페이지 번호·좌표는 유지합니다.
 선택 취소와 PDF 다시 열기 이후에도 같은 화면에서는 선택한 색상을 다음 드래그에 사용합니다.
 선택 정보에 `color`(green/yellow/blue/pink)를 포함하며, 현재는 DB에 저장하지 않습니다.
+
+
+## PDF 버전 식별
+
+`GET /api/v1/documents/{documentId}/pdf-url`은 PDF URL과 동일한 DocumentVersion의
+`documentVersionId` 및 `versionNumber`를 함께 반환합니다.
+
+```json
+{
+  "documentVersionId": 91,
+  "versionNumber": 1,
+  "pdfUrl": "https://버킷의주소/문서.pdf?서명정보",
+  "expiresAt": "2030-01-01T00:05:00Z"
+}
+```
+
+문서 목록 조회 이후 새 버전이 등록되어도 전용 화면은 PDF 응답의 버전 번호를 표시합니다.
+PDF 그리기가 완료된 이후에만 `controller.getDocumentVersionId()`로 피드백 대상 ID를 얻습니다.
+PDF를 다시 열거나 화면에서 나가면 이전 ID를 지우며, 브라우저 저장소에는 저장하지 않습니다.
+피드백 등록 API 및 입력창 연결은 후속 작업입니다.

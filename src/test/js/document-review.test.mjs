@@ -10,7 +10,7 @@ function deferred() {
 
 function fixture(options = {}) {
     const calls = [], opened = [], events = [];
-    const state = {}, model = {userId: 7, documentId: 10, status: "COMPLETED"};
+    const state = {}, model = {userId: 7, documentId: 10, documentVersionId: 91, versionNumber: 1, status: "COMPLETED"};
     let meCount = 0, urlCount = 0;
     const json = (body, status = 200) => ({ok: status >= 200 && status < 300, status, json: async () => body});
     const fetchImpl = async (path, init) => {
@@ -25,7 +25,7 @@ function fixture(options = {}) {
         if (path === "/api/v1/documents/10/pdf-url") {
             urlCount++;
             if (options.pendingUrl) return options.pendingUrl.promise;
-            return json({pdfUrl: `https://example.invalid/file.pdf?signature=${urlCount}`, expiresAt: "2099-01-01T00:00:00Z"});
+            return json({documentVersionId: model.documentVersionId, versionNumber: model.versionNumber, pdfUrl: `https://example.invalid/file.pdf?signature=${urlCount}`, expiresAt: "2099-01-01T00:00:00Z"});
         }
         throw new Error("Unexpected request " + path);
     };
@@ -63,6 +63,7 @@ test("loads a member's completed PDF and displays the document revision", async 
     await f.controller.load();
     assert.equal(f.state.document.title, "기획서.docx");
     assert.equal(f.state.document.revision, 1);
+    assert.equal(f.controller.getDocumentVersionId(), 91);
     assert.equal(f.state.pageCount, 2);
     assert.equal(f.state.loading, false);
     assert.equal(f.opened.length, 1);
@@ -126,12 +127,40 @@ test("leaving during a PDF render discards the late result and signed URL", asyn
     assert.equal(f.state.pdfUrl, undefined);
     assert.equal(f.state.document, undefined);
     assert.equal(f.state.pageCount, undefined);
+    assert.equal(f.controller.getDocumentVersionId(), null);
 });
 
 test("rendering errors preserve the fallback link and hide internal error details", async () => {
     const f = fixture({renderError: true});
     await f.controller.load();
     assert.ok(f.state.pdfUrl);
+    assert.equal(f.controller.getDocumentVersionId(), null);
     assert.equal(f.state.loading, false);
     assert.doesNotMatch(f.state.error.message, /secret|token|example\.invalid/);
+});
+
+
+test("the displayed revision and feedback target come from the PDF response rather than an older list", async () => {
+    const f = fixture();
+    // 목록은 V1을 반환하지만 PDF 발급 시점에 최신 버전이 V2로 바뀐 경우다.
+    f.model.versionNumber = 2;
+    f.model.documentVersionId = 92;
+    await f.controller.load();
+    assert.equal(f.state.document.revision, 2);
+    assert.equal(f.state.document.documentVersionId, 92);
+    assert.equal(f.controller.getDocumentVersionId(), 92);
+});
+
+test("reopening clears the previous feedback version until the new PDF finishes rendering", async () => {
+    const f = fixture();
+    await f.controller.load();
+    assert.equal(f.controller.getDocumentVersionId(), 91);
+    f.model.documentVersionId = 92;
+    f.model.versionNumber = 2;
+    const reloading = f.controller.load();
+    assert.equal(f.controller.getDocumentVersionId(), null);
+    await reloading;
+    assert.equal(f.controller.getDocumentVersionId(), 92);
+    f.controller.stop();
+    assert.equal(f.controller.getDocumentVersionId(), null);
 });

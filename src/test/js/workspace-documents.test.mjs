@@ -132,7 +132,7 @@ test("surfaces a polling permission error and stops scheduling requests", async 
 });
 
 
-const pdfUrl = {pdfUrl: "https://example.invalid/test.pdf?signature=temporary", expiresAt: "2099-01-01T00:00:00Z"};
+const pdfUrl = {documentVersionId: 91, versionNumber: 1, pdfUrl: "https://example.invalid/test.pdf?signature=temporary", expiresAt: "2099-01-01T00:00:00Z"};
 const fetchPdf = mock => fetchDocumentPdfUrl({documentId: 10, expectedUserId: 7, fetchImpl: mock.fetchImpl});
 
 test("fetches a fresh PDF URL on every open after checking the current account", async () => {
@@ -161,4 +161,20 @@ test("rejects unsafe, expired and malformed PDF URLs", async () => {
         {...pdfUrl, pdfUrl: "https://user:secret@example.invalid/pdf"}, {...pdfUrl, expiresAt: "invalid"},
         {...pdfUrl, expiresAt: "2000-01-01T00:00:00Z"}];
     for (const value of invalid) await assert.rejects(fetchPdf(setup([json({id: 7}), json(value)])));
+});
+
+
+test("rejects missing or malformed PDF version metadata", async () => {
+    const invalid = [
+        {...pdfUrl, documentVersionId: undefined}, {...pdfUrl, documentVersionId: null},
+        {...pdfUrl, documentVersionId: 0}, {...pdfUrl, documentVersionId: -1},
+        {...pdfUrl, documentVersionId: "91"}, {...pdfUrl, documentVersionId: 1.5},
+        {...pdfUrl, documentVersionId: Number.MAX_SAFE_INTEGER + 1},
+        {...pdfUrl, versionNumber: undefined}, {...pdfUrl, versionNumber: 0},
+        {...pdfUrl, versionNumber: -1}, {...pdfUrl, versionNumber: 1.5},
+        {...pdfUrl, versionNumber: "1"}
+    ];
+    for (const value of invalid) {
+        await assert.rejects(fetchPdf(setup([json({id: 7}), json(value)])), /문서 버전 정보/);
+    }
 });

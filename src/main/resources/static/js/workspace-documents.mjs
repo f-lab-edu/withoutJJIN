@@ -114,5 +114,10 @@ export async function fetchDocumentPdfUrl({documentId, expectedUserId, fetchImpl
             || !Number.isFinite(Date.parse(result?.expiresAt)) || Date.parse(result.expiresAt) <= Date.now()) {
         throw new DocumentRequestError("PDF 조회 주소가 잘못됐거나 만료됐어요. PDF를 다시 열어 주세요.");
     }
-    return {pdfUrl: url.href, expiresAt: result.expiresAt};
+    if (!Number.isSafeInteger(result.documentVersionId) || result.documentVersionId <= 0
+            || !Number.isSafeInteger(result.versionNumber) || result.versionNumber <= 0) {
+        throw new DocumentRequestError("PDF 문서 버전 정보를 확인할 수 없어요. PDF를 다시 열어 주세요.");
+    }
+    return {documentVersionId: result.documentVersionId, versionNumber: result.versionNumber,
+        pdfUrl: url.href, expiresAt: result.expiresAt};
 }
