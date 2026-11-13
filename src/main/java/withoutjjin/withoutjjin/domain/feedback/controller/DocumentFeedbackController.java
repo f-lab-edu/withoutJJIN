@@ -9,6 +9,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -16,7 +17,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import withoutjjin.withoutjjin.domain.feedback.dto.CreateDocumentFeedbackRequest;
 import withoutjjin.withoutjjin.domain.feedback.dto.DocumentFeedbackResponse;
+import withoutjjin.withoutjjin.domain.feedback.dto.DocumentFeedbackListItemResponse;
 import withoutjjin.withoutjjin.domain.feedback.service.DocumentFeedbackService;
+
+import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
@@ -24,6 +28,18 @@ import withoutjjin.withoutjjin.domain.feedback.service.DocumentFeedbackService;
 public class DocumentFeedbackController {
 
     private final DocumentFeedbackService documentFeedbackService;
+
+    @GetMapping(value = "/{documentVersionId}/feedback", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<List<DocumentFeedbackListItemResponse>> getFeedbacks(
+            @PathVariable @Positive Long documentVersionId,
+            @AuthenticationPrincipal OidcUser oidcUser
+    ) {
+        List<DocumentFeedbackListItemResponse> response = documentFeedbackService.getFeedbacks(documentVersionId,
+                oidcUser.getIssuer().toString(), oidcUser.getSubject());
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(response);
+    }
 
     @PostMapping(value = "/{documentVersionId}/feedback",
             consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
