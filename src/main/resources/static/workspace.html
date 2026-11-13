@@ -386,11 +386,6 @@
         .upload-form [data-error="true"] { color: #974534; }
         .upload-actions { display: flex; flex-wrap: wrap; gap: 10px; }
         .upload-result { width: 100%; padding: 18px; border: 1px solid var(--line); border-radius: 12px; }
-        .pdf-viewer { margin-top: 24px; }
-        .pdf-pages { display: grid; justify-items: center; gap: 18px; max-height: 75vh; overflow: auto; padding: 16px; margin-top: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); }
-        .pdf-pages[hidden] { display: none; }
-        .pdf-pages canvas { display: block; max-width: 100%; height: auto; background: white; box-shadow: 0 2px 8px #0002; }
-        #pdf-status[data-error="true"] { color: #974534; }
         .documents-region { margin-top: 28px; border-top: 1px solid var(--line); padding-top: 20px; }
         .document-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding: 16px 0; border-bottom: 1px solid var(--line); }
         .document-name { margin: 0 0 6px; overflow-wrap: anywhere; }
@@ -712,17 +707,6 @@
                         <p id="documents-status" role="status" aria-live="polite">문서 목록을 불러오고 있어요.</p>
                         <div id="documents-list"></div>
                     </section>
-                    <section id="pdf-viewer" class="pdf-viewer" aria-labelledby="pdf-heading" hidden>
-                        <div class="card-head"><h3 id="pdf-heading">PDF 보기</h3>
-                            <button id="pdf-close" class="button" type="button">PDF 닫기</button></div>
-                        <p id="pdf-status" role="status" aria-live="polite"></p>
-                        <div class="links">
-                            <button id="pdf-renew" class="button" type="button">PDF 다시 열기</button>
-                            <a id="pdf-new-tab" class="button" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" hidden>새 창에서 보기 ↗</a>
-                        </div>
-                        <p class="subtitle">PDF가 보이지 않으면 새 창에서 열어 보세요. 오래 열어둔 뒤 멈추면 ‘PDF 다시 열기’를 눌러 주세요.</p>
-                        <div id="pdf-pages" class="pdf-pages" role="region" aria-label="변환된 PDF 페이지" hidden></div>
-                    </section>
                     <div class="card-head"><button id="view-members" class="button" type="button">함께하는 멤버 보기 →</button></div>
                 </section>
                 <section id="members-panel" class="card" aria-labelledby="members-heading" hidden>
@@ -748,17 +732,15 @@
 <script type="module">
     import {uploadWorkspaceFile, validateUploadFile, completeWorkspaceUpload, UploadCompletionError}
         from "/js/workspace-upload.mjs?v=upload-completion-20261108";
-    import {createDocumentListController, conversionLabel, hasPendingConversions, fetchDocumentPdfUrl}
+    import {createDocumentListController, conversionLabel, hasPendingConversions}
         from "/js/workspace-documents.mjs?v=document-pdf-20261108";
-    import {createWorkspacePdfViewer} from "/js/workspace-pdf-viewer.mjs?v=pdfjs-6.5.438";
     (() => {
         "use strict";
         const $ = id => document.getElementById(id);
-        const pdfViewer = createWorkspacePdfViewer({container: $("pdf-pages")});
         const match = location.pathname.match(/^\/workspaces\/([1-9]\d*)$/);
         const workspaceId = match ? Number(match[1]) : null;
         const validId = Number.isSafeInteger(workspaceId) && workspaceId > 0;
-        const state = {user: null, detail: null, busy: false, panel: "files", pendingUpload: null, documentsController: null, pdfRequest: null, selectedDocument: null};
+        const state = {user: null, detail: null, busy: false, panel: "files", pendingUpload: null, documentsController: null};
 
         async function api(path, options = {}) {
             let response;
@@ -799,7 +781,6 @@
         }
 
         function clearDetail() {
-            closePdf();
             state.documentsController?.stop();
             state.documentsController = null;
             $("documents-list").replaceChildren();
@@ -937,8 +918,6 @@
         }
 
         function renderDocuments(documents) {
-            if (state.selectedDocument && !documents.some(item => item.id === state.selectedDocument.id
-                    && item.revision === state.selectedDocument.revision && item.conversionStatus === "COMPLETED")) closePdf();
             $("documents-status").dataset.error = "false";
             $("documents-status").textContent = !documents.length ? "아직 등록된 문서가 없어요."
                 : hasPendingConversions(documents) ? "변환 중인 문서가 있어 5초마다 상태를 확인해요."
@@ -960,12 +939,11 @@
                 status.textContent = conversionLabel(item.conversionStatus);
                 row.append(info, status);
                 if (item.conversionStatus === "COMPLETED") {
-                    const open = document.createElement("button");
-                    open.type = "button";
+                    const open = document.createElement("a");
+                    open.href = "/workspaces/" + workspaceId + "/documents/" + item.id + "/review";
                     open.className = "button primary";
                     open.textContent = "PDF 보기";
                     open.setAttribute("aria-label", item.title + " PDF 보기");
-                    open.addEventListener("click", () => { void openPdf(item); });
                     row.append(open);
                 }
                 return row;
@@ -978,7 +956,6 @@
             state.documentsController = createDocumentListController({
                 workspaceId, expectedUserId: state.user.id, onDocuments: renderDocuments,
                 onError(error) {
-                    closePdf();
                     $("documents-list").replaceChildren();
                     $("documents-status").dataset.error = "true";
                     $("documents-status").textContent = error.message;
@@ -988,53 +965,8 @@
             void state.documentsController.refresh();
         }
 
-        function closePdf() {
-            state.pdfRequest?.abort();
-            state.pdfRequest = null;
-            state.selectedDocument = null;
-            pdfViewer.clear();
-            $("pdf-new-tab").removeAttribute("href");
-            $("pdf-new-tab").hidden = true;
-            $("pdf-viewer").hidden = true;
-        }
-
-        async function openPdf(item) {
-            if (!state.detail || !state.user || state.busy) return;
-            closePdf();
-            const request = new AbortController();
-            state.pdfRequest = request;
-            state.selectedDocument = item;
-            $("pdf-heading").textContent = item.title + " · PDF";
-            $("pdf-status").textContent = "PDF를 열고 있어요.";
-            $("pdf-status").dataset.error = "false";
-            $("pdf-renew").disabled = true;
-            $("pdf-viewer").hidden = false;
-            try {
-                const result = await fetchDocumentPdfUrl({documentId: item.id, expectedUserId: state.user.id, signal: request.signal});
-                if (state.pdfRequest !== request) return;
-                $("pdf-new-tab").href = result.pdfUrl;
-                $("pdf-new-tab").hidden = false;
-                const pageCount = await pdfViewer.open(result.pdfUrl, {signal: request.signal});
-                if (state.pdfRequest !== request || pageCount === null) return;
-                $("pdf-status").textContent = "PDF " + pageCount + "페이지를 표시했어요.";
-                $("pdf-viewer").scrollIntoView({behavior: "smooth", block: "start"});
-            } catch (error) {
-                if (state.pdfRequest !== request || error.name === "AbortError") return;
-                $("pdf-status").textContent = error.message;
-                $("pdf-status").dataset.error = "true";
-                if ([401, 403, 404].includes(error.status)) showError(error);
-                else if (error.status === 409) refreshDocuments();
-            } finally {
-                if (state.pdfRequest === request) $("pdf-renew").disabled = false;
-            }
-        }
-
-        $("pdf-close").addEventListener("click", closePdf);
-        $("pdf-renew").addEventListener("click", () => {
-            if (state.selectedDocument) void openPdf(state.selectedDocument);
-        });
         $("documents-refresh").addEventListener("click", refreshDocuments);
-        window.addEventListener("pagehide", () => { state.documentsController?.stop(); closePdf(); });
+        window.addEventListener("pagehide", () => { state.documentsController?.stop(); });
 
         function uploadStatus(message, isError = false) {
             $("upload-status").textContent = message;
