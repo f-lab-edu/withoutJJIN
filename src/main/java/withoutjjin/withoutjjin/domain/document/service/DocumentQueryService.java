@@ -53,7 +53,7 @@ public class DocumentQueryService {
             throw pdfNotReady();
         }
         var generated = downloadUrlGenerator.generatePdf(pdf.getObjectKey());
-        return new PdfUrlResponse(generated.downloadUrl(), generated.expiresAt());
+        return new PdfUrlResponse(version.getId(), version.getVersionNumber(), generated.downloadUrl(), generated.expiresAt());
     }
 
     private static ResponseStatusException pdfNotReady() {

@@ -90,7 +90,7 @@ class DocumentQueryApiTest {
     void returnsPdfUrlForInvitedMember() throws Exception {
         AppUser invitee = user();
         em.persist(new WorkspaceMember(workspace, invitee));
-        addVersion(1, DocumentConversionJobStatus.COMPLETED, true);
+        DocumentVersion version = addVersion(1, DocumentConversionJobStatus.COMPLETED, true);
         flushAndClear();
         Instant expires = Instant.parse("2030-01-01T00:05:00Z");
         when(generator.generatePdf(pdfKey)).thenReturn(new GeneratedDownloadUrl("https://example.invalid/pdf", expires));
@@ -98,6 +98,8 @@ class DocumentQueryApiTest {
         mvc.perform(get(pdfPath()).param("objectKey", "other-workspace/private.pdf").with(login(invitee)))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.documentVersionId").value(version.getId()))
+                .andExpect(jsonPath("$.versionNumber").value(version.getVersionNumber()))
                 .andExpect(jsonPath("$.pdfUrl").value("https://example.invalid/pdf"))
                 .andExpect(jsonPath("$.expiresAt").value(expires.toString()));
         verify(generator).generatePdf(pdfKey);
@@ -199,6 +201,27 @@ class DocumentQueryApiTest {
         verify(generator, times(1)).generatePdf(pdfKey);
     }
 
+    @Test
+    @DisplayName("PDF URL과 버전 ID·번호는 같은 최신 DocumentVersion을 가리킨다")
+    void returnsVersionMetadataForTheSamePdfObject() throws Exception {
+        addVersion(1, DocumentConversionJobStatus.COMPLETED, true);
+        document.updateRevision(2);
+        pdfKey = "workspaces/" + workspace.getId() + "/review-pdfs/" + UUID.randomUUID() + ".pdf";
+        DocumentVersion latest = addVersion(2, DocumentConversionJobStatus.COMPLETED, true);
+        Long versionId = latest.getId();
+        flushAndClear();
+        Instant expires = Instant.parse("2030-01-01T00:05:00Z");
+        when(generator.generatePdf(pdfKey)).thenReturn(new GeneratedDownloadUrl("https://example.invalid/latest.pdf", expires));
+
+        mvc.perform(get(pdfPath()).with(login(member)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.documentVersionId").value(versionId))
+                .andExpect(jsonPath("$.versionNumber").value(2))
+                .andExpect(jsonPath("$.pdfUrl").value("https://example.invalid/latest.pdf"));
+        verify(generator).generatePdf(pdfKey);
+        verifyNoMoreInteractions(generator);
+    }
+
     private String listPath() { return "/api/v1/workspaces/" + workspace.getId() + "/documents"; }
     private String pdfPath() { return "/api/v1/documents/" + document.getId() + "/pdf-url"; }
 
@@ -213,13 +236,13 @@ class DocumentQueryApiTest {
         return oidcLogin().idToken(token -> token.claim("iss", user.getIssuer()).subject(user.getSubject()));
     }
 
-    private void addVersion(int number, DocumentConversionJobStatus status, boolean attachPdf) {
+    private DocumentVersion addVersion(int number, DocumentConversionJobStatus status, boolean attachPdf) {
         StoreFile original = new StoreFile(workspace, "workspaces/" + workspace.getId() + "/uploads/" + UUID.randomUUID(),
                 "기획서.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", 1024L);
         em.persist(original);
         DocumentVersion version = new DocumentVersion(number, "", null, document, original.getObjectKey(), original.getFileName(), 1024L, member);
         em.persist(version);
-        if (status == null) return;
+        if (status == null) return version;
         DocumentUpload upload = new DocumentUpload(workspace, null, member, original, 1024L, LocalDateTime.of(2030, 1, 1, 12, 0));
         upload.complete(document);
         em.persist(upload);
@@ -234,6 +257,7 @@ class DocumentQueryApiTest {
             version.recordPageCount(2);
         }
         em.persist(job);
+        return version;
     }
 
     private void flushAndClear() { em.flush(); em.clear(); }

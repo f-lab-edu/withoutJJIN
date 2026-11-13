@@ -1,4 +1,4 @@
-import {DocumentRequestError, fetchWorkspaceDocuments, fetchDocumentPdfUrl} from "./workspace-documents.mjs";
+import {DocumentRequestError, fetchWorkspaceDocuments, fetchDocumentPdfUrl} from "./workspace-documents.mjs?v=pdf-version-1";
 import {createWorkspacePdfViewer} from "./workspace-pdf-viewer.mjs?v=area-selection-1";
 
 import {createPdfAreaSelector} from "./pdf-area-selection.mjs?v=selection-color-1";
@@ -13,10 +13,12 @@ export function parseReviewPath(pathname) {
 
 export function createDocumentReviewController({workspaceId, documentId, viewer, view, fetchImpl = fetch}) {
     let current = null;
+    let documentVersionId = null;
 
     function stop() {
         current?.abort();
         current = null;
+        documentVersionId = null;
         viewer.clear();
         view.reset();
     }
@@ -48,10 +50,12 @@ export function createDocumentReviewController({workspaceId, documentId, viewer,
             const result = await fetchDocumentPdfUrl({documentId, expectedUserId: user.id,
                 fetchImpl, signal: request.signal});
             if (!isCurrent()) return;
-            view.document(item);
+            // 화면 버전은 목록의 Document.revision 대신 PDF URL과 함께 받은 DocumentVersion을 따른다.
+            view.document({...item, revision: result.versionNumber, documentVersionId: result.documentVersionId});
             view.pdfUrl(result.pdfUrl);
             const pageCount = await viewer.open(result.pdfUrl, {signal: request.signal});
             if (!isCurrent() || pageCount === null) return;
+            documentVersionId = result.documentVersionId;
             view.ready(pageCount);
         } catch (error) {
             if (!isCurrent() || error.name === "AbortError") return;
@@ -63,7 +67,7 @@ export function createDocumentReviewController({workspaceId, documentId, viewer,
         }
     }
 
-    return {load, stop};
+    return {load, stop, getDocumentVersionId: () => documentVersionId};
 }
 
 export function initializeDocumentReview() {
@@ -100,6 +104,7 @@ export function initializeDocumentReview() {
     }
     const controller = createDocumentReviewController({...path, viewer, view: {
         reset() {
+            delete $("review-content").dataset.documentVersionId;
             pdfReady = false;
             selector.clearSelection();
             syncSelectionMode();
@@ -125,6 +130,7 @@ export function initializeDocumentReview() {
             }
         },
         document(item) {
+            $("review-content").dataset.documentVersionId = String(item.documentVersionId);
             $("document-title").textContent = item.title;
             $("document-version").textContent = "파일 V" + item.revision;
             $("document-version").hidden = false;
@@ -144,6 +150,7 @@ export function initializeDocumentReview() {
             $("pdf-status").textContent = "PDF " + pageCount + "페이지를 표시했어요.";
         },
         error(message, status) {
+            delete $("review-content").dataset.documentVersionId;
             pdfReady = false;
             selector.clearSelection();
             syncSelectionMode();
