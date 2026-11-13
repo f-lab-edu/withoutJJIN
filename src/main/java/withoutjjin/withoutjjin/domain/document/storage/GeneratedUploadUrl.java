@@ -7,5 +7,4 @@ public record GeneratedUploadUrl(
         String storageKey, //S3에 저장할 파일의 키
         Instant expiresAt // URL이 만료되는 시각
 ) {
-
 }

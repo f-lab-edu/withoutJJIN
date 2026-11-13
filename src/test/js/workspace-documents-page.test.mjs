@@ -64,7 +64,7 @@ async function page(options = {}) {
         if (path === "/api/v1/auth/logout") return json(null);
         throw new Error("Unexpected request " + path);
     }
-    const assignments = [];
+    const assignments = [], pdfViewerCalls = [];
     const context = {
         document: {getElementById: id => { assert.ok(nodes.has(id), "Missing HTML element: " + id); return nodes.get(id); },
             createElement: tag => new Element(tag)},
@@ -78,11 +78,22 @@ async function page(options = {}) {
         conversionLabel, hasPendingConversions,
         createDocumentListController: args => createDocumentListController({...args, fetchImpl,
             setTimer: callback => { timers.set(++timerId, callback); return timerId; }, clearTimer: id => timers.delete(id)}),
-        fetchDocumentPdfUrl: args => fetchDocumentPdfUrl({...args, fetchImpl})
+        fetchDocumentPdfUrl: args => fetchDocumentPdfUrl({...args, fetchImpl}),
+        createWorkspacePdfViewer: ({container}) => ({
+            clear() { container.replaceChildren(); container.hidden = true; },
+            async open(url, {signal}) {
+                pdfViewerCalls.push(url);
+                if (options.renderPdf) await options.renderPdf(url);
+                if (signal.aborted) return null;
+                container.replaceChildren(new Element("canvas"));
+                container.hidden = false;
+                return 1;
+            }
+        })
     };
     vm.runInNewContext(script, context, {filename: "workspace-inline.mjs"});
     await flush();
-    return {nodes, calls, events, timers, model, assignments, json,
+    return {nodes, calls, events, timers, model, assignments, json, pdfViewerCalls,
         async open() { await nodes.get("documents-list").children[0].children[2].fire("click"); await flush(); }};
 }
 
@@ -100,18 +111,18 @@ test("renders document titles as text, labels statuses and only offers PDF for c
     p.events.pagehide();
 });
 
-test("opens the PDF inline, renews its URL and clears the iframe and link when closed", async () => {
+test("opens the PDF inline, renews its URL and clears rendered pages and link when closed", async () => {
     const p = await page();
     await p.open();
     assert.equal(p.nodes.get("pdf-viewer").hidden, false);
-    assert.equal(p.nodes.get("pdf-frame").src, "https://example.invalid/file.pdf?signature=1");
-    assert.equal(p.nodes.get("pdf-frame").hidden, false);
+    assert.equal(p.pdfViewerCalls.at(-1), "https://example.invalid/file.pdf?signature=1");
+    assert.equal(p.nodes.get("pdf-pages").hidden, false);
     await p.nodes.get("pdf-renew").fire("click");
     await flush();
-    assert.equal(p.nodes.get("pdf-frame").src, "https://example.invalid/file.pdf?signature=2");
+    assert.equal(p.pdfViewerCalls.at(-1), "https://example.invalid/file.pdf?signature=2");
     await p.nodes.get("pdf-close").fire("click");
     assert.equal(p.nodes.get("pdf-viewer").hidden, true);
-    assert.equal(p.nodes.get("pdf-frame").src, "about:blank");
+    assert.equal(p.nodes.get("pdf-pages").children.length, 0);
     assert.equal(p.nodes.get("pdf-new-tab").href, undefined);
     p.events.pagehide();
 });
@@ -124,7 +135,7 @@ test("a late PDF response cannot reopen the viewer after it is closed", async ()
     resolvePdf(p.json({pdfUrl: "https://example.invalid/private.pdf", expiresAt: "2099-01-01T00:00:00Z"}));
     await flush();
     assert.equal(p.nodes.get("pdf-viewer").hidden, true);
-    assert.equal(p.nodes.get("pdf-frame").src, "about:blank");
+    assert.equal(p.nodes.get("pdf-pages").children.length, 0);
     p.events.pagehide();
 });
 
@@ -134,18 +145,18 @@ test("clears the PDF and document list when account rechecking detects a change"
     p.model.userId = 8;
     await p.nodes.get("documents-refresh").fire("click");
     await flush();
-    assert.equal(p.nodes.get("pdf-frame").src, "about:blank");
+    assert.equal(p.nodes.get("pdf-pages").children.length, 0);
     assert.equal(p.nodes.get("documents-list").children.length, 0);
     assert.equal(p.nodes.get("error-state").hidden, false);
     assert.equal(p.nodes.get("workspace-content").hidden, true);
     assert.equal(p.timers.size, 0);
 });
 
-test("reports PDF API failure without showing a successful iframe or retaining an old URL", async () => {
+test("reports PDF API failure without showing rendered pages or retaining an old URL", async () => {
     const p = await page({pdfResponse: () => ({ok: false, status: 500, json: async () => ({})})});
     await p.open();
     assert.equal(p.nodes.get("pdf-status").dataset.error, "true");
-    assert.equal(p.nodes.get("pdf-frame").hidden, true);
+    assert.equal(p.nodes.get("pdf-pages").hidden, true);
     assert.equal(p.nodes.get("pdf-new-tab").hidden, true);
     assert.equal(p.nodes.get("pdf-renew").disabled, false);
     p.events.pagehide();
@@ -156,6 +167,29 @@ test("leaving the page stops polling and clears the signed PDF URL", async () =>
     await p.open();
     p.events.pagehide();
     assert.equal(p.timers.size, 0);
-    assert.equal(p.nodes.get("pdf-frame").src, "about:blank");
+    assert.equal(p.nodes.get("pdf-pages").children.length, 0);
     assert.equal(p.nodes.get("pdf-new-tab").href, undefined);
+});
+
+
+test("a late PDF render cannot reopen the viewer after it is closed", async () => {
+    let finish;
+    const p = await page({renderPdf: () => new Promise(resolve => { finish = resolve; })});
+    await p.open();
+    await p.nodes.get("pdf-close").fire("click");
+    finish();
+    await flush();
+    assert.equal(p.nodes.get("pdf-viewer").hidden, true);
+    assert.equal(p.nodes.get("pdf-pages").children.length, 0);
+    p.events.pagehide();
+});
+
+test("PDF rendering failure keeps the new-tab fallback available", async () => {
+    const p = await page({renderPdf: async () => { throw new Error("PDF를 표시하지 못했어요."); }});
+    await p.open();
+    assert.equal(p.nodes.get("pdf-status").dataset.error, "true");
+    assert.equal(p.nodes.get("pdf-renew").disabled, false);
+    assert.equal(p.nodes.get("pdf-new-tab").hidden, false);
+    assert.equal(p.nodes.get("pdf-pages").children.length, 0);
+    p.events.pagehide();
 });

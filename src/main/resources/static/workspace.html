@@ -387,7 +387,9 @@
         .upload-actions { display: flex; flex-wrap: wrap; gap: 10px; }
         .upload-result { width: 100%; padding: 18px; border: 1px solid var(--line); border-radius: 12px; }
         .pdf-viewer { margin-top: 24px; }
-        .pdf-viewer iframe { width: 100%; height: min(75vh, 900px); min-height: 360px; border: 1px solid var(--line); border-radius: 12px; background: white; }
+        .pdf-pages { display: grid; justify-items: center; gap: 18px; max-height: 75vh; overflow: auto; padding: 16px; margin-top: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); }
+        .pdf-pages[hidden] { display: none; }
+        .pdf-pages canvas { display: block; max-width: 100%; height: auto; background: white; box-shadow: 0 2px 8px #0002; }
         #pdf-status[data-error="true"] { color: #974534; }
         .documents-region { margin-top: 28px; border-top: 1px solid var(--line); padding-top: 20px; }
         .document-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding: 16px 0; border-bottom: 1px solid var(--line); }
@@ -719,7 +721,7 @@
                             <a id="pdf-new-tab" class="button" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" hidden>새 창에서 보기 ↗</a>
                         </div>
                         <p class="subtitle">PDF가 보이지 않으면 새 창에서 열어 보세요. 오래 열어둔 뒤 멈추면 ‘PDF 다시 열기’를 눌러 주세요.</p>
-                        <iframe id="pdf-frame" title="변환된 PDF 미리보기" referrerpolicy="no-referrer" hidden></iframe>
+                        <div id="pdf-pages" class="pdf-pages" role="region" aria-label="변환된 PDF 페이지" hidden></div>
                     </section>
                     <div class="card-head"><button id="view-members" class="button" type="button">함께하는 멤버 보기 →</button></div>
                 </section>
@@ -748,9 +750,11 @@
         from "/js/workspace-upload.mjs?v=upload-completion-20261108";
     import {createDocumentListController, conversionLabel, hasPendingConversions, fetchDocumentPdfUrl}
         from "/js/workspace-documents.mjs?v=document-pdf-20261108";
+    import {createWorkspacePdfViewer} from "/js/workspace-pdf-viewer.mjs?v=pdfjs-6.5.438";
     (() => {
         "use strict";
         const $ = id => document.getElementById(id);
+        const pdfViewer = createWorkspacePdfViewer({container: $("pdf-pages")});
         const match = location.pathname.match(/^\/workspaces\/([1-9]\d*)$/);
         const workspaceId = match ? Number(match[1]) : null;
         const validId = Number.isSafeInteger(workspaceId) && workspaceId > 0;
@@ -988,8 +992,7 @@
             state.pdfRequest?.abort();
             state.pdfRequest = null;
             state.selectedDocument = null;
-            $("pdf-frame").src = "about:blank";
-            $("pdf-frame").hidden = true;
+            pdfViewer.clear();
             $("pdf-new-tab").removeAttribute("href");
             $("pdf-new-tab").hidden = true;
             $("pdf-viewer").hidden = true;
@@ -1009,11 +1012,11 @@
             try {
                 const result = await fetchDocumentPdfUrl({documentId: item.id, expectedUserId: state.user.id, signal: request.signal});
                 if (state.pdfRequest !== request) return;
-                $("pdf-frame").src = result.pdfUrl;
-                $("pdf-frame").hidden = false;
                 $("pdf-new-tab").href = result.pdfUrl;
                 $("pdf-new-tab").hidden = false;
-                $("pdf-status").textContent = "PDF 조회 주소를 발급했어요. 아래에서 내용을 확인해 주세요.";
+                const pageCount = await pdfViewer.open(result.pdfUrl, {signal: request.signal});
+                if (state.pdfRequest !== request || pageCount === null) return;
+                $("pdf-status").textContent = "PDF " + pageCount + "페이지를 표시했어요.";
                 $("pdf-viewer").scrollIntoView({behavior: "smooth", block: "start"});
             } catch (error) {
                 if (state.pdfRequest !== request || error.name === "AbortError") return;

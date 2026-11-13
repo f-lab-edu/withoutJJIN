@@ -25,5 +25,9 @@ services:
       API_DISABLE_DOWNLOAD_FROM: "true"
       WEBHOOK_DISABLE: "true"
 
+
+networks:
+  converter:
+    internal: true
 volumes:
   mysql-data:
