@@ -1,0 +1,78 @@
+# PDF.js PDF 미리보기
+
+워크스페이스의 `PDF 보기`를 누르면 `/workspaces/{workspaceId}/documents/{documentId}/review` 전용 화면으로 이동합니다.
+`document-review.mjs`에서 문서의 소속·로그인 계정과 변환 완료 상태를 확인한 뒤,
+`workspace-pdf-viewer.mjs`를 통해 PDF.js로 페이지별 canvas를 그립니다.
+왼쪽은 PDF, 오른쪽은 선택한 영역의 페이지 번호를 표시하는 피드백 패널입니다.
+문서 제목과 버전은 기존 문서 목록 API에서 조회한 최신 버전을 표시합니다.
+PDF 드래그 영역 선택과 취소를 지원합니다. 피드백 저장·조회 및 과거 버전 선택은 후속 작업입니다.
+기존 `GET /api/v1/documents/{documentId}/pdf-url` 응답의 `pdfUrl`을 사용합니다.
+페이지 번호는 각 canvas의 `data-page-number`에 기록합니다. 선택 좌표는 브라우저 메모리에서 관리하며 코멘트 DB 저장은 후속 작업입니다.
+
+## 로컬 적용
+
+1. Spring을 재시작해 정적 파일을 반영하고 브라우저를 새로고침합니다.
+2. AWS S3 콘솔에서 사용하는 버킷의 **권한 → CORS**에 `docs/aws/s3-cors-local.json`을 적용합니다.
+   기존 다른 환경의 Origin/규칙이 있다면 유지하고 필요한 조회 규칙을 병합합니다.
+   기존 업로드 PUT 규칙과 함께 GET/HEAD를 허용합니다.
+   PDF.js는 브라우저 JavaScript에서 S3를 읽으므로 iframe과 달리 S3의 CORS 허용이 필요합니다.
+   CORS는 IAM이나 버킷의 공개 설정을 대체하지 않습니다. 기존 presigned URL과 GetObject 권한을 사용합니다.
+   이 저장소의 JSON을 수정하는 것만으로 AWS 설정이 바뀌지는 않습니다.
+3. 변환 완료 문서에서 `PDF 보기`를 눌러 모든 페이지가 표시되는지 확인합니다.
+4. 다른 문서를 열거나 `PDF 닫기`를 눌렀을 때 이전 페이지가 사라지는지 확인합니다.
+5. `PDF 다시 열기`는 새 presigned URL로 PDF를 다시 읽습니다.
+
+PDF.js 6.5.438은 `static/vendor/pdfjs/6.5.438`에 고정해 제공합니다.
+브라우저는 PDF.js를 CDN에서 받지 않습니다. 공식 npm 배포 파일의 SHA-512를 확인한 후
+최소화된 모듈/worker와 문자 매핑·표준 글꼴·이미지 디코딩 리소스를 포함했습니다.
+라이선스와 다운로드 출처는 해당 디렉터리의 `README.md`와 `LICENSE`에 있습니다.
+
+## 자동 검증
+
+```powershell
+node --test src/test/js/document-review.test.mjs src/test/js/workspace-pdf-viewer.test.mjs src/test/js/workspace-documents-page.test.mjs src/test/js/workspace-documents.test.mjs
+```
+
+모의 PDF.js로 여러 페이지 표시, 실패 처리, 문서 변경·닫기 중의 다운로드/그리기 취소를 확인합니다.
+실제 S3 버킷의 CORS 및 PDF 표시는 위 로컬 적용 절차에서 별도로 확인합니다.
+
+
+## 전용 화면 검증 결과
+
+- 관련 JavaScript 테스트 39개 통과: 소속·계정 확인, 문서 경로 검증, PDF 다시 열기, 페이지 이동 시 취소 포함.
+- `DocumentReviewPageTest` 2개 통과: HTML 경로·no-store 응답, 로그인 후 동일 화면 복귀용 RequestCache 검사.
+- 임시 API 응답과 2페이지 테스트 PDF를 사용하는 Chrome 검증 통과: 제목·버전, 오른쪽 패널, 실제 PDF.js 그리기, 모바일 가로 넘침 확인.
+- 위 브라우저 검증은 실제 AWS 계정이나 사용자의 문서에 접근하지 않습니다. 실제 S3 CORS 적용은 별도로 필요합니다.
+
+
+## PDF 영역 선택
+
+- PDF를 연 뒤 `영역 선택`이 켜져 있으면 드래그로 사각형을 선택합니다.
+- 한 번에 한 영역만 선택합니다. 다른 페이지에서 선택하면 기존 영역을 교체합니다.
+- 선택 취소 버튼 또는 PDF 영역에 포커스가 있는 상태에서 Esc로 취소합니다.
+- 드래그 중 Esc나 pointercancel은 진행 중 선택만 취소하고 이전 확정 영역을 유지합니다.
+- 터치로 PDF를 스크롤하려면 영역 선택 모드를 끕니다.
+- 페이지 밖으로 드래그해도 처음 선택한 페이지의 경계를 넘지 않습니다.
+- 좌표는 페이지 왼쪽 위 기준의 `pageNumber`, `x`, `y`, `width`, `height`로 관리합니다.
+  `x`, `y`, `width`, `height`는 페이지 너비·높이에 대한 0~1 비율이며 CSS 사각형도 %로 표시합니다.
+  canvas 내부 픽셀 수나 기기의 devicePixelRatio에 의존하지 않습니다.
+- PDF 다시 열기 또는 화면 이동 시 선택을 지웁니다. 아직 서버나 DB에는 저장하지 않습니다.
+
+검증: 관련 JavaScript 테스트 30개(선택 15개 포함)와 실제 Chrome 마우스 드래그,
+스크롤 후 2페이지 역방향 선택, 모바일 크기 변경 후 위치 유지, Esc 취소와 모드 전환을 확인했습니다.
+브라우저 검증에는 임시 API 응답과 테스트 PDF를 사용했습니다.
+
+```powershell
+node --test src/test/js/pdf-area-selection.test.mjs src/test/js/workspace-pdf-viewer.test.mjs src/test/js/document-review.test.mjs
+```
+
+참고: https://developer.mozilla.org/en-US/docs/Web/API/Pointer_events
+참고: https://developer.mozilla.org/en-US/docs/Web/API/Element/getBoundingClientRect
+
+
+### 영역 색상 선택
+
+`영역 색상`에서 초록·노랑·파랑·분홍을 선택할 수 있습니다.
+선택한 영역이 있으면 색상만 즉시 변경하고 페이지 번호·좌표는 유지합니다.
+선택 취소와 PDF 다시 열기 이후에도 같은 화면에서는 선택한 색상을 다음 드래그에 사용합니다.
+선택 정보에 `color`(green/yellow/blue/pink)를 포함하며, 현재는 DB에 저장하지 않습니다.
