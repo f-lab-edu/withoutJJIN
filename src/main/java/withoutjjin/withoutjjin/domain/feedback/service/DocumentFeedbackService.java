@@ -13,12 +13,15 @@ import withoutjjin.withoutjjin.domain.document.repository.DocumentConversionJobR
 import withoutjjin.withoutjjin.domain.document.repository.DocumentVersionRepository;
 import withoutjjin.withoutjjin.domain.feedback.dto.CreateDocumentFeedbackRequest;
 import withoutjjin.withoutjjin.domain.feedback.dto.DocumentFeedbackResponse;
+import withoutjjin.withoutjjin.domain.feedback.dto.DocumentFeedbackListItemResponse;
 import withoutjjin.withoutjjin.domain.feedback.entity.DocumentFeedback;
 import withoutjjin.withoutjjin.domain.feedback.entity.FeedbackColor;
 import withoutjjin.withoutjjin.domain.feedback.repository.DocumentFeedbackRepository;
 import withoutjjin.withoutjjin.domain.user.entity.AppUser;
 import withoutjjin.withoutjjin.domain.user.service.AppUserService;
 import withoutjjin.withoutjjin.domain.workspace.service.WorkspaceService;
+
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -53,6 +56,22 @@ public class DocumentFeedbackService {
         }
         DocumentFeedback saved = documentFeedbackRepository.save(feedback);
         return DocumentFeedbackResponse.from(saved);
+    }
+
+    @Transactional(readOnly = true)
+    public List<DocumentFeedbackListItemResponse> getFeedbacks(Long documentVersionId,
+                                                              String issuer, String subject) {
+        if (documentVersionId == null || documentVersionId <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "DocumentVersion ID는 1 이상이어야 합니다.");
+        }
+        AppUser requester = appUserService.getByIssuerAndSubject(issuer, subject);
+        DocumentVersion version = documentVersionRepository.findById(documentVersionId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "문서 버전을 찾을 수 없습니다."));
+        workspaceService.getWorkSpaceForMember(version.getDocument().getWorkspace().getId(), requester);
+
+        return documentFeedbackRepository.findAllByDocumentVersionId(documentVersionId).stream()
+                .map(DocumentFeedbackListItemResponse::from)
+                .toList();
     }
 
     private void requireCompletedPdf(DocumentVersion version) {
