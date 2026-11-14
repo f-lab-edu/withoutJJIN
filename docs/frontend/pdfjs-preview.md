@@ -194,3 +194,19 @@ node --test src/test/js/document-feedback-list.test.mjs src/test/js/document-fee
 ```powershell
 node --test src/test/js/document-feedback-deleter.test.mjs src/test/js/document-feedback-list.test.mjs src/test/js/document-review-edit.test.mjs src/test/js/document-feedback-mutation.test.mjs
 ```
+
+
+## PDF 내부 스크롤로 피드백 위치 이동
+
+- `pdf-feedback-regions.mjs`의 `focus()`는 `scrollIntoView()` 대신 `pdf-pages.scrollTo()`로 PDF 컨테이너만 움직인다.
+- 현재 영역의 화면 좌표와 PDF 컨테이너의 스크롤·테두리·크기를 사용하여 세로 중앙으로 이동한다. 가로는 영역이 가려진 경우에만 이동한다.
+- 데스크톱(901px 이상)은 상단 도구를 유지하고 PDF와 오른쪽 피드백 패널을 각각 스크롤한다.
+- 좁은 화면은 기존 세로 배치를 유지한다. 피드백 클릭은 PDF 내부 스크롤만 변경한다.
+- 두 스크롤 영역에 `overscroll-behavior: contain`을 적용하여 스크롤 끝에서 바깥 페이지로 스크롤이 이어지지 않게 한다.
+- 피드백 선택·수정·삭제 확인에서 같은 `focus()`를 사용한다. 저장된 좌표와 색상, API는 바꾸지 않는다.
+- 로컬 Chrome에서 테스트용 6페이지 문서와 API 응답으로 1365×1000, 1024×768, 390×844 화면을 확인했다. 피드백 클릭 시 PDF만 이동하고 바깥 페이지·오른쪽 패널의 스크롤 위치는 유지됐다. 실제 S3 문서에 대한 검증은 별도다.
+
+관련 테스트:
+```powershell
+node --test src/test/js/pdf-feedback-regions.test.mjs src/test/js/document-review-edit.test.mjs
+```

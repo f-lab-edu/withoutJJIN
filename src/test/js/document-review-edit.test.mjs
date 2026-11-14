@@ -17,7 +17,17 @@ class Element {
     remove() { if (this.parent) this.parent.children = this.parent.children.filter(node => node !== this); }
     querySelectorAll(selector) { return this.children.filter(node => selector === "." + node.className); }
     contains(node) { return this.children.some(child => child === node || child.contains(node)); }
-    scrollIntoView() {}
+    getBoundingClientRect() { return {top: 0, left: 0, right: 200, height: 100}; }
+    get clientHeight() { return 600; }
+    get clientWidth() { return 800; }
+    get clientTop() { return 0; }
+    get clientLeft() { return 0; }
+    get scrollHeight() { return 2000; }
+    get scrollWidth() { return 800; }
+    scrollTop = 0;
+    scrollLeft = 0;
+    scrollTo({top, left}) { this.scrollTop = top; this.scrollLeft = left; }
+    scrollIntoView() { throw new Error("Must not scroll the outer page"); }
     focus() { this.ownerDocument.focused = this; }
 }
 

@@ -33,7 +33,7 @@
         .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 20px 24px; border-bottom: 1px solid var(--line); }
         h2 { margin: 0; font-size: 18px; }
         .page-count { color: var(--muted); font-size: 13px; white-space: nowrap; }
-        .pdf-pages { display: grid; justify-items: center; gap: 20px; max-height: 75vh; overflow: auto; padding: 20px; background: #e7ede8; }
+        .pdf-pages { display: grid; align-content: start; justify-items: center; overscroll-behavior: contain; gap: 20px; max-height: 75vh; overflow: auto; padding: 20px; background: #e7ede8; }
         .pdf-pages canvas { display: block; max-width: 100%; height: auto; background: white; box-shadow: 0 2px 12px #18352c1a; }
         .pdf-page { position: relative; max-width: 100%; line-height: 0; }
         .pdf-pages[data-selection-enabled="true"] .pdf-page[data-ready="true"] { cursor: crosshair; touch-action: none; user-select: none; }
@@ -71,10 +71,22 @@
         .feedback-edit-section h3 { margin: 0 0 12px; font-size: 17px; }
         .feedback-item time { color: var(--muted); font-size: 12px; }
         .pdf-placeholder { display: grid; min-height: 65vh; place-items: center; padding: 24px; color: var(--muted); background: #f4f7f4; }
-        .feedback-panel { position: sticky; top: 24px; min-height: 55vh; }
+        .feedback-panel { position: sticky; top: 24px; min-height: 55vh; max-height: 75vh; overflow-y: auto; overscroll-behavior: contain; }
         .feedback-placeholder { padding: 52px 28px; color: var(--muted); text-align: center; line-height: 1.8; }
         .feedback-symbol { display: grid; place-items: center; width: 52px; height: 52px; margin: 0 auto 20px; border-radius: 50%; background: #edf5ef; color: var(--green); font-size: 24px; }
         .feedback-placeholder strong { color: var(--ink); }
+        @media (min-width: 901px) {
+            body { height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+            .topbar { flex-shrink: 0; }
+            main { width: 100%; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+            .heading, main > .status { flex-shrink: 0; }
+            .review-grid { flex: 1; min-height: 0; align-items: stretch; }
+            .pdf-panel { display: flex; flex-direction: column; min-height: 0; }
+            .pdf-panel > .panel-head { flex-shrink: 0; }
+            .pdf-pages { flex: 1; min-height: 0; max-height: none; }
+            .pdf-placeholder { flex: 1; min-height: 0; }
+            .feedback-panel { position: static; min-height: 0; max-height: none; }
+        }
         @media (max-width: 900px) { main { padding: 24px 16px; } .topbar { padding: 18px 16px; } .review-grid { grid-template-columns: minmax(0, 1fr); } .feedback-panel { position: static; min-height: 240px; } .pdf-pages { padding: 10px; } }
     </style>
 </head>
@@ -108,7 +120,7 @@
     </div>
     <p id="pdf-status" class="status" role="status" aria-live="polite">PDF를 불러오고 있어요.</p>
     <div id="review-content" class="review-grid" aria-busy="true">
-        <section class="panel" aria-labelledby="pdf-heading">
+        <section class="panel pdf-panel" aria-labelledby="pdf-heading">
             <div class="panel-head"><h2 id="pdf-heading">PDF 문서</h2><span id="page-count" class="page-count"></span></div>
             <div id="pdf-placeholder" class="pdf-placeholder">문서를 준비하고 있어요.</div>
             <div id="pdf-pages" class="pdf-pages" role="region" aria-label="변환된 PDF 페이지" tabindex="0" hidden></div>
@@ -169,7 +181,7 @@
     </div>
 </main>
 <script type="module">
-    import {initializeDocumentReview} from "/js/document-review.mjs?v=feedback-delete-1";
+    import {initializeDocumentReview} from "/js/document-review.mjs?v=pdf-scroll-1";
     initializeDocumentReview();
 </script>
 </body>

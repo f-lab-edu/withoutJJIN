@@ -5,7 +5,7 @@ import {createPdfAreaSelector} from "./pdf-area-selection.mjs?v=selection-color-
 import {createDocumentFeedbackForm} from "./document-feedback-form.mjs?v=feedback-form-1";
 import {createDocumentFeedbackList, createDocumentFeedbackListView} from "./document-feedback-list.mjs?v=feedback-delete-1";
 
-import {createPdfFeedbackRegions} from "./pdf-feedback-regions.mjs?v=feedback-regions-1";
+import {createPdfFeedbackRegions} from "./pdf-feedback-regions.mjs?v=pdf-scroll-1";
 
 import {createDocumentFeedbackEditor} from "./document-feedback-editor.mjs?v=feedback-edit-1";
 

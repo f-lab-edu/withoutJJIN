@@ -54,8 +54,22 @@ export function createPdfFeedbackRegions({container}) {
         const box = regions.get(id);
         if (!box || !container.contains(box)) return false;
         for (const [key, node] of regions) node.dataset.active = String(key === id);
-        // 확대·화면 크기 변경 후의 실제 영역 위치로 스크롤한다.
-        box.scrollIntoView({block: "center", inline: "nearest", behavior: "auto"});
+        // scrollIntoView는 바깥 페이지도 움직일 수 있으므로 PDF 컨테이너만 스크롤한다.
+        // 현재 화면 좌표를 읽어 확대·화면 크기 변경·기존 스크롤 위치를 반영한다.
+        const viewport = container.getBoundingClientRect(), target = box.getBoundingClientRect();
+        const top = container.scrollTop + target.top - viewport.top - container.clientTop
+            - (container.clientHeight - target.height) / 2;
+        const leftEdge = viewport.left + container.clientLeft;
+        let left = container.scrollLeft;
+        if (target.left < leftEdge) left += target.left - leftEdge;
+        else if (target.right > leftEdge + container.clientWidth) {
+            left += target.right - leftEdge - container.clientWidth;
+        }
+        container.scrollTo({
+            top: Math.max(0, Math.min(top, container.scrollHeight - container.clientHeight)),
+            left: Math.max(0, Math.min(left, container.scrollWidth - container.clientWidth)),
+            behavior: "auto"
+        });
         return true;
     }
 
