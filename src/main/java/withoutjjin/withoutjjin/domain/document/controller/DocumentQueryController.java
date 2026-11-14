@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import withoutjjin.withoutjjin.domain.document.dto.DocumentListResponse;
 import withoutjjin.withoutjjin.domain.document.dto.DocumentVersionListResponse;
 import withoutjjin.withoutjjin.domain.document.dto.PdfUrlResponse;
+import withoutjjin.withoutjjin.domain.document.dto.OriginalUrlResponse;
 import withoutjjin.withoutjjin.domain.document.service.DocumentQueryService;
 
 import java.util.List;
@@ -42,6 +43,30 @@ public class DocumentQueryController {
     ) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
                 .body(documentQueryService.getVersions(workspaceId, documentId,
+                        oidcUser.getIssuer().toString(), oidcUser.getSubject()));
+    }
+
+    @GetMapping("/workspaces/{workspaceId}/documents/{documentId}/versions/{documentVersionId}/pdf-url")
+    public ResponseEntity<PdfUrlResponse> getVersionPdfUrl(
+            @PathVariable @Positive Long workspaceId,
+            @PathVariable @Positive Long documentId,
+            @PathVariable @Positive Long documentVersionId,
+            @AuthenticationPrincipal OidcUser oidcUser
+    ) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(documentQueryService.getVersionPdfUrl(workspaceId, documentId, documentVersionId,
+                        oidcUser.getIssuer().toString(), oidcUser.getSubject()));
+    }
+
+    @GetMapping("/workspaces/{workspaceId}/documents/{documentId}/versions/{documentVersionId}/original-url")
+    public ResponseEntity<OriginalUrlResponse> getVersionOriginalUrl(
+            @PathVariable @Positive Long workspaceId,
+            @PathVariable @Positive Long documentId,
+            @PathVariable @Positive Long documentVersionId,
+            @AuthenticationPrincipal OidcUser oidcUser
+    ) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(documentQueryService.getVersionOriginalUrl(workspaceId, documentId, documentVersionId,
                         oidcUser.getIssuer().toString(), oidcUser.getSubject()));
     }
 
