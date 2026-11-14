@@ -15,7 +15,7 @@
         .topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 24px; border-bottom: 1px solid var(--line); background: var(--paper); }
         .brand { font-size: 21px; font-weight: 800; letter-spacing: -.04em; }
         .back { color: var(--green); text-decoration: none; font-weight: 650; }
-        main { max-width: 1540px; margin: auto; padding: 16px 24px; }
+        main { width: 100%; margin: auto; padding: 16px; }
         .heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
         .document-heading { display: flex; flex: 1 1 260px; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
         h1 { min-width: 0; max-width: 100%; margin: 0; font-size: clamp(18px, 2vw, 22px); line-height: 1.35; overflow-wrap: anywhere; }
@@ -31,12 +31,12 @@
         .status { margin: 0 0 20px; color: var(--muted); line-height: 1.6; }
         .status[data-error="true"] { color: #974534; }
         main > .status { margin-bottom: 12px; font-size: 14px; }
-        .review-grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; align-items: start; }
+        .review-grid { display: grid; grid-template-columns: minmax(0, 1fr) clamp(280px, 24vw, 360px); gap: 16px; align-items: start; }
         .panel { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: white; }
-        .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 20px 24px; border-bottom: 1px solid var(--line); }
-        h2 { margin: 0; font-size: 18px; }
+        .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+        h2 { margin: 0; font-size: 16px; }
         .page-count { color: var(--muted); font-size: 13px; white-space: nowrap; }
-        .pdf-pages { display: grid; align-content: start; justify-items: center; overscroll-behavior: contain; gap: 20px; max-height: 75vh; overflow: auto; padding: 20px; background: #e7ede8; }
+        .pdf-pages { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; justify-items: center; overscroll-behavior: contain; scrollbar-gutter: stable; gap: 16px; max-height: 75vh; overflow: auto; padding: 12px; background: #e7ede8; }
         .pdf-pages canvas { display: block; max-width: 100%; height: auto; background: white; box-shadow: 0 2px 12px #18352c1a; }
         .pdf-page { position: relative; max-width: 100%; line-height: 0; }
         .pdf-pages[data-selection-enabled="true"] .pdf-page[data-ready="true"] { cursor: crosshair; touch-action: none; user-select: none; }
@@ -187,7 +187,7 @@
     </div>
 </main>
 <script type="module">
-    import {initializeDocumentReview} from "/js/document-review.mjs?v=feedback-number-1";
+    import {initializeDocumentReview} from "/js/document-review.mjs?v=review-layout-60";
     initializeDocumentReview();
 </script>
 </body>

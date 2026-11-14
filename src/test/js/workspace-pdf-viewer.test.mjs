@@ -8,13 +8,13 @@ function deferred() {
     return {promise, resolve, reject};
 }
 
-function fixture({pageCount = 2, library, getPage, render} = {}) {
+function fixture({pageCount = 2, library, getPage, render, clientWidth = 600, paddingLeft = "0px", paddingRight = "0px"} = {}) {
     const canvases = [], calls = [], destroyed = [], cancelled = [];
     const container = {
-        clientWidth: 600, children: [], hidden: true,
+        clientWidth, children: [], hidden: true,
         replaceChildren() { this.children = []; },
         append(node) { this.children.push(node); },
-        ownerDocument: {createElement(tag) {
+        ownerDocument: {defaultView: {getComputedStyle: () => ({paddingLeft, paddingRight})}, createElement(tag) {
             if (tag === "div") return {style: {}, dataset: {}, children: [],
                 append(...nodes) { this.children.push(...nodes); }};
             assert.equal(tag, "canvas");
@@ -62,6 +62,26 @@ test("renders every page with page numbers and a high-DPI canvas", async () => {
     assert.equal(f.container.hidden, true);
     assert.equal(f.container.children.length, 0);
     assert.deepEqual(f.destroyed, [1]);
+});
+
+test("fits all PDF pages inside the content width rather than including container padding", async () => {
+    for (const [clientWidth, paddingLeft, paddingRight, expectedWidth] of [
+        [600, "20.5px", "11.5px", 568],
+        [300, "10px", "10px", 280]
+    ]) {
+        const f = fixture({clientWidth, paddingLeft, paddingRight});
+        await f.viewer.open("https://example.invalid/document.pdf");
+        assert.ok(f.container.children.every(page => page.style.width === expectedWidth + "px"));
+        assert.ok(f.canvases.every(canvas => canvas.width === expectedWidth * 2));
+        assert.ok(f.canvases.every(canvas => canvas.style.width === expectedWidth + "px"));
+    }
+});
+
+test("keeps the rendering width capped on wide screens", async () => {
+    const f = fixture({clientWidth: 1800, paddingLeft: "12px", paddingRight: "12px"});
+    await f.viewer.open("https://example.invalid/document.pdf");
+    assert.equal(f.container.children[0].style.width, "1200px");
+    assert.equal(f.canvases[0].width, 2400);
 });
 
 test("closing during library loading prevents a late PDF download", async () => {

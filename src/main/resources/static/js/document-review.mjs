@@ -1,5 +1,5 @@
 import {DocumentRequestError, fetchWorkspaceDocuments, fetchDocumentPdfUrl} from "./workspace-documents.mjs?v=pdf-version-1";
-import {createWorkspacePdfViewer} from "./workspace-pdf-viewer.mjs?v=area-selection-1";
+import {createWorkspacePdfViewer} from "./workspace-pdf-viewer.mjs?v=fit-width-60";
 
 import {createPdfAreaSelector} from "./pdf-area-selection.mjs?v=selection-color-1";
 import {createDocumentFeedbackForm} from "./document-feedback-form.mjs?v=feedback-form-1";

@@ -48,7 +48,11 @@ export function createWorkspacePdfViewer({container, loadLibrary = loadPdfJs,
             const pdf = await session.loadingTask.promise;
             if (!isCurrent()) return null;
             container.hidden = false;
-            const displayWidth = Math.min(container.clientWidth || 960, 1200);
+            const style = container.ownerDocument.defaultView?.getComputedStyle(container);
+            const horizontalPadding = (Number.parseFloat(style?.paddingLeft) || 0)
+                + (Number.parseFloat(style?.paddingRight) || 0);
+            // clientWidth에는 padding이 포함된다. 페이지는 실제 콘텐츠 너비 안에 그린다.
+            const displayWidth = Math.min(Math.max(1, (container.clientWidth || 960) - horizontalPadding), 1200);
             const ratio = Math.max(1, Math.min(pixelRatio(), 2));
             for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
                 const page = await pdf.getPage(pageNumber);
