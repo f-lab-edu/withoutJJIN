@@ -100,6 +100,8 @@ test("the actual review initializer wires author-only editing and confirmed dele
     await until(() => $("feedback-list").children.length === 2 && !$("feedback-refresh").disabled);
     const originalArea = $("pdf-pages").children[0].children[0];
     const coordinates = {...originalArea.style};
+    assert.equal(originalArea.dataset.feedbackNumber, "1");
+    assert.equal($("feedback-list").children[1].children[0].children.at(-1).textContent, "2");
     assert.equal($("feedback-list").children[0].children.length, 3);
     assert.equal($("feedback-list").children[1].children.length, 1);
 
@@ -163,6 +165,8 @@ test("the actual review initializer wires author-only editing and confirmed dele
     assert.equal($("feedback-delete-section").hidden, true);
     assert.equal($("feedback-delete-status").textContent, "피드백을 삭제했어요.");
     assert.equal($("feedback-list").children[0].dataset.feedbackId, "502");
+    assert.equal($("feedback-list").children[0].children[0].children.at(-1).textContent, "1");
+    assert.equal($("pdf-pages").children[0].children[0].dataset.feedbackNumber, "1");
     assert.equal($("pdf-pages").children[0].children.length, 1);
     assert.equal($("feedback-content").value, "유지할 등록 내용");
     windowHandlers.get("pagehide")();

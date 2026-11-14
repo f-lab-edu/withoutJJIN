@@ -122,3 +122,27 @@ test("moves only enough horizontally to reveal a region clipped at the left edge
     f.regions.focus(501);
     assert.equal(f.scrolled[0].left, 108);
 });
+
+test("numbers follow the list order across PDF pages rather than database IDs", () => {
+    const f = fixture();
+    const items = [{...first, id: 900, pageNumber: 2}, {...first, id: 4}];
+    f.regions.setItems(items);
+    assert.equal(f.pages[1].children[0].dataset.feedbackNumber, "1");
+    assert.equal(f.pages[0].children[0].dataset.feedbackNumber, "2");
+    assert.equal(f.pages[1].children[0].dataset.feedbackId, "900");
+    assert.equal(f.pages[0].children[0].dataset.feedbackId, "4");
+    assert.equal(f.regions.focus(4), true);
+    assert.equal(f.pages[0].children[0].dataset.active, "true");
+    assert.equal(Object.hasOwn(items[0], "feedbackNumber"), false);
+});
+
+test("renumbers after deletion and starts from one after switching to another PDF", () => {
+    const f = fixture();
+    f.regions.setItems([first, {...first, id: 502}, {...first, id: 503}]);
+    f.regions.setItems([{...first, id: 502}, {...first, id: 503}]);
+    assert.deepEqual(f.pages[0].children.map(box => box.dataset.feedbackNumber), ["1", "2"]);
+    assert.equal(f.regions.focus(501), false);
+    f.regions.clear();
+    f.regions.setItems([{...first, id: 999, pageNumber: 2}]);
+    assert.equal(f.pages[1].children[0].dataset.feedbackNumber, "1");
+});

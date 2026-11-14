@@ -103,11 +103,12 @@ export function createDocumentFeedbackListView({list, status, refresh, regions, 
         items(values) {
             regions?.setItems(values);
             buttons.clear();
-            const nodes = values.map(value => {
+            const nodes = values.map((value, index) => {
                 const doc = list.ownerDocument;
                 const item = doc.createElement("li");
                 item.className = "feedback-item";
                 item.dataset.feedbackId = String(value.id);
+                item.dataset.feedbackNumber = String(index + 1);
                 const author = doc.createElement("strong");
                 author.textContent = value.createdByDisplayName?.trim() || "회원 #" + value.createdBy;
                 const page = doc.createElement("span");
@@ -132,7 +133,11 @@ export function createDocumentFeedbackListView({list, status, refresh, regions, 
                         entry.item.dataset.active = String(id === value.id);
                     }
                 });
-                button.append(author, page, content, time);
+                const number = doc.createElement("span");
+                number.className = "feedback-item-number";
+                number.textContent = String(index + 1);
+                number.setAttribute("aria-label", "피드백 " + (index + 1) + "번");
+                button.append(author, page, content, time, number);
                 item.append(button);
                 let editButton = null;
                 if (value.createdBy === expectedUserId && typeof onEdit === "function") {

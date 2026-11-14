@@ -210,3 +210,19 @@ node --test src/test/js/document-feedback-deleter.test.mjs src/test/js/document-
 ```powershell
 node --test src/test/js/pdf-feedback-regions.test.mjs src/test/js/document-review-edit.test.mjs
 ```
+
+
+## PDF 영역과 피드백 목록의 번호 연결
+
+- 현재 DocumentVersion의 GET 목록 순서(작성 시각, ID 오름차순)에 따라 1부터 번호를 표시한다. PDF 페이지별로 번호를 다시 시작하지 않는다.
+- `document-feedback-list.mjs`와 `pdf-feedback-regions.mjs`는 같은 목록 순서로 목록 항목과 PDF 영역 오른쪽 위에 번호를 표시한다.
+- 드래그 중·등록 전 선택 영역은 숫자 대신 ‘작성 중’을 표시한다. 등록 후 GET 목록을 갱신하면서 저장된 영역과 목록에 같은 번호를 표시한다.
+- 번호는 화면 표시용이며 DB에 저장하지 않는다. 목록 이동·수정·삭제에는 기존 `DocumentFeedback.id`를 사용한다.
+- 삭제 후 목록을 다시 조회하면 남은 목록에 맞춰 번호를 다시 붙인다. 다른 DocumentVersion에서는 다시 1부터 표시한다.
+- 번호는 페이지의 비율 좌표를 변경하지 않고 표시하며, 영역 선택을 방해하는 포인터 이벤트를 받지 않는다.
+- 로컬 Chrome에서 테스트용 6페이지 문서와 API 응답으로 1365×1000, 1024×768, 390×844 화면의 드래그·등록·삭제와 번호 일치를 확인했다. 실제 S3 문서에 대한 검증은 별도다.
+
+관련 테스트:
+```powershell
+node --test src/test/js/pdf-feedback-regions.test.mjs src/test/js/document-feedback-list.test.mjs src/test/js/document-review-edit.test.mjs
+```

@@ -387,3 +387,27 @@ test("a failed list refresh after DELETE reports deletion success without sugges
     assert.match(f.state.error.message, /다시 삭제하지 말고/);
     assert.match(f.state.error.message, /목록 새로고침/);
 });
+
+test("list numbers match the same sequence passed to PDF regions and activation still uses feedback IDs", () => {
+    const doc = {createElement: tag => new Element(tag, doc)};
+    const list = new Element("ol", doc), status = new Element("p", doc), refresh = {};
+    const rendered = [], focused = [];
+    const view = createDocumentFeedbackListView({list, status, refresh, regions: {
+        setItems: values => rendered.push(values), clear() {}, focus(id) { focused.push(id); return true; }
+    }});
+    const values = [{...item, id: 900}, {...item, id: 4, pageNumber: 1}];
+    view.items(values);
+    assert.deepEqual(rendered[0], values);
+    assert.deepEqual(list.children.map(row => row.dataset.feedbackNumber), ["1", "2"]);
+    const labels = list.children.map(row => row.children[0].children.at(-1));
+    assert.deepEqual(labels.map(label => label.textContent), ["1", "2"]);
+    assert.equal(labels[1].attributes["aria-label"], "피드백 2번");
+    list.children[1].children[0].click();
+    assert.deepEqual(focused, [4]);
+    view.items([values[1]]);
+    assert.equal(list.children[0].dataset.feedbackId, "4");
+    assert.equal(list.children[0].children[0].children.at(-1).textContent, "1");
+    view.reset();
+    view.items([{...item, id: 999, documentVersionId: 92}]);
+    assert.equal(list.children[0].dataset.feedbackNumber, "1");
+});

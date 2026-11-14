@@ -39,6 +39,9 @@
         .pdf-pages[data-selection-enabled="true"] .pdf-page[data-ready="true"] { cursor: crosshair; touch-action: none; user-select: none; }
         .pdf-selection { position: absolute; z-index: 2; border: 2px solid #16785a; background: #39a87926; pointer-events: none; }
         .pdf-feedback-region { position: absolute; border: 2px solid; pointer-events: none; }
+        .pdf-feedback-region::after, .pdf-selection::after { position: absolute; top: 0; right: 0; transform: translateY(-50%); display: inline-flex; align-items: center; justify-content: center; min-width: 24px; padding: 4px 7px; border: 2px solid white; border-radius: 999px; background: var(--ink); color: white; font: 700 12px/1.2 system-ui, sans-serif; white-space: nowrap; }
+        .pdf-feedback-region::after { content: attr(data-feedback-number); }
+        .pdf-selection::after { content: "작성 중"; }
         .pdf-feedback-region[data-active="true"] { z-index: 1; outline: 3px solid var(--ink); outline-offset: 3px; }
         .button[aria-pressed="true"] { border-color: var(--green); background: #edf7ef; color: var(--green); }
         .selection-summary { padding: 24px; }
@@ -60,7 +63,8 @@
         .feedback-item { padding: 16px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
         .feedback-item-page { display: inline-block; margin-left: 8px; font-size: 13px; color: var(--muted); }
         .feedback-item-content { display: block; margin: 10px 0; white-space: pre-wrap; line-height: 1.7; }
-        .feedback-item-link { display: block; width: 100%; padding: 8px; border: 0; border-radius: 8px; text-align: left; color: inherit; background: transparent; cursor: pointer; overflow-wrap: anywhere; }
+        .feedback-item-link { position: relative; display: block; width: 100%; padding: 8px 54px 8px 8px; border: 0; border-radius: 8px; text-align: left; color: inherit; background: transparent; cursor: pointer; overflow-wrap: anywhere; }
+        .feedback-item-number { position: absolute; top: 8px; right: 8px; display: inline-flex; align-items: center; justify-content: center; min-width: 26px; padding: 4px 7px; border-radius: 999px; background: var(--ink); color: white; font-size: 12px; font-weight: 700; line-height: 1.2; }
         .feedback-item[data-active="true"] .feedback-item-link { background: #edf7ef; }
         .feedback-edit-button, .feedback-delete-button { margin: 8px 0 0 8px; padding: 6px 12px; font-size: 13px; }
         .feedback-delete-section { padding: 20px 24px; border-bottom: 1px solid var(--line); }
@@ -181,7 +185,7 @@
     </div>
 </main>
 <script type="module">
-    import {initializeDocumentReview} from "/js/document-review.mjs?v=pdf-scroll-1";
+    import {initializeDocumentReview} from "/js/document-review.mjs?v=feedback-number-1";
     initializeDocumentReview();
 </script>
 </body>
