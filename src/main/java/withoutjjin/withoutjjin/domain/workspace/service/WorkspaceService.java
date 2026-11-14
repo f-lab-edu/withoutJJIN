@@ -2,6 +2,7 @@ package withoutjjin.withoutjjin.domain.workspace.service;
 
 
 import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Service;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
@@ -24,7 +25,7 @@ public class WorkspaceService {
     private final WorkspaceRepository workspaceRepository;
     private final AppUserService appUserService;
 
-    @Transactional
+    @Transactional // 워크스페이스 만들기
     public Workspace createWorkspace(
             String name,
             String issuer,
@@ -40,7 +41,7 @@ public class WorkspaceService {
     }
 
 
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true) //유저가 참여하고있는 로직조사
     public List<Workspace> getMyWorkspaces(String issuer, String subject) {
         AppUser user = appUserService.getByIssuerAndSubject(issuer, subject);
         return workspaceMemberRepository.findAllByUserId(user.getId())
@@ -49,16 +50,12 @@ public class WorkspaceService {
                 .toList();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true) // 워크스페이스 조회하기 
     public WorkspaceDetailResponse getWorkspace(Long workspaceId, String issuer, String subject) {
-        AppUser user = appUserService.getByIssuerAndSubject(issuer, subject);
-        Workspace workspace = workspaceRepository.findById(workspaceId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
-                        "워크스페이스를 찾을 수 없습니다."));
-        if (!workspaceMemberRepository.existsByWorkspaceIdAndUserId(workspaceId, user.getId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                    "워크스페이스 멤버만 조회할 수 있습니다.");
-        }
+
+        Workspace workspace = getWorkSpaceForMember(workspaceId, issuer, subject);
+
+
         // 회원을 함께 조회하고 트랜잭션 안에서 DTO 변환을 마친다.
         List<WorkspaceDetailResponse.Member> members = workspaceMemberRepository
                 .findAllWithUserByWorkspaceId(workspaceId).stream()
@@ -69,10 +66,26 @@ public class WorkspaceService {
                 workspace.getCreatedBy().getId(), workspace.getCreatedAt(), members);
     }
 
+    @Transactional(readOnly = true)
+    public Workspace getWorkSpaceForMember(Long workspaceId, String issuer, String subject) {
+        AppUser user = appUserService.getByIssuerAndSubject(issuer, subject);
+        return getWorkSpaceForMember(workspaceId, user);
+    }
 
+    // 이미 조회한 회원을 전달받아 같은 권한 검사를 재사용한다.
+    @Transactional(readOnly = true)
+    public Workspace getWorkSpaceForMember(Long workspaceId, AppUser user) {
+        //워크스페이스 존재 확인 
+        Workspace workspace = workspaceRepository.findById(workspaceId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "워크스페이스를 찾을 수 없습니다."));
 
-
-
-
+        //워크스페이스에 존재하는 회원인지 확인 
+        if (!workspaceMemberRepository.existsByWorkspaceIdAndUserId(workspaceId, user.getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "워크스페이스 멤버만 조회할 수 있습니다.");
+        }
+        return workspace;
+    }
 
 }

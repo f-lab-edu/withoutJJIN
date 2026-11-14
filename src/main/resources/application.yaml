@@ -57,4 +57,10 @@ aws:
   ses:
     region: ${AWS_REGION}
     from-email: ${SES_FROM_EMAIL}
-
+  s3:
+    # 파일을 저장할 S3 버킷 이름
+    bucket: ${S3_BUCKET:}
+    # 버킷이 위치한 AWS 리전
+    region: ${AWS_REGION:ap-northeast-2}
+    # 업로드 URL 유효기간. 여기서는 5분
+    upload-url-expiration: 5m

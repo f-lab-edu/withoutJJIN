@@ -79,6 +79,7 @@ public class Document {
 
     @PrePersist
     private void onCreate() {
-        this.createdAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+        this.createdAt =
+                LocalDateTime.now(ZoneId.of("Asia/Seoul"));
     }
 }
