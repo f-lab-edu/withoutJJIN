@@ -303,3 +303,45 @@ test("a late refresh failure cannot overwrite the next PDF version", async () =>
     assert.equal(f.state.error, null);
     assert.equal(f.state.items[0].documentVersionId, 92);
 });
+
+
+test("only the displayed account's own feedback receives an edit button", () => {
+    const doc = {createElement: tag => new Element(tag, doc)};
+    const list = new Element("ol", doc), status = new Element("p", doc), refresh = {};
+    const opened = [];
+    let blocked = false;
+    const view = createDocumentFeedbackListView({list, status, refresh,
+        onEdit: value => opened.push(value), isBlocked: () => blocked});
+    view.setContext(context);
+    view.available(true);
+    view.items([item, {...item, id: 502, createdBy: 8}]);
+    assert.equal(list.children[0].children.length, 2);
+    assert.equal(list.children[1].children.length, 1);
+    const edit = list.children[0].children[1];
+    assert.equal(edit.textContent, "수정");
+    edit.click();
+    assert.deepEqual(opened, [item]);
+    assert.notEqual(opened[0], item);
+    blocked = true;
+    view.syncControls();
+    assert.equal(edit.disabled, true);
+    assert.equal(refresh.disabled, true);
+    edit.click();
+    assert.equal(opened.length, 1);
+    blocked = false;
+    view.syncControls();
+    assert.equal(edit.disabled, false);
+    assert.equal(refresh.disabled, false);
+    view.reset();
+    view.items([item]);
+    assert.equal(list.children[0].children.length, 1);
+});
+
+test("a failed list refresh after PATCH clearly reports that the modification already succeeded", async () => {
+    const f = fixture(async () => { throw new FeedbackRequestError("목록 오류", 500); });
+    f.controller.setContext(context);
+    await f.controller.load({afterUpdate: true});
+    assert.match(f.state.error.message, /수정됐지만/);
+    assert.match(f.state.error.message, /목록 새로고침/);
+    assert.doesNotMatch(f.state.error.message, /등록됐지만/);
+});

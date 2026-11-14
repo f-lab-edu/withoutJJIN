@@ -162,3 +162,16 @@ node --test src/test/js/pdf-feedback-regions.test.mjs src/test/js/document-feedb
 ```powershell
 node --test src/test/js/document-feedback-list.test.mjs src/test/js/document-feedback-form.test.mjs src/test/js/document-feedback.test.mjs src/test/js/document-review.test.mjs src/test/js/pdf-feedback-regions.test.mjs src/test/js/pdf-area-selection.test.mjs
 ```
+
+
+## #55 본인 피드백 수정 화면
+
+- 현재 PDF를 연 로그인 회원의 ID와 `createdBy`가 같은 항목에만 수정 버튼을 표시한다.
+- 수정 버튼은 기존 내용을 별도 입력창에 불러온다. 내용은 `textarea.value`로 설정한다.
+- 수정 취소는 PATCH를 보내지 않으며, 실패하면 입력 내용을 유지한다.
+- 저장 중 중복 제출을 막고 수정·취소 버튼을 비활성화한다.
+- 수정 중에는 등록·영역 선택·PDF 다시 열기·목록 새로고침을 잠시 막아 작성 중 내용을 보존한다.
+- 수정 성공 후 GET 목록을 다시 조회하여 목록과 저장된 영역을 표시한다. 영역 좌표·색상은 변경하지 않는다.
+- PATCH 성공 후 GET 실패 시 수정 완료 사실과 목록 새로고침 안내를 표시한다.
+- PDF 화면 이탈과 재로딩은 진행 중 PATCH를 취소하고 이전 결과를 무시한다.
+- 삭제 버튼과 삭제 확인 안내는 다음 커밋에서 연결한다. 실제 브라우저 확인은 별도로 진행한다.

@@ -3,9 +3,11 @@ import {createWorkspacePdfViewer} from "./workspace-pdf-viewer.mjs?v=area-select
 
 import {createPdfAreaSelector} from "./pdf-area-selection.mjs?v=selection-color-1";
 import {createDocumentFeedbackForm} from "./document-feedback-form.mjs?v=feedback-form-1";
-import {createDocumentFeedbackList, createDocumentFeedbackListView} from "./document-feedback-list.mjs?v=feedback-refresh-1";
+import {createDocumentFeedbackList, createDocumentFeedbackListView} from "./document-feedback-list.mjs?v=feedback-edit-1";
 
 import {createPdfFeedbackRegions} from "./pdf-feedback-regions.mjs?v=feedback-regions-1";
+
+import {createDocumentFeedbackEditor} from "./document-feedback-editor.mjs?v=feedback-edit-1";
 
 export function parseReviewPath(pathname) {
     const match = pathname.match(/^\/workspaces\/([1-9]\d*)\/documents\/([1-9]\d*)\/review$/);
@@ -75,7 +77,7 @@ export function createDocumentReviewController({workspaceId, documentId, viewer,
     return {load, stop, getDocumentVersionId: () => documentVersionId};
 }
 
-export function initializeDocumentReview() {
+export function initializeDocumentReview({createViewer = createWorkspacePdfViewer} = {}) {
     const $ = id => document.getElementById(id);
     const path = parseReviewPath(location.pathname);
     if (!path) {
@@ -86,8 +88,9 @@ export function initializeDocumentReview() {
         return;
     }
     $("workspace-back").href = "/workspaces/" + path.workspaceId;
-    const viewer = createWorkspacePdfViewer({container: $("pdf-pages")});
+    const viewer = createViewer({container: $("pdf-pages")});
     let pdfReady = false, pdfLoading = false, selectionMode = true, registering = false;
+    let feedbackEditing = false, feedbackSaving = false;
     const selector = createPdfAreaSelector({container: $("pdf-pages"), onChange(area) {
         $("selection-summary").hidden = !area;
         $("feedback-placeholder").hidden = Boolean(area);
@@ -102,31 +105,73 @@ export function initializeDocumentReview() {
     $("selection-color").addEventListener("change", event => { selector.setColor(event.target.value); });
 
     function syncSelectionMode() {
-        const enabled = pdfReady && selectionMode && !registering;
+        const enabled = pdfReady && selectionMode && !registering && !feedbackEditing && !feedbackSaving;
         selector.setEnabled(enabled);
-        $("selection-mode").disabled = !pdfReady || registering;
+        $("selection-mode").disabled = !pdfReady || registering || feedbackEditing || feedbackSaving;
         $("selection-mode").setAttribute("aria-pressed", String(enabled));
     }
 
     function syncFeedbackControls() {
-        $("feedback-content").disabled = !pdfReady || registering;
-        $("feedback-submit").disabled = !pdfReady || registering || !selector.getSelection()
+        const blocked = registering || feedbackEditing || feedbackSaving;
+        $("selection-summary").hidden = feedbackEditing || !selector.getSelection();
+        $("feedback-placeholder").hidden = feedbackEditing || Boolean(selector.getSelection());
+        $("feedback-content").disabled = !pdfReady || blocked;
+        $("feedback-submit").disabled = !pdfReady || blocked || !selector.getSelection()
             || !$("feedback-content").value.trim() || $("feedback-content").value.length > 1000;
         $("feedback-submit").textContent = registering ? "등록 중…" : "피드백 등록";
         $("feedback-form").setAttribute("aria-busy", String(registering));
         $("feedback-count").textContent = $("feedback-content").value.length + " / 1000";
-        $("selection-clear").disabled = registering || !selector.getSelection();
-        $("selection-color").disabled = !pdfReady || registering;
-        $("pdf-renew").disabled = pdfLoading || registering;
+        $("selection-clear").disabled = blocked || !selector.getSelection();
+        $("selection-color").disabled = !pdfReady || blocked;
+        $("pdf-renew").disabled = pdfLoading || blocked;
+        $("feedback-edit-content").disabled = feedbackSaving;
+        $("feedback-edit-save").disabled = feedbackSaving || !$("feedback-edit-content").value.trim()
+            || $("feedback-edit-content").value.length > 1000;
+        $("feedback-edit-cancel").disabled = feedbackSaving;
+        $("feedback-edit-save").textContent = feedbackSaving ? "저장 중…" : "수정 저장";
+        $("feedback-edit-form").setAttribute("aria-busy", String(feedbackSaving));
+        $("feedback-edit-count").textContent = $("feedback-edit-content").value.length + " / 1000";
+        feedbackListView.syncControls();
         syncSelectionMode();
     }
 
     const feedbackRegions = createPdfFeedbackRegions({container: $("pdf-pages")});
-    const feedbackList = createDocumentFeedbackList({view: createDocumentFeedbackListView({
+    const feedbackListView = createDocumentFeedbackListView({
         regions: feedbackRegions,
         list: $("feedback-list"), status: $("feedback-list-status"), refresh: $("feedback-refresh"),
+        isBlocked: () => registering || feedbackEditing || feedbackSaving,
+        onEdit(feedback) { feedbackEditor.open(feedback); },
         onUnauthorized() { $("review-login").hidden = false; }
-    })});
+    });
+    const feedbackList = createDocumentFeedbackList({view: feedbackListView});
+    const feedbackEditor = createDocumentFeedbackEditor({view: {
+        open(feedback) {
+            feedbackEditing = true;
+            $("feedback-edit-section").hidden = false;
+            $("feedback-edit-page").textContent = feedback.pageNumber + "페이지 피드백";
+            $("feedback-edit-content").value = feedback.content;
+            feedbackRegions.focus(feedback.id);
+            syncFeedbackControls();
+            $("feedback-edit-content").focus();
+        },
+        close() {
+            feedbackEditing = false;
+            $("feedback-edit-section").hidden = true;
+            $("feedback-edit-content").value = "";
+            syncFeedbackControls();
+        },
+        busy(value) { feedbackSaving = value; syncFeedbackControls(); },
+        message(text, error = false, status) {
+            $("feedback-edit-status").textContent = text;
+            $("feedback-edit-status").dataset.error = String(error);
+            if (status === 401) $("review-login").hidden = false;
+        },
+        success() {
+            $("feedback-edit-status").textContent = "피드백을 수정했어요.";
+            $("feedback-edit-status").dataset.error = "false";
+            void feedbackList.load({afterUpdate: true});
+        }
+    }});
 
     const feedbackForm = createDocumentFeedbackForm({getSelection: selector.getSelection,
         clearSelection: selector.clearSelection, view: {
@@ -162,6 +207,7 @@ export function initializeDocumentReview() {
             delete $("review-content").dataset.documentVersionId;
             pdfReady = false;
             feedbackForm.reset();
+            feedbackEditor.reset();
             feedbackList.reset();
             selector.clearSelection();
             $("pdf-new-tab").removeAttribute("href");
@@ -202,6 +248,7 @@ export function initializeDocumentReview() {
         ready(pageCount, context) {
             pdfReady = true;
             feedbackForm.setContext(context);
+            feedbackEditor.setContext(context);
             feedbackList.setContext(context);
             void feedbackList.load();
             $("pdf-placeholder").hidden = true;
@@ -212,6 +259,7 @@ export function initializeDocumentReview() {
             delete $("review-content").dataset.documentVersionId;
             pdfReady = false;
             feedbackForm.reset();
+            feedbackEditor.reset();
             feedbackList.reset();
             selector.clearSelection();
             $("pdf-status").textContent = message;
@@ -225,6 +273,12 @@ export function initializeDocumentReview() {
         void feedbackForm.submit($("feedback-content").value);
     });
     $("feedback-refresh").addEventListener("click", () => { void feedbackList.load(); });
+    $("feedback-edit-form").addEventListener("submit", event => {
+        event.preventDefault();
+        void feedbackEditor.submit($("feedback-edit-content").value);
+    });
+    $("feedback-edit-content").addEventListener("input", syncFeedbackControls);
+    $("feedback-edit-cancel").addEventListener("click", feedbackEditor.cancel);
     $("feedback-content").addEventListener("input", syncFeedbackControls);
     $("pdf-renew").addEventListener("click", () => { void controller.load(); });
     $("selection-mode").addEventListener("click", () => {
