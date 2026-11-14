@@ -73,3 +73,10 @@ document:
     connect-timeout: 3s
     # Gotenberg의 60초 제한 후 실패 응답을 받을 수 있도록 조금 더 기다린다.
     read-timeout: 65s
+    worker:
+      # 일반 실행에서는 자동 변환을 활성화한다. 테스트 프로필에서는 비활성화한다.
+      enabled: ${DOCUMENT_CONVERSION_WORKER_ENABLED:true}
+      # 최초 실행 전, 그리고 한 회차가 끝난 뒤 다음 실행까지 기다리는 시간.
+      poll-delay: ${DOCUMENT_CONVERSION_POLL_DELAY:10s}
+      # 한 회차에 조회할 최대 건수. 변환은 한 건씩 순차 실행한다.
+      batch-size: ${DOCUMENT_CONVERSION_BATCH_SIZE:5}
