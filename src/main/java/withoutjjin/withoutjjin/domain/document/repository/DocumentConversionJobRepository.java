@@ -15,6 +15,8 @@ public interface DocumentConversionJobRepository extends JpaRepository<DocumentC
 
     Optional<DocumentConversionJob> findByDocumentVersionId(Long documentVersionId);
 
+    Optional<DocumentConversionJob> findByDocumentUploadId(Long documentUploadId);
+
     @Query("""
             select job.id from DocumentConversionJob job
             where job.status = withoutjjin.withoutjjin.domain.document.entity.DocumentConversionJobStatus.PENDING

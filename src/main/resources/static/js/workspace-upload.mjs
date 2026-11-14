@@ -23,7 +23,7 @@ async function requestJson(fetchImpl, path, options = {}, errorMessages) {
             400: "파일 이름·크기·형식을 확인해 주세요.",
             401: "로그인이 만료됐어요. 다시 로그인해 주세요.",
             403: "업로드 권한 또는 보안 토큰을 확인할 수 없어요. 화면을 새로고침해 주세요.",
-            404: "워크스페이스를 찾을 수 없어요."
+            404: "워크스페이스 또는 문서를 찾을 수 없어요."
         };
         const fallback = errorMessages
             ? "문서 등록에 실패했어요. 잠시 뒤 등록을 다시 시도해 주세요."
@@ -40,16 +40,19 @@ async function requestJson(fetchImpl, path, options = {}, errorMessages) {
 }
 
 // 우리 서버는 권한을 확인하고 URL을 발급한다. 실제 파일 본문은 S3로 보낸다.
-export async function uploadWorkspaceFile({workspaceId, file, expectedUserId,
+export async function uploadWorkspaceFile({workspaceId, documentId = null, file, expectedUserId,
     fetchImpl = fetch, onProgress = () => {}}) {
     validateUploadFile(file);
     if (!Number.isSafeInteger(workspaceId) || workspaceId <= 0) {
         throw new Error("워크스페이스 주소를 확인해 주세요.");
     }
+    validateDocumentId(documentId);
     onProgress("로그인 상태와 업로드 권한을 확인하고 있어요.");
     const me = await requireCurrentUser(fetchImpl, expectedUserId);
 
-    const upload = await requestJson(fetchImpl, `/api/v1/workspaces/${workspaceId}/uploads`, {
+    const path = documentId === null ? `/api/v1/workspaces/${workspaceId}/uploads`
+        : `/api/v1/workspaces/${workspaceId}/documents/${documentId}/uploads`;
+    const upload = await requestJson(fetchImpl, path, {
         method: "POST",
         headers: {"Content-Type": "application/json", "X-CSRF-TOKEN": me.csrfToken},
         body: JSON.stringify({fileName: file.name, fileSize: file.size, contentType: DOCX_CONTENT_TYPE})
@@ -78,7 +81,7 @@ export async function uploadWorkspaceFile({workspaceId, file, expectedUserId,
     }
     try {
         const completion = await completeWorkspaceUpload({
-            uploadId: upload.uploadId, expectedUserId, fetchImpl, onProgress
+            uploadId: upload.uploadId, expectedDocumentId: documentId, expectedUserId, fetchImpl, onProgress
         });
         return {...completion, storageKey: upload.storageKey};
     } catch (error) {
@@ -98,6 +101,12 @@ async function requireCurrentUser(fetchImpl, expectedUserId) {
     }
     if (!me.csrfToken) throw new Error("보안 토큰을 확인할 수 없어요. 화면을 새로고침해 주세요.");
     return me;
+}
+
+function validateDocumentId(documentId) {
+    if (documentId !== null && (!Number.isSafeInteger(documentId) || documentId <= 0)) {
+        throw new Error("새 버전을 업로드할 문서를 확인해 주세요.");
+    }
 }
 
 function validateUploadId(uploadId) {
@@ -133,9 +142,10 @@ const COMPLETION_MESSAGES = {
 
 // 재시도할 때도 같은 uploadId로 완료 API만 호출하고 S3 PUT은 실행하지 않는다.
 export async function completeWorkspaceUpload({
-    uploadId, expectedUserId, fetchImpl = fetch, onProgress = () => {}
+    uploadId, expectedDocumentId = null, expectedUserId, fetchImpl = fetch, onProgress = () => {}
 }) {
     validateUploadId(uploadId);
+    validateDocumentId(expectedDocumentId);
     try {
         onProgress("문서 등록을 위해 로그인 상태를 다시 확인하고 있어요.");
         const me = await requireCurrentUser(fetchImpl, expectedUserId);
@@ -146,6 +156,7 @@ export async function completeWorkspaceUpload({
             }, COMPLETION_MESSAGES);
         if (!completion || completion.uploadId !== uploadId
                 || !Number.isSafeInteger(completion.documentId) || completion.documentId <= 0
+                || (expectedDocumentId !== null && completion.documentId !== expectedDocumentId)
                 || !Number.isSafeInteger(completion.documentVersionId) || completion.documentVersionId <= 0) {
             throw new Error("문서 등록 응답을 확인할 수 없어요. 등록을 다시 확인해 주세요.");
         }
@@ -155,6 +166,8 @@ export async function completeWorkspaceUpload({
             documentVersionId: completion.documentVersionId
         };
     } catch (cause) {
-        throw new UploadCompletionError(uploadId, cause);
+        const failure = new UploadCompletionError(uploadId, cause);
+        failure.documentId = expectedDocumentId;
+        throw failure;
     }
 }

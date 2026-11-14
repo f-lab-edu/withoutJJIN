@@ -286,3 +286,66 @@ test("registration-only retry validates uploadId before making any request", asy
         });
     }
 });
+
+test("new version upload uses the selected document endpoint and validates the completion document", async () => {
+    const mock = setup([json(me), json(upload), json(null), json(refreshedMe), json(completion)]);
+    assert.deepEqual(await send(mock, {documentId: 601}), {...completion, storageKey: upload.storageKey});
+    assert.equal(mock.calls[1].url, "/api/v1/workspaces/1411/documents/601/uploads");
+    assert.equal(mock.calls[1].options.headers["X-CSRF-TOKEN"], me.csrfToken);
+    assert.equal(mock.calls[2].options.credentials, "omit");
+    assert.equal(mock.calls[4].url, completionPath);
+    assert.equal(mock.calls[4].options.headers["X-CSRF-TOKEN"], refreshedMe.csrfToken);
+    assert.equal(mock.calls.filter(call => call.options.method === "PUT").length, 1);
+});
+
+test("invalid target document IDs stop before any request", async t => {
+    for (const documentId of [0, -1, "601", NaN, Number.MAX_SAFE_INTEGER + 1]) {
+        await t.test(String(documentId), async () => {
+            const mock = setup([]);
+            await assert.rejects(send(mock, {documentId}), /문서를 확인/);
+            await assert.rejects(completeWorkspaceUpload({uploadId: 501, expectedUserId: 42,
+                expectedDocumentId: documentId, fetchImpl: mock.fetchImpl}), /문서를 확인/);
+            assert.equal(mock.calls.length, 0);
+        });
+    }
+});
+
+test("a missing target document is reported before uploading bytes", async () => {
+    const mock = setup([json(me), json(null, 404)]);
+    await assert.rejects(send(mock, {documentId: 601}), error => error.status === 404 && /문서를 찾을 수/.test(error.message));
+    assert.equal(mock.calls.length, 2);
+});
+
+test("completion for a different document preserves the original target for checking the result", async () => {
+    const mock = setup([json(me), json(upload), json(null), json(refreshedMe), json({...completion, documentId: 999})]);
+    await assert.rejects(send(mock, {documentId: 601}), error => {
+        assert.ok(error instanceof UploadCompletionError);
+        assert.equal(error.documentId, 601);
+        assert.equal(error.uploadId, 501);
+        assert.equal(error.canRetry, true);
+        assert.equal(error.fileName, file.name);
+        return /문서 등록 응답을 확인/.test(error.message);
+    });
+    assert.equal(mock.calls.length, 5);
+});
+
+test("new version completion retry uses the same upload ID without issuing another URL or S3 PUT", async () => {
+    const mock = setup([json(me), json(upload), json(null), json(refreshedMe), json(null, 502),
+        json(refreshedMe), json(completion)]);
+    let pending;
+    await assert.rejects(send(mock, {documentId: 601}), error => { pending = error; return true; });
+    assert.equal(pending.documentId, 601);
+    assert.deepEqual(await completeWorkspaceUpload({uploadId: pending.uploadId,
+        expectedDocumentId: pending.documentId, expectedUserId: 42, fetchImpl: mock.fetchImpl}), completion);
+    assert.equal(mock.calls.filter(call => call.options.method === "PUT").length, 1);
+    assert.equal(mock.calls.filter(call => call.url.endsWith("/documents/601/uploads")).length, 1);
+    assert.equal(mock.calls.at(-1).url, completionPath);
+});
+
+test("completion retry also refuses a response for another document", async () => {
+    const mock = setup([json(refreshedMe), json({...completion, documentId: 999})]);
+    await assert.rejects(completeWorkspaceUpload({uploadId: 501, expectedDocumentId: 601,
+        expectedUserId: 42, fetchImpl: mock.fetchImpl}), error =>
+        error instanceof UploadCompletionError && error.documentId === 601);
+    assert.equal(mock.calls.length, 2);
+});
