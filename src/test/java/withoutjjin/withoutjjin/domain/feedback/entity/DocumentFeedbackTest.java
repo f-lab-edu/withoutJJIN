@@ -14,7 +14,9 @@ import withoutjjin.withoutjjin.domain.document.entity.DocumentVersion;
 import withoutjjin.withoutjjin.domain.user.entity.AppUser;
 import withoutjjin.withoutjjin.domain.workspace.entity.Workspace;
 
+import java.time.LocalDateTime;
 import java.util.stream.Stream;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -136,6 +138,64 @@ class DocumentFeedbackTest {
         assertThatThrownBy(() -> new DocumentFeedback(version(2), author, 1,
                 0d, 0d, .2, .2, null, "내용"))
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("색상");
+    }
+
+    @Test
+    @DisplayName("내용 수정 시 문서 버전·작성자·페이지·좌표·색상·작성 시각을 유지한다")
+    void updatesOnlyTheContent() {
+        DocumentVersion version = version(2);
+        DocumentFeedback feedback = new DocumentFeedback(version, author, 2,
+                .1, .2, .3, .4, FeedbackColor.PINK, "기존 의견");
+        LocalDateTime createdAt = LocalDateTime.of(2026, 11, 14, 12, 0);
+        ReflectionTestUtils.setField(feedback, "createdAt", createdAt);
+
+        feedback.updateContent("  수정한 의견\n두 번째 줄  ");
+
+        assertThat(feedback.getContent()).isEqualTo("  수정한 의견\n두 번째 줄  ");
+        assertThat(feedback.getDocumentVersion()).isSameAs(version);
+        assertThat(feedback.getCreatedBy()).isSameAs(author);
+        assertThat(feedback.getPageNumber()).isEqualTo(2);
+        assertThat(feedback.getX()).isEqualTo(.1);
+        assertThat(feedback.getY()).isEqualTo(.2);
+        assertThat(feedback.getWidth()).isEqualTo(.3);
+        assertThat(feedback.getHeight()).isEqualTo(.4);
+        assertThat(feedback.getColor()).isEqualTo(FeedbackColor.PINK);
+        assertThat(feedback.getCreatedAt()).isEqualTo(createdAt);
+    }
+
+    @Test
+    @DisplayName("최대 1000자 내용으로 수정할 수 있다")
+    void acceptsMaximumLengthWhenUpdating() {
+        DocumentFeedback feedback = new DocumentFeedback(version(1), author, 1,
+                0d, 0d, 1d, 1d, FeedbackColor.GREEN, "기존 의견");
+
+        feedback.updateContent("가".repeat(DocumentFeedback.MAX_CONTENT_LENGTH));
+
+        assertThat(feedback.getContent()).hasSize(DocumentFeedback.MAX_CONTENT_LENGTH);
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {" ", "\t\n", "\u3000"})
+    @DisplayName("공백 내용으로 수정하면 예외가 발생하고 기존 내용은 유지된다")
+    void preservesContentWhenTheNewContentIsBlank(String content) {
+        DocumentFeedback feedback = new DocumentFeedback(version(1), author, 1,
+                0d, 0d, 1d, 1d, FeedbackColor.GREEN, "기존 의견");
+
+        assertThatThrownBy(() -> feedback.updateContent(content))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(feedback.getContent()).isEqualTo("기존 의견");
+    }
+
+    @Test
+    @DisplayName("1000자를 초과하는 내용으로 수정하면 기존 내용은 유지된다")
+    void preservesContentWhenTheNewContentIsTooLong() {
+        DocumentFeedback feedback = new DocumentFeedback(version(1), author, 1,
+                0d, 0d, 1d, 1d, FeedbackColor.GREEN, "기존 의견");
+
+        assertThatThrownBy(() -> feedback.updateContent("가".repeat(DocumentFeedback.MAX_CONTENT_LENGTH + 1)))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(feedback.getContent()).isEqualTo("기존 의견");
     }
 
     private DocumentVersion version(Integer pageCount) {
