@@ -3,11 +3,13 @@ import {createWorkspacePdfViewer} from "./workspace-pdf-viewer.mjs?v=area-select
 
 import {createPdfAreaSelector} from "./pdf-area-selection.mjs?v=selection-color-1";
 import {createDocumentFeedbackForm} from "./document-feedback-form.mjs?v=feedback-form-1";
-import {createDocumentFeedbackList, createDocumentFeedbackListView} from "./document-feedback-list.mjs?v=feedback-edit-1";
+import {createDocumentFeedbackList, createDocumentFeedbackListView} from "./document-feedback-list.mjs?v=feedback-delete-1";
 
 import {createPdfFeedbackRegions} from "./pdf-feedback-regions.mjs?v=feedback-regions-1";
 
 import {createDocumentFeedbackEditor} from "./document-feedback-editor.mjs?v=feedback-edit-1";
+
+import {createDocumentFeedbackDeleter} from "./document-feedback-deleter.mjs?v=feedback-delete-1";
 
 export function parseReviewPath(pathname) {
     const match = pathname.match(/^\/workspaces\/([1-9]\d*)\/documents\/([1-9]\d*)\/review$/);
@@ -91,6 +93,7 @@ export function initializeDocumentReview({createViewer = createWorkspacePdfViewe
     const viewer = createViewer({container: $("pdf-pages")});
     let pdfReady = false, pdfLoading = false, selectionMode = true, registering = false;
     let feedbackEditing = false, feedbackSaving = false;
+    let feedbackDeleting = false, feedbackRemoving = false;
     const selector = createPdfAreaSelector({container: $("pdf-pages"), onChange(area) {
         $("selection-summary").hidden = !area;
         $("feedback-placeholder").hidden = Boolean(area);
@@ -105,16 +108,16 @@ export function initializeDocumentReview({createViewer = createWorkspacePdfViewe
     $("selection-color").addEventListener("change", event => { selector.setColor(event.target.value); });
 
     function syncSelectionMode() {
-        const enabled = pdfReady && selectionMode && !registering && !feedbackEditing && !feedbackSaving;
+        const enabled = pdfReady && selectionMode && !registering && !feedbackEditing && !feedbackSaving && !feedbackDeleting && !feedbackRemoving;
         selector.setEnabled(enabled);
-        $("selection-mode").disabled = !pdfReady || registering || feedbackEditing || feedbackSaving;
+        $("selection-mode").disabled = !pdfReady || registering || feedbackEditing || feedbackSaving || feedbackDeleting || feedbackRemoving;
         $("selection-mode").setAttribute("aria-pressed", String(enabled));
     }
 
     function syncFeedbackControls() {
-        const blocked = registering || feedbackEditing || feedbackSaving;
-        $("selection-summary").hidden = feedbackEditing || !selector.getSelection();
-        $("feedback-placeholder").hidden = feedbackEditing || Boolean(selector.getSelection());
+        const blocked = registering || feedbackEditing || feedbackSaving || feedbackDeleting || feedbackRemoving;
+        $("selection-summary").hidden = feedbackEditing || feedbackDeleting || !selector.getSelection();
+        $("feedback-placeholder").hidden = feedbackEditing || feedbackDeleting || Boolean(selector.getSelection());
         $("feedback-content").disabled = !pdfReady || blocked;
         $("feedback-submit").disabled = !pdfReady || blocked || !selector.getSelection()
             || !$("feedback-content").value.trim() || $("feedback-content").value.length > 1000;
@@ -131,6 +134,10 @@ export function initializeDocumentReview({createViewer = createWorkspacePdfViewe
         $("feedback-edit-save").textContent = feedbackSaving ? "저장 중…" : "수정 저장";
         $("feedback-edit-form").setAttribute("aria-busy", String(feedbackSaving));
         $("feedback-edit-count").textContent = $("feedback-edit-content").value.length + " / 1000";
+        $("feedback-delete-confirm").disabled = feedbackRemoving;
+        $("feedback-delete-cancel").disabled = feedbackRemoving;
+        $("feedback-delete-confirm").textContent = feedbackRemoving ? "삭제 중…" : "삭제 확인";
+        $("feedback-delete-section").setAttribute("aria-busy", String(feedbackRemoving));
         feedbackListView.syncControls();
         syncSelectionMode();
     }
@@ -139,8 +146,9 @@ export function initializeDocumentReview({createViewer = createWorkspacePdfViewe
     const feedbackListView = createDocumentFeedbackListView({
         regions: feedbackRegions,
         list: $("feedback-list"), status: $("feedback-list-status"), refresh: $("feedback-refresh"),
-        isBlocked: () => registering || feedbackEditing || feedbackSaving,
+        isBlocked: () => registering || feedbackEditing || feedbackSaving || feedbackDeleting || feedbackRemoving,
         onEdit(feedback) { feedbackEditor.open(feedback); },
+        onDelete(feedback) { feedbackDeleter.open(feedback); },
         onUnauthorized() { $("review-login").hidden = false; }
     });
     const feedbackList = createDocumentFeedbackList({view: feedbackListView});
@@ -170,6 +178,35 @@ export function initializeDocumentReview({createViewer = createWorkspacePdfViewe
             $("feedback-edit-status").textContent = "피드백을 수정했어요.";
             $("feedback-edit-status").dataset.error = "false";
             void feedbackList.load({afterUpdate: true});
+        }
+    }});
+
+    const feedbackDeleter = createDocumentFeedbackDeleter({view: {
+        open(feedback) {
+            feedbackDeleting = true;
+            $("feedback-delete-section").hidden = false;
+            $("feedback-delete-page").textContent = feedback.pageNumber + "페이지 피드백";
+            $("feedback-delete-content").textContent = feedback.content;
+            feedbackRegions.focus(feedback.id);
+            syncFeedbackControls();
+            $("feedback-delete-cancel").focus();
+        },
+        close() {
+            feedbackDeleting = false;
+            $("feedback-delete-section").hidden = true;
+            $("feedback-delete-content").textContent = "";
+            syncFeedbackControls();
+        },
+        busy(value) { feedbackRemoving = value; syncFeedbackControls(); },
+        message(text, error = false, status) {
+            $("feedback-delete-status").textContent = text;
+            $("feedback-delete-status").dataset.error = String(error);
+            if (status === 401) $("review-login").hidden = false;
+        },
+        success() {
+            $("feedback-delete-status").textContent = "피드백을 삭제했어요.";
+            $("feedback-delete-status").dataset.error = "false";
+            void feedbackList.load({afterDelete: true});
         }
     }});
 
@@ -208,6 +245,7 @@ export function initializeDocumentReview({createViewer = createWorkspacePdfViewe
             pdfReady = false;
             feedbackForm.reset();
             feedbackEditor.reset();
+            feedbackDeleter.reset();
             feedbackList.reset();
             selector.clearSelection();
             $("pdf-new-tab").removeAttribute("href");
@@ -249,6 +287,7 @@ export function initializeDocumentReview({createViewer = createWorkspacePdfViewe
             pdfReady = true;
             feedbackForm.setContext(context);
             feedbackEditor.setContext(context);
+            feedbackDeleter.setContext(context);
             feedbackList.setContext(context);
             void feedbackList.load();
             $("pdf-placeholder").hidden = true;
@@ -260,6 +299,7 @@ export function initializeDocumentReview({createViewer = createWorkspacePdfViewe
             pdfReady = false;
             feedbackForm.reset();
             feedbackEditor.reset();
+            feedbackDeleter.reset();
             feedbackList.reset();
             selector.clearSelection();
             $("pdf-status").textContent = message;
@@ -277,6 +317,8 @@ export function initializeDocumentReview({createViewer = createWorkspacePdfViewe
         event.preventDefault();
         void feedbackEditor.submit($("feedback-edit-content").value);
     });
+    $("feedback-delete-confirm").addEventListener("click", () => { void feedbackDeleter.confirm(); });
+    $("feedback-delete-cancel").addEventListener("click", feedbackDeleter.cancel);
     $("feedback-edit-content").addEventListener("input", syncFeedbackControls);
     $("feedback-edit-cancel").addEventListener("click", feedbackEditor.cancel);
     $("feedback-content").addEventListener("input", syncFeedbackControls);

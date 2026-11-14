@@ -17,7 +17,7 @@ export function createDocumentFeedbackList({view, fetchFeedback = fetchDocumentF
         view.available(true);
     }
 
-    async function load({afterCreate = false, afterUpdate = false} = {}) {
+    async function load({afterCreate = false, afterUpdate = false, afterDelete = false} = {}) {
         if (!context) return;
         current?.abort();
         const target = context, request = new AbortController();
@@ -40,7 +40,7 @@ export function createDocumentFeedbackList({view, fetchFeedback = fetchDocumentF
             const message = error instanceof FeedbackRequestError ? error.message
                 : "피드백 목록을 불러오지 못했어요. 다시 시도해 주세요.";
             // 쓰기 요청은 이미 성공했다. 목록 조회 실패와 구분한다.
-            const completed = afterCreate ? "등록" : afterUpdate ? "수정" : null;
+            const completed = afterCreate ? "등록" : afterUpdate ? "수정" : afterDelete ? "삭제" : null;
             view.error(completed
                 ? "피드백은 " + completed + "됐지만 목록을 갱신하지 못했어요. " + message
                     + " 다시 " + completed + "하지 말고 ‘목록 새로고침’을 눌러 주세요."
@@ -57,7 +57,7 @@ export function createDocumentFeedbackList({view, fetchFeedback = fetchDocumentF
 }
 
 export function createDocumentFeedbackListView({list, status, refresh, regions, onUnauthorized = () => {},
-        onEdit, isBlocked = () => false}) {
+        onEdit, onDelete, isBlocked = () => false}) {
     const buttons = new Map();
     let expectedUserId = null, refreshAvailable = false;
 
@@ -66,6 +66,7 @@ export function createDocumentFeedbackListView({list, status, refresh, regions, 
         refresh.disabled = !refreshAvailable || blocked;
         for (const entry of buttons.values()) {
             if (entry.editButton) entry.editButton.disabled = blocked;
+            if (entry.deleteButton) entry.deleteButton.disabled = blocked;
         }
     }
 
@@ -145,7 +146,19 @@ export function createDocumentFeedbackListView({list, status, refresh, regions, 
                     });
                     item.append(editButton);
                 }
-                buttons.set(value.id, {button, item, editButton});
+                let deleteButton = null;
+                if (value.createdBy === expectedUserId && typeof onDelete === "function") {
+                    deleteButton = doc.createElement("button");
+                    deleteButton.type = "button";
+                    deleteButton.className = "button feedback-delete-button";
+                    deleteButton.textContent = "삭제";
+                    deleteButton.setAttribute("aria-label", value.pageNumber + "페이지 피드백 삭제");
+                    deleteButton.addEventListener("click", () => {
+                        if (!isBlocked()) onDelete({...value});
+                    });
+                    item.append(deleteButton);
+                }
+                buttons.set(value.id, {button, item, editButton, deleteButton});
                 return item;
             });
             list.replaceChildren(...nodes);

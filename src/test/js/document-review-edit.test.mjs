@@ -29,7 +29,7 @@ async function until(predicate) {
     throw new Error("Review UI did not reach the expected state");
 }
 
-test("the actual review initializer wires author-only editing, cancellation, saving and list refresh", async t => {
+test("the actual review initializer wires author-only editing and confirmed deletion with failure recovery", async t => {
     const previous = Object.fromEntries(["document", "window", "location", "fetch"].map(key => [key, globalThis[key]]));
     t.after(() => {
         for (const [key, value] of Object.entries(previous)) {
@@ -53,7 +53,8 @@ test("the actual review initializer wires author-only editing, cancellation, sav
         pageNumber: 1, x: .1, y: .2, width: .3, height: .4, color: "pink",
         content: "기존 의견", createdAt: "2030-01-01T12:00:00"};
     const other = {...item, id: 502, createdBy: 8, createdByDisplayName: "다른 멤버"};
-    const patchCalls = [];
+    const patchCalls = [], deleteCalls = [];
+    let deleted = false;
     const json = (body, status = 200) => ({ok: status >= 200 && status < 300, status, json: async () => body});
     globalThis.fetch = async (path, options) => {
         if (path === "/api/v1/auth/me") return json({id: 7, csrfToken: "fresh-token"});
@@ -61,12 +62,18 @@ test("the actual review initializer wires author-only editing, cancellation, sav
             {id: 10, title: "기획서", revision: 1, conversionStatus: "COMPLETED"}]);
         if (path === "/api/v1/documents/10/pdf-url") return json({documentVersionId: 91,
             versionNumber: 1, pdfUrl: "https://example.invalid/document.pdf", expiresAt: "2099-01-01T00:00:00Z"});
-        if (path === "/api/v1/document-versions/91/feedback") return json([{...item}, {...other}]);
+        if (path === "/api/v1/document-versions/91/feedback") return json(deleted ? [{...other}] : [{...item}, {...other}]);
         if (path === "/api/v1/feedback/501" && options.method === "PATCH") {
             patchCalls.push(options);
             item.content = JSON.parse(options.body).content;
             const {createdByDisplayName, ...response} = item;
             return json(response);
+        }
+        if (path === "/api/v1/feedback/501" && options.method === "DELETE") {
+            deleteCalls.push(options);
+            if (deleteCalls.length === 1) return json({}, 403);
+            deleted = true;
+            return {ok: true, status: 204, json() { throw new Error("204 must not be parsed"); }};
         }
         throw new Error("Unexpected request: " + path);
     };
@@ -83,7 +90,7 @@ test("the actual review initializer wires author-only editing, cancellation, sav
     await until(() => $("feedback-list").children.length === 2 && !$("feedback-refresh").disabled);
     const originalArea = $("pdf-pages").children[0].children[0];
     const coordinates = {...originalArea.style};
-    assert.equal($("feedback-list").children[0].children.length, 2);
+    assert.equal($("feedback-list").children[0].children.length, 3);
     assert.equal($("feedback-list").children[1].children.length, 1);
 
     $("feedback-list").children[0].children[1].fire("click");
@@ -110,7 +117,46 @@ test("the actual review initializer wires author-only editing, cancellation, sav
     assert.equal($("feedback-edit-section").hidden, true);
     assert.equal($("feedback-edit-status").textContent, "피드백을 수정했어요.");
     assert.deepEqual($("pdf-pages").children[0].children[0].style, coordinates);
+    $("feedback-content").value = "유지할 등록 내용";
+    $("feedback-list").children[0].children[2].fire("click");
+    assert.equal($("feedback-delete-section").hidden, false);
+    assert.equal($("feedback-delete-content").textContent, "수정한 의견");
+    assert.equal(doc.focused, $("feedback-delete-cancel"));
+    assert.equal($("feedback-refresh").disabled, true);
+    assert.equal($("pdf-renew").disabled, true);
+    assert.equal(deleteCalls.length, 0);
+    $("feedback-delete-cancel").fire("click");
+    assert.equal($("feedback-delete-section").hidden, true);
+    assert.equal($("feedback-content").value, "유지할 등록 내용");
+    assert.equal(deleteCalls.length, 0);
+
+    $("feedback-list").children[0].children[2].fire("click");
+    const preservedArea = $("pdf-pages").children[0].children[0];
+    $("feedback-delete-confirm").fire("click");
+    assert.equal($("feedback-delete-confirm").disabled, true);
+    assert.equal($("feedback-delete-cancel").disabled, true);
+    await until(() => deleteCalls.length === 1 && !$("feedback-delete-confirm").disabled);
+    assert.equal($("feedback-delete-section").hidden, false);
+    assert.equal($("feedback-delete-status").dataset.error, "true");
+    assert.equal($("feedback-list").children.length, 2);
+    assert.equal($("pdf-pages").children[0].children[0], preservedArea);
+    assert.equal($("pdf-pages").children[0].children.length, 2);
+    $("feedback-delete-cancel").fire("click");
+    assert.equal($("feedback-refresh").disabled, false);
+
+    $("feedback-list").children[0].children[2].fire("click");
+    $("feedback-delete-confirm").fire("click");
+    await until(() => $("feedback-list").children.length === 1 && !$("feedback-refresh").disabled);
+    assert.equal(deleteCalls.length, 2);
+    assert.equal(deleteCalls[1].credentials, "same-origin");
+    assert.equal(deleteCalls[1].headers["X-CSRF-TOKEN"], "fresh-token");
+    assert.equal($("feedback-delete-section").hidden, true);
+    assert.equal($("feedback-delete-status").textContent, "피드백을 삭제했어요.");
+    assert.equal($("feedback-list").children[0].dataset.feedbackId, "502");
+    assert.equal($("pdf-pages").children[0].children.length, 1);
+    assert.equal($("feedback-content").value, "유지할 등록 내용");
     windowHandlers.get("pagehide")();
+    assert.equal($("feedback-delete-section").hidden, true);
     assert.equal($("feedback-edit-section").hidden, true);
     assert.equal($("feedback-list").children.length, 0);
 });

@@ -62,7 +62,11 @@
         .feedback-item-content { display: block; margin: 10px 0; white-space: pre-wrap; line-height: 1.7; }
         .feedback-item-link { display: block; width: 100%; padding: 8px; border: 0; border-radius: 8px; text-align: left; color: inherit; background: transparent; cursor: pointer; overflow-wrap: anywhere; }
         .feedback-item[data-active="true"] .feedback-item-link { background: #edf7ef; }
-        .feedback-edit-button { margin: 8px 0 0 8px; padding: 6px 12px; font-size: 13px; }
+        .feedback-edit-button, .feedback-delete-button { margin: 8px 0 0 8px; padding: 6px 12px; font-size: 13px; }
+        .feedback-delete-section { padding: 20px 24px; border-bottom: 1px solid var(--line); }
+        .feedback-delete-section h3 { margin: 0 0 12px; font-size: 16px; }
+        .feedback-delete-content { white-space: pre-wrap; overflow-wrap: anywhere; }
+        .feedback-delete-button { color: #9b2929; }
         .feedback-edit-section { padding: 20px 24px; border-bottom: 1px solid var(--line); }
         .feedback-edit-section h3 { margin: 0 0 12px; font-size: 17px; }
         .feedback-item time { color: var(--muted); font-size: 12px; }
@@ -111,6 +115,17 @@
         </section>
         <aside class="panel feedback-panel" aria-labelledby="feedback-heading">
             <div class="panel-head"><h2 id="feedback-heading">문서 피드백</h2></div>
+            <section id="feedback-delete-section" class="feedback-delete-section" aria-labelledby="feedback-delete-heading" aria-busy="false" hidden>
+                <h3 id="feedback-delete-heading">피드백을 삭제할까요?</h3>
+                <p id="feedback-delete-page" class="status"></p>
+                <p id="feedback-delete-content" class="feedback-delete-content"></p>
+                <p>삭제하면 피드백 내용과 PDF에 표시된 영역이 사라져요.</p>
+                <div class="actions">
+                    <button id="feedback-delete-confirm" class="button" type="button">삭제 확인</button>
+                    <button id="feedback-delete-cancel" class="button" type="button">취소</button>
+                </div>
+            </section>
+            <p id="feedback-delete-status" class="status feedback-form-status" role="status" aria-live="polite" data-error="false"></p>
             <section id="feedback-edit-section" class="feedback-edit-section" aria-labelledby="feedback-edit-heading" hidden>
                 <h3 id="feedback-edit-heading">피드백 수정</h3>
                 <p id="feedback-edit-page" class="status"></p>
@@ -154,7 +169,7 @@
     </div>
 </main>
 <script type="module">
-    import {initializeDocumentReview} from "/js/document-review.mjs?v=feedback-edit-1";
+    import {initializeDocumentReview} from "/js/document-review.mjs?v=feedback-delete-1";
     initializeDocumentReview();
 </script>
 </body>

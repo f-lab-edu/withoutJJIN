@@ -175,3 +175,22 @@ node --test src/test/js/document-feedback-list.test.mjs src/test/js/document-fee
 - PATCH 성공 후 GET 실패 시 수정 완료 사실과 목록 새로고침 안내를 표시한다.
 - PDF 화면 이탈과 재로딩은 진행 중 PATCH를 취소하고 이전 결과를 무시한다.
 - 삭제 버튼과 삭제 확인 안내는 다음 커밋에서 연결한다. 실제 브라우저 확인은 별도로 진행한다.
+
+
+## #55 본인 피드백 삭제 화면
+
+- `createdBy`가 현재 로그인 회원 ID와 같은 항목에만 삭제 버튼을 표시한다. 서버의 작성자·워크스페이스 권한 검사도 유지한다.
+- 삭제 버튼은 페이지·내용을 표시하는 확인 화면을 연다. 내용은 `textContent`로 표시하고, 취소 버튼에 초점을 둔다.
+- ‘삭제 확인’을 눌러야 DELETE를 보낸다. 취소는 서버 요청을 보내지 않는다.
+- 요청 중 삭제 확인·취소 버튼을 비활성화하여 중복 DELETE를 막는다.
+- 확인 화면에서는 등록·수정·영역 선택·목록 새로고침·PDF 다시 열기를 잠시 막는다. 작성 중 등록 내용과 선택 영역은 지우지 않는다.
+- DELETE 실패 시 목록·저장된 영역·확인 대상을 유지한다. 자동 재시도하지 않는다. 401이면 로그인 안내도 표시한다.
+- DELETE 성공 후 현재 DocumentVersion의 GET 목록을 다시 조회하여 삭제한 피드백과 저장된 영역을 제거한다.
+- DELETE 성공 후 GET 실패 시 삭제 완료 안내와 목록 새로고침 안내를 표시한다. DELETE를 다시 보내지 않는다.
+- PDF 화면 이탈·재로딩 시 진행 중 요청을 취소하고 이전 응답을 적용하지 않는다. 취소가 서버에서 이미 처리한 삭제를 되돌리지는 않는다.
+- 실제 브라우저 동작 확인은 별도로 진행한다.
+
+관련 테스트:
+```powershell
+node --test src/test/js/document-feedback-deleter.test.mjs src/test/js/document-feedback-list.test.mjs src/test/js/document-review-edit.test.mjs src/test/js/document-feedback-mutation.test.mjs
+```

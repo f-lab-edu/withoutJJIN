@@ -345,3 +345,45 @@ test("a failed list refresh after PATCH clearly reports that the modification al
     assert.match(f.state.error.message, /목록 새로고침/);
     assert.doesNotMatch(f.state.error.message, /등록됐지만/);
 });
+
+test("only the current author's feedback receives deletion controls and blocked controls cannot open confirmation", () => {
+    const doc = {createElement: tag => new Element(tag, doc)};
+    const list = new Element("ol", doc), status = new Element("p", doc), refresh = {};
+    const selected = [];
+    let blocked = false;
+    const view = createDocumentFeedbackListView({list, status, refresh,
+        onEdit() {}, onDelete: value => selected.push(value), isBlocked: () => blocked});
+    view.setContext(context);
+    view.available(true);
+    view.items([item, {...item, id: 502, createdBy: 8}]);
+    assert.equal(list.children[0].children.length, 3);
+    assert.equal(list.children[1].children.length, 1);
+    const edit = list.children[0].children[1], remove = list.children[0].children[2];
+    assert.equal(remove.textContent, "삭제");
+    remove.click();
+    assert.deepEqual(selected, [item]);
+    assert.notEqual(selected[0], item);
+    blocked = true;
+    view.syncControls();
+    assert.equal(remove.disabled, true);
+    assert.equal(edit.disabled, true);
+    assert.equal(refresh.disabled, true);
+    remove.click();
+    assert.equal(selected.length, 1);
+    blocked = false;
+    view.syncControls();
+    assert.equal(remove.disabled, false);
+    view.reset();
+    view.items([item]);
+    assert.equal(list.children[0].children.length, 1);
+});
+
+test("a failed list refresh after DELETE reports deletion success without suggesting another DELETE", async () => {
+    const f = fixture(async () => { throw new FeedbackRequestError("목록 오류", 500); });
+    f.controller.setContext(context);
+    await f.controller.load({afterDelete: true});
+    assert.equal(f.calls.length, 1);
+    assert.match(f.state.error.message, /삭제됐지만/);
+    assert.match(f.state.error.message, /다시 삭제하지 말고/);
+    assert.match(f.state.error.message, /목록 새로고침/);
+});
