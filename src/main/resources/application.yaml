@@ -64,3 +64,12 @@ aws:
     region: ${AWS_REGION:ap-northeast-2}
     # 업로드 URL 유효기간. 여기서는 5분
     upload-url-expiration: 5m
+
+document:
+  conversion:
+    # IntelliJ에서 실행하는 Spring의 접속 주소. 같은 Compose 내부에서는 http://gotenberg:3000을 사용한다.
+    base-url: ${DOCUMENT_CONVERSION_BASE_URL:http://localhost:3000}
+    # 변환 서버와 연결을 맺기까지 기다리는 시간.
+    connect-timeout: 3s
+    # Gotenberg의 60초 제한 후 실패 응답을 받을 수 있도록 조금 더 기다린다.
+    read-timeout: 65s
