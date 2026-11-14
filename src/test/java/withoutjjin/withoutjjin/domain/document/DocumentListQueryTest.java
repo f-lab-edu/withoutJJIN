@@ -60,7 +60,7 @@ class DocumentListQueryTest {
         List<DocumentListResponse> responses = findDocuments();
 
         assertThat(responses).containsExactly(new DocumentListResponse(
-                selected.getId(), "우리 팀 기획서", 1, time(1), DocumentConversionJobStatus.PENDING));
+                selected.getId(), "우리 팀 기획서", 1, time(1), DocumentConversionJobStatus.PENDING, 1L));
     }
 
     @Test
@@ -73,7 +73,7 @@ class DocumentListQueryTest {
         flushAndClear();
 
         assertThat(findDocuments()).containsExactly(new DocumentListResponse(
-                document.getId(), document.getTitle(), 2, time(0), DocumentConversionJobStatus.COMPLETED));
+                document.getId(), document.getTitle(), 2, time(0), DocumentConversionJobStatus.COMPLETED, 2L));
     }
 
     @ParameterizedTest
@@ -87,6 +87,7 @@ class DocumentListQueryTest {
         assertThat(findDocuments()).singleElement().satisfies(response -> {
             assertThat(response.id()).isEqualTo(document.getId());
             assertThat(response.conversionStatus()).isEqualTo(status);
+            assertThat(response.versionCount()).isEqualTo(1L);
         });
     }
 
@@ -97,7 +98,7 @@ class DocumentListQueryTest {
         flushAndClear();
 
         assertThat(findDocuments()).containsExactly(new DocumentListResponse(
-                document.getId(), document.getTitle(), 0, time(0), null));
+                document.getId(), document.getTitle(), 0, time(0), null, 0L));
     }
 
     @Test
@@ -109,7 +110,7 @@ class DocumentListQueryTest {
         flushAndClear();
 
         assertThat(findDocuments()).containsExactly(new DocumentListResponse(
-                document.getId(), document.getTitle(), 2, time(0), null));
+                document.getId(), document.getTitle(), 2, time(0), null, 2L));
     }
 
     @Test
@@ -132,6 +133,21 @@ class DocumentListQueryTest {
         flushAndClear();
 
         assertThat(findDocuments()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("버전 개수는 Document.revision이 아닌 실제 DocumentVersion 행 수를 반환한다")
+    void countsActualVersionsRatherThanRevision() {
+        Document document = document(workspace, "버전 번호가 연속하지 않는 문서", 5, time(0));
+        addVersion(document, 1, DocumentConversionJobStatus.COMPLETED);
+        addVersion(document, 5, DocumentConversionJobStatus.PROCESSING);
+        flushAndClear();
+
+        assertThat(findDocuments()).singleElement().satisfies(response -> {
+            assertThat(response.revision()).isEqualTo(5);
+            assertThat(response.versionCount()).isEqualTo(2L);
+            assertThat(response.conversionStatus()).isEqualTo(DocumentConversionJobStatus.PROCESSING);
+        });
     }
 
     private List<DocumentListResponse> findDocuments() {

@@ -386,11 +386,21 @@
         .upload-form [data-error="true"] { color: #974534; }
         .upload-actions { display: flex; flex-wrap: wrap; gap: 10px; }
         .upload-result { width: 100%; padding: 18px; border: 1px solid var(--line); border-radius: 12px; }
-        .documents-region { margin-top: 28px; border-top: 1px solid var(--line); padding-top: 20px; }
-        .document-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding: 16px 0; border-bottom: 1px solid var(--line); }
+        .documents-region { margin: 0; padding: 0 20px 20px; }
+        .documents-region > .card-head { padding: 20px 0; border-bottom: 0; }
+        #documents-status { margin: 0 0 14px; color: var(--muted); font-size: 14px; line-height: 1.6; }
+        .document-list-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+        .upload-region { margin-top: 24px; border-top: 1px solid var(--line); padding-top: 20px; }
+        #documents-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+        .document-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; align-content: start; min-width: 0; padding: 20px; border: 1px solid var(--line); border-radius: 12px; background: white; }
+        .document-info::before { content: "Word → 검토용 PDF"; display: block; margin-bottom: 12px; color: var(--muted); font-size: 12px; }
+        .document-row > .tag { margin-right: auto; }
+        .document-row > .button { max-width: 100%; padding: 8px 12px; font-size: 13px; text-align: center; }
         .document-name { margin: 0 0 6px; overflow-wrap: anywhere; }
-        .document-info { min-width: 0; flex: 1 1 200px; }
-        .document-meta { margin: 0; color: var(--muted); font-size: 14px; }
+        .document-info { min-width: 0; flex: 1 1 100%; }
+        .document-meta { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+        .document-created { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+        @media (max-width: 760px) { #documents-list { grid-template-columns: minmax(0, 1fr); } .document-row { padding: 16px; } }
         #documents-status[data-error="true"] { color: #974534; }
         .upload-result p { margin: 0 0 12px; }
         .upload-result summary { cursor: pointer; }
@@ -676,8 +686,18 @@
                         </div>
                     </div>
                 </div>
-                <section id="files-panel" class="card" aria-labelledby="files-heading">
-                    <div class="card-head"><h2 id="files-heading">Word 파일 업로드</h2><span class="tag">DOCX · 최대 20MiB</span></div>
+                <section id="files-panel" class="card" aria-labelledby="documents-heading">
+                    <section class="documents-region" aria-labelledby="documents-heading">
+                        <div class="card-head"><h2 id="documents-heading">문서 목록</h2>
+                            <div class="document-list-actions">
+                                <button id="documents-refresh" class="button" type="button" disabled>목록 새로고침</button>
+                                <button id="documents-add" class="button primary" type="button" disabled>+ 새 파일 추가</button>
+                            </div></div>
+                        <p id="documents-status" role="status" aria-live="polite">문서 목록을 불러오고 있어요.</p>
+                        <div id="documents-list"></div>
+                    </section>
+                    <section class="upload-region" aria-labelledby="files-heading">
+                    <div class="card-head"><h3 id="files-heading">Word 파일 업로드</h3><span class="tag">DOCX · 최대 20MiB</span></div>
                     <form id="upload-form" class="upload-form">
                         <label for="upload-file">업로드할 Word 파일</label>
                         <p id="upload-help" class="subtitle">.docx 파일을 선택하면 원본을 저장하고 문서로 등록해요.</p>
@@ -703,11 +723,6 @@
                             </details>
                         </div>
                     </form>
-                    <section class="documents-region" aria-labelledby="documents-heading">
-                        <div class="card-head"><h3 id="documents-heading">문서 목록</h3>
-                            <button id="documents-refresh" class="button" type="button" disabled>목록 새로고침</button></div>
-                        <p id="documents-status" role="status" aria-live="polite">문서 목록을 불러오고 있어요.</p>
-                        <div id="documents-list"></div>
                     </section>
                     <div class="card-head"><button id="view-members" class="button" type="button">함께하는 멤버 보기 →</button></div>
                 </section>
@@ -769,6 +784,7 @@
             $("content").setAttribute("aria-busy", String(state.busy));
             for (const id of ["refresh", "retry"]) $(id).disabled = state.busy;
             $("documents-refresh").disabled = state.busy || !state.detail;
+            $("documents-add").disabled = state.busy || !!state.pendingUpload || !state.detail;
             $("logout").disabled = state.busy || !state.user;
             $("upload-form").setAttribute("aria-busy", String(state.busy));
             $("upload-file").disabled = state.busy || !state.detail || !!state.pendingUpload;
@@ -944,13 +960,18 @@
                 title.textContent = item.title;
                 const meta = document.createElement("p");
                 meta.className = "document-meta";
-                meta.textContent = "버전 " + item.revision + " · " + date(item.createdAt);
-                info.append(title, meta);
+                const versionCount = Number.isSafeInteger(item.versionCount) && item.versionCount >= 0 ? item.versionCount : null;
+                meta.textContent = versionCount === 0 ? "등록된 버전 없음"
+                    : "최신 V" + item.revision + " · " + (versionCount === null ? "버전 개수 확인 필요" : "버전 " + versionCount + "개");
+                const created = document.createElement("p");
+                created.className = "document-created";
+                created.textContent = "문서 생성 · " + date(item.createdAt);
+                info.append(title, meta, created);
                 const status = document.createElement("span");
                 status.className = "tag";
-                status.textContent = conversionLabel(item.conversionStatus);
+                status.textContent = versionCount === 0 ? "버전 없음" : conversionLabel(item.conversionStatus);
                 row.append(info, status);
-                if (item.conversionStatus === "COMPLETED") {
+                if (item.conversionStatus === "COMPLETED" && versionCount !== 0) {
                     const open = document.createElement("a");
                     open.href = "/workspaces/" + workspaceId + "/documents/" + item.id + "/review";
                     open.className = "button primary";
@@ -983,14 +1004,18 @@
             $("upload-file").focus();
         }
 
-        $("upload-target-clear").addEventListener("click", () => {
+        function selectNewDocumentUpload() {
             if (state.busy || state.pendingUpload) return;
             state.uploadDocument = null;
             $("upload-file").value = "";
             $("upload-result").hidden = true;
             $("upload-status").hidden = true;
             controls();
-        });
+            $("upload-form").scrollIntoView({block: "start", behavior: "auto"});
+            $("upload-file").focus();
+        }
+        $("upload-target-clear").addEventListener("click", selectNewDocumentUpload);
+        $("documents-add").addEventListener("click", selectNewDocumentUpload);
 
         function refreshDocuments() {
             if (!state.detail || !state.user) return;

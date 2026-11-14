@@ -70,6 +70,7 @@ class DocumentQueryApiTest {
                 .andExpect(jsonPath("$[0].id").value(document.getId()))
                 .andExpect(jsonPath("$[0].title").value("기획서"))
                 .andExpect(jsonPath("$[0].revision").value(1))
+                .andExpect(jsonPath("$[0].versionCount").value(1))
                 .andExpect(jsonPath("$[0].createdAt").isNotEmpty())
                 .andExpect(jsonPath("$[0].conversionStatus").value("PROCESSING"))
                 .andExpect(jsonPath("$[0].storageKey").doesNotExist());

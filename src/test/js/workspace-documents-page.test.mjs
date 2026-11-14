@@ -51,9 +51,9 @@ async function page(options = {}) {
     const storage = options.storage || new Map();
     const model = {userId: options.userId ?? 7, completionStatus: options.completionStatus ?? 200,
         targetDocumentId: options.resumeDocumentId ?? 10, fileName: "이력서.docx", documents: options.documents || [
-        {id: 10, title: "<img src=x onerror=alert(1)>", revision: 1, createdAt: "2026-11-08T10:00:00", conversionStatus: "COMPLETED"},
-        {id: 11, title: "변환 중인 문서", revision: 1, createdAt: "2026-11-08T10:00:00", conversionStatus: "PROCESSING"},
-        {id: 12, title: "실패한 문서", revision: 1, createdAt: "2026-11-08T10:00:00", conversionStatus: "FAILED"}
+        {id: 10, title: "<img src=x onerror=alert(1)>", revision: 1, versionCount: 1, createdAt: "2026-11-08T10:00:00", conversionStatus: "COMPLETED"},
+        {id: 11, title: "변환 중인 문서", revision: 1, versionCount: 1, createdAt: "2026-11-08T10:00:00", conversionStatus: "PROCESSING"},
+        {id: 12, title: "실패한 문서", revision: 1, versionCount: 1, createdAt: "2026-11-08T10:00:00", conversionStatus: "FAILED"}
     ]};
     const json = (value, status = 200) => ({ok: status < 400, status, json: async () => value});
     async function fetchImpl(path, init) {
@@ -75,8 +75,8 @@ async function page(options = {}) {
             if (model.completionStatus !== 200) return json(null, model.completionStatus);
             const documentId = model.targetDocumentId ?? 601;
             const existing = model.documents.find(value => value.id === documentId);
-            if (existing) { existing.revision++; existing.conversionStatus = "PENDING"; }
-            else model.documents.push({id: documentId, title: model.fileName, revision: 1,
+            if (existing) { existing.revision++; existing.versionCount = (existing.versionCount ?? 0) + 1; existing.conversionStatus = "PENDING"; }
+            else model.documents.push({id: documentId, title: model.fileName, revision: 1, versionCount: 1,
                 createdAt: "2030-01-01T00:00:00", conversionStatus: "PENDING"});
             return json({uploadId: 501, documentId, documentVersionId: 701});
         }
@@ -249,5 +249,42 @@ test("invalid stored document IDs and another user's pending upload are not rest
         uploadId: 501, expectedUserId: 8, fileName: "이력서.docx", documentId: 10})]]);
     const p = await page({storage});
     assert.equal(p.nodes.get("upload-retry").hidden, true);
+    p.events.pagehide();
+});
+
+test("document cards show the latest number separately from the actual version count", async () => {
+    const p = await page({documents: [{id: 10, title: "버전 번호가 띄엄띄엄인 문서", revision: 5, versionCount: 2,
+        createdAt: "2030-01-01T00:00:00", conversionStatus: "COMPLETED"}]});
+    assert.equal(row(p).className, "document-row");
+    assert.equal(row(p).children[0].children[1].textContent, "최신 V5 · 버전 2개");
+    assert.match(row(p).children[0].children[2].textContent, /^문서 생성/);
+    p.events.pagehide();
+});
+
+test("a document without versions is shown without a PDF link", async () => {
+    const p = await page({documents: [{id: 10, title: "빈 문서", revision: 0, versionCount: 0,
+        createdAt: "2030-01-01T00:00:00", conversionStatus: null}]});
+    assert.equal(row(p).children[0].children[1].textContent, "등록된 버전 없음");
+    assert.equal(row(p).children[1].textContent, "버전 없음");
+    assert.equal(row(p).children.some(child => child.tagName === "a"), false);
+    p.events.pagehide();
+});
+
+test("a missing version count is not guessed from the revision number", async () => {
+    const p = await page({documents: [{id: 10, title: "개수 없는 응답", revision: 5,
+        createdAt: "2030-01-01T00:00:00", conversionStatus: "COMPLETED"}]});
+    assert.equal(row(p).children[0].children[1].textContent, "최신 V5 · 버전 개수 확인 필요");
+    p.events.pagehide();
+});
+
+test("new file button clears the selected version target and does not send an upload", async () => {
+    const p = await page();
+    await versionButton(p).fire("click");
+    await chooseFile(p);
+    await p.nodes.get("documents-add").fire("click");
+    assert.equal(p.nodes.get("upload-target").hidden, true);
+    assert.equal(p.nodes.get("upload-file").files.length, 0);
+    assert.equal(p.nodes.get("upload-submit").textContent, "파일 업로드");
+    assert.equal(p.calls.some(call => call.init.method === "POST"), false);
     p.events.pagehide();
 });
