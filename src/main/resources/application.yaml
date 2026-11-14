@@ -64,6 +64,8 @@ aws:
     region: ${AWS_REGION:ap-northeast-2}
     # 업로드 URL 유효기간. 여기서는 5분
     upload-url-expiration: 5m
+    # PDF 조회 URL 유효기간. 발급할 때마다 소속과 최신 변환 상태를 확인한다.
+    download-url-expiration: 5m
 
 document:
   conversion:
