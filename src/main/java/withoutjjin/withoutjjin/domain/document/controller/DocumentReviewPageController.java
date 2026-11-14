@@ -13,7 +13,8 @@ import java.nio.charset.StandardCharsets;
 @Controller
 public class DocumentReviewPageController {
 
-    @GetMapping("/workspaces/{workspaceId}/documents/{documentId}/review")
+    @GetMapping({"/workspaces/{workspaceId}/documents/{documentId}/review",
+            "/workspaces/{workspaceId}/documents/{documentId}/versions/{documentVersionId}/review"})
     public ResponseEntity<Resource> reviewPage() {
         // 문서와 회원 정보는 HTML에 포함하지 않고 기존 API에서 권한 확인 후 조회한다.
         return ResponseEntity.ok()

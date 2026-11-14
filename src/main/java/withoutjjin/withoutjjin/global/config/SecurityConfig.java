@@ -35,7 +35,9 @@ public class SecurityConfig {
         cache.setRequestMatcher(new OrRequestMatcher(
                 PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/invite/continue"),
                 PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/workspaces/{workspaceId}"),
-                PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/workspaces/{workspaceId}/documents/{documentId}/review")
+                PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/workspaces/{workspaceId}/documents/{documentId}/review"),
+                PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/workspaces/{workspaceId}/documents/{documentId}/history"),
+                PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/workspaces/{workspaceId}/documents/{documentId}/versions/{documentVersionId}/review")
         ));
         return cache;
     }
@@ -75,7 +77,9 @@ public class SecurityConfig {
                         new OrRequestMatcher(
                                 PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/invite/continue"),
                                 PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/workspaces/{workspaceId}"),
-                                PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/workspaces/{workspaceId}/documents/{documentId}/review")
+                                PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/workspaces/{workspaceId}/documents/{documentId}/review"),
+                                PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/workspaces/{workspaceId}/documents/{documentId}/history"),
+                                PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/workspaces/{workspaceId}/documents/{documentId}/versions/{documentVersionId}/review")
                         )
                 )
                 .defaultAuthenticationEntryPointFor(

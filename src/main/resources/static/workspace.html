@@ -399,6 +399,7 @@
         .document-name { margin: 0 0 6px; overflow-wrap: anywhere; }
         .document-info { min-width: 0; flex: 1 1 100%; }
         .document-meta { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+        .document-history-link { margin-top: 12px; padding: 8px 12px; font-size: 13px; }
         .document-created { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
         @media (max-width: 760px) { #documents-list { grid-template-columns: minmax(0, 1fr); } .document-row { padding: 16px; } }
         #documents-status[data-error="true"] { color: #974534; }
@@ -759,6 +760,11 @@
         const validId = Number.isSafeInteger(workspaceId) && workspaceId > 0;
         const state = {user: null, detail: null, busy: false, panel: "files", pendingUpload: null, documentsController: null, uploadDocument: null};
         const versionUploadButtons = new Set();
+        const incomingTargets = new URLSearchParams(location.search || "").getAll("uploadDocumentId");
+        let incomingDocumentId = incomingTargets.length === 0 ? null
+            : incomingTargets.length === 1 && /^[1-9]\d*$/.test(incomingTargets[0]) && Number.isSafeInteger(Number(incomingTargets[0]))
+                ? Number(incomingTargets[0]) : 0;
+        let loadedDocuments = null, uploadTargetInvalid = false;
 
         async function api(path, options = {}) {
             let response;
@@ -787,8 +793,8 @@
             $("documents-add").disabled = state.busy || !!state.pendingUpload || !state.detail;
             $("logout").disabled = state.busy || !state.user;
             $("upload-form").setAttribute("aria-busy", String(state.busy));
-            $("upload-file").disabled = state.busy || !state.detail || !!state.pendingUpload;
-            $("upload-submit").disabled = state.busy || !state.detail || !!state.pendingUpload || !$("upload-file").files.length;
+            $("upload-file").disabled = state.busy || !state.detail || !!state.pendingUpload || uploadTargetInvalid;
+            $("upload-submit").disabled = state.busy || !state.detail || !!state.pendingUpload || uploadTargetInvalid || !$("upload-file").files.length;
             $("upload-submit").textContent = state.uploadDocument ? "새 버전 업로드" : "파일 업로드";
             $("upload-target").hidden = !state.uploadDocument;
             $("upload-target").textContent = state.uploadDocument ? "새 버전 대상: " + state.uploadDocument.title : "";
@@ -803,9 +809,23 @@
             $("upload-login").hidden = state.busy || $("upload-login").dataset.required !== "true";
             $("workspace-select").disabled = state.busy || !state.detail;
             for (const id of ["files-tab", "members-tab"]) $(id).disabled = state.busy || !state.detail;
+            if (!state.busy && state.detail && loadedDocuments !== null && incomingDocumentId !== null) {
+                const targetId = incomingDocumentId;
+                incomingDocumentId = null;
+                if (!state.pendingUpload) {
+                    const target = loadedDocuments.find(item => item.id === targetId);
+                    if (target) selectUploadDocument(target);
+                    else {
+                        uploadTargetInvalid = true;
+                        uploadStatus("새 버전으로 추가할 문서를 찾을 수 없어요. 문서 목록에서 다시 선택해 주세요.", true);
+                        controls();
+                    }
+                }
+            }
         }
 
         function clearDetail() {
+            loadedDocuments = null; uploadTargetInvalid = false;
             state.uploadDocument = null;
             versionUploadButtons.clear();
             state.documentsController?.stop();
@@ -945,6 +965,7 @@
         }
 
         function renderDocuments(documents) {
+            loadedDocuments = documents;
             versionUploadButtons.clear();
             $("documents-status").dataset.error = "false";
             $("documents-status").textContent = !documents.length ? "아직 등록된 문서가 없어요."
@@ -967,6 +988,12 @@
                 created.className = "document-created";
                 created.textContent = "문서 생성 · " + date(item.createdAt);
                 info.append(title, meta, created);
+                const history = document.createElement("a");
+                history.className = "button document-history-link";
+                history.href = "/workspaces/" + workspaceId + "/documents/" + item.id + "/history";
+                history.textContent = "버전 히스토리 보기 →";
+                history.setAttribute("aria-label", item.title + " 버전 히스토리 보기");
+                info.append(history);
                 const status = document.createElement("span");
                 status.className = "tag";
                 status.textContent = versionCount === 0 ? "버전 없음" : conversionLabel(item.conversionStatus);
@@ -990,10 +1017,12 @@
                 row.append(versionUpload);
                 return row;
             }));
+            controls();
         }
 
         function selectUploadDocument(item) {
             if (state.busy || state.pendingUpload || !state.detail) return;
+            uploadTargetInvalid = false;
             state.uploadDocument = {id: item.id, title: item.title};
             $("upload-file").value = "";
             $("upload-result").hidden = true;
@@ -1006,6 +1035,7 @@
 
         function selectNewDocumentUpload() {
             if (state.busy || state.pendingUpload) return;
+            uploadTargetInvalid = false;
             state.uploadDocument = null;
             $("upload-file").value = "";
             $("upload-result").hidden = true;

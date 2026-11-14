@@ -22,7 +22,7 @@ function fixture(options = {}) {
         if (path === "/api/v1/workspaces/3/documents") return json([
             {id: model.documentId, title: "기획서.docx", revision: 1, conversionStatus: model.status}
         ], options.listStatus || 200);
-        if (path === "/api/v1/documents/10/pdf-url") {
+        if (path === "/api/v1/documents/10/pdf-url" || /^\/api\/v1\/workspaces\/3\/documents\/10\/versions\/\d+\/pdf-url$/.test(path)) {
             urlCount++;
             if (options.pendingUrl) return options.pendingUrl.promise;
             return json({documentVersionId: model.documentVersionId, versionNumber: model.versionNumber, pdfUrl: `https://example.invalid/file.pdf?signature=${urlCount}`, expiresAt: "2099-01-01T00:00:00Z"});
@@ -46,7 +46,7 @@ function fixture(options = {}) {
         ready(value, context) { state.pageCount = value; state.feedbackContext = context; },
         error(message, status) { state.error = {message, status}; }
     };
-    const controller = createDocumentReviewController({workspaceId: 3, documentId: 10, viewer, view, fetchImpl});
+    const controller = createDocumentReviewController({workspaceId: 3, documentId: 10, documentVersionId: options.selectedVersionId ?? null, viewer, view, fetchImpl});
     return {controller, state, calls, opened, events, model, json};
 }
 
@@ -189,4 +189,31 @@ test("failed or cancelled rendering never enables the feedback form", async () =
     pending.resolve();
     await loading;
     assert.equal(f.state.feedbackContext, undefined);
+});
+
+test("selected review path retains a positive safe DocumentVersion identifier", () => {
+    assert.deepEqual(parseReviewPath("/workspaces/3/documents/10/versions/91/review"), {workspaceId: 3, documentId: 10, documentVersionId: 91});
+    for (const id of ["0", "-1", "invalid", "9007199254740992"]) assert.equal(parseReviewPath("/workspaces/3/documents/10/versions/" + id + "/review"), null);
+});
+
+test("selected V1 PDF and feedback stay on V1 while the latest version is pending", async () => {
+    const f = fixture({selectedVersionId: 91}); f.model.status = "PENDING";
+    await f.controller.load();
+    assert.equal(f.state.document.revision, 1);
+    assert.equal(f.state.feedbackContext.documentVersionId, 91);
+    assert.equal(f.calls.some(call => call.path === "/api/v1/documents/10/pdf-url"), false);
+    assert.equal(f.calls.some(call => call.path === "/api/v1/workspaces/3/documents/10/versions/91/pdf-url"), true);
+});
+
+test("selected version mismatch never opens a PDF or enables feedback", async () => {
+    const f = fixture({selectedVersionId: 92});
+    await f.controller.load();
+    assert.equal(f.opened.length, 0); assert.equal(f.state.feedbackContext, undefined);
+    assert.match(f.state.error.message, /선택한 버전/);
+});
+
+test("reopening a selected PDF keeps the same requested version", async () => {
+    const f = fixture({selectedVersionId: 91}); await f.controller.load(); await f.controller.load();
+    assert.equal(f.calls.filter(call => call.path === "/api/v1/workspaces/3/documents/10/versions/91/pdf-url").length, 2);
+    assert.equal(f.state.feedbackContext.documentVersionId, 91);
 });

@@ -1,4 +1,5 @@
 import {DocumentRequestError, fetchWorkspaceDocuments, fetchDocumentPdfUrl} from "./workspace-documents.mjs?v=pdf-version-1";
+import {fetchDocumentVersionPdfUrl} from "./document-versions.mjs?v=history-62";
 import {createWorkspacePdfViewer} from "./workspace-pdf-viewer.mjs?v=fit-width-60";
 
 import {createPdfAreaSelector} from "./pdf-area-selection.mjs?v=selection-color-1";
@@ -12,14 +13,15 @@ import {createDocumentFeedbackEditor} from "./document-feedback-editor.mjs?v=fee
 import {createDocumentFeedbackDeleter} from "./document-feedback-deleter.mjs?v=feedback-delete-1";
 
 export function parseReviewPath(pathname) {
-    const match = pathname.match(/^\/workspaces\/([1-9]\d*)\/documents\/([1-9]\d*)\/review$/);
+    const match = pathname.match(/^\/workspaces\/([1-9]\d*)\/documents\/([1-9]\d*)\/(?:versions\/([1-9]\d*)\/)?review$/);
     if (!match) return null;
     const workspaceId = Number(match[1]), documentId = Number(match[2]);
-    return Number.isSafeInteger(workspaceId) && Number.isSafeInteger(documentId)
-        ? {workspaceId, documentId} : null;
+    const selectedId = match[3] === undefined ? null : Number(match[3]);
+    if (![workspaceId, documentId].every(Number.isSafeInteger) || (selectedId !== null && !Number.isSafeInteger(selectedId))) return null;
+    return selectedId === null ? {workspaceId, documentId} : {workspaceId, documentId, documentVersionId: selectedId};
 }
 
-export function createDocumentReviewController({workspaceId, documentId, viewer, view, fetchImpl = fetch}) {
+export function createDocumentReviewController({workspaceId, documentId, documentVersionId: selectedVersionId = null, viewer, view, fetchImpl = fetch}) {
     let current = null;
     let documentVersionId = null;
 
@@ -52,11 +54,13 @@ export function createDocumentReviewController({workspaceId, documentId, viewer,
             if (!isCurrent()) return;
             const item = documents.find(document => document.id === documentId);
             if (!item) throw new DocumentRequestError("이 워크스페이스에서 문서를 찾을 수 없어요.", 404);
-            if (item.conversionStatus !== "COMPLETED") {
+            if (selectedVersionId === null && item.conversionStatus !== "COMPLETED") {
                 throw new DocumentRequestError("PDF 변환이 완료된 뒤 열어 주세요.", 409);
             }
-            const result = await fetchDocumentPdfUrl({documentId, expectedUserId: user.id,
-                fetchImpl, signal: request.signal});
+            const result = selectedVersionId === null
+                ? await fetchDocumentPdfUrl({documentId, expectedUserId: user.id, fetchImpl, signal: request.signal})
+                : await fetchDocumentVersionPdfUrl({workspaceId, documentId, documentVersionId: selectedVersionId,
+                    expectedUserId: user.id, fetchImpl, signal: request.signal});
             if (!isCurrent()) return;
             // 화면 버전은 목록의 Document.revision 대신 PDF URL과 함께 받은 DocumentVersion을 따른다.
             view.document({...item, revision: result.versionNumber, documentVersionId: result.documentVersionId});
@@ -89,7 +93,9 @@ export function initializeDocumentReview({createViewer = createWorkspacePdfViewe
         $("review-content").setAttribute("aria-busy", "false");
         return;
     }
-    $("workspace-back").href = "/workspaces/" + path.workspaceId;
+    $("workspace-back").href = path.documentVersionId == null ? "/workspaces/" + path.workspaceId
+        : `/workspaces/${path.workspaceId}/documents/${path.documentId}/history`;
+    if (path.documentVersionId != null) $("workspace-back").textContent = "← 버전 히스토리로 돌아가기";
     const viewer = createViewer({container: $("pdf-pages")});
     let pdfReady = false, pdfLoading = false, selectionMode = true, registering = false;
     let feedbackEditing = false, feedbackSaving = false;

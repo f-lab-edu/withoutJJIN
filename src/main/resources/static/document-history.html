@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="no-referrer">
+    <title>버전 히스토리 · FTFM</title>
+    <style>
+        :root { color-scheme: light; --ink: #18352c; --green: #16785a; --muted: #718079; --line: #dce7de; }
+        * { box-sizing: border-box; }
+        [hidden] { display: none !important; }
+        body { margin: 0; color: var(--ink); background: #f6f8f5; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+        button, a { font: inherit; }
+        a:focus-visible, button:focus-visible { outline: 3px solid #79b99e; outline-offset: 3px; }
+        header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding: 18px 28px; background: white; border-bottom: 1px solid var(--line); }
+        .brand { font-size: 21px; font-weight: 800; }
+        .back { color: var(--green); text-decoration: none; }
+        main { max-width: 1200px; margin: auto; padding: 28px; }
+        .page-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+        .page-heading > div { flex: 1 1 300px; min-width: 0; }
+        .page-heading > .buttons { flex: 0 1 auto; }
+        h1 { margin: 0; font-size: clamp(20px, 2.2vw, 26px); line-height: 1.4; overflow-wrap: anywhere; }
+        .subtitle, .version-meta, .version-file { color: var(--muted); font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; }
+        .subtitle { margin: 8px 0 0; }
+        .buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+        .button { display: inline-flex; justify-content: center; align-items: center; padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; background: white; color: var(--ink); text-decoration: none; cursor: pointer; font-size: 14px; }
+        .button.primary { color: white; background: var(--green); border-color: var(--green); }
+        .button:disabled { opacity: .55; cursor: wait; }
+        .status { color: var(--muted); line-height: 1.6; }
+        .status[data-error="true"] { color: #974534; }
+        #history-action-status:empty { display: none; }
+        #version-list { display: grid; gap: 16px; list-style: none; padding: 0; margin: 20px 0; }
+        .version-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 20px; align-items: center; padding: 24px; border: 1px solid var(--line); border-radius: 12px; background: white; }
+        .version-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+        h2 { margin: 0; font-size: 24px; }
+        .latest { color: var(--green); background: #edf5ef; padding: 4px 8px; border-radius: 20px; font-size: 12px; }
+        .version-meta { margin: 12px 0 6px; }
+        .version-file { margin: 0; }
+        .version-actions { display: grid; justify-items: end; gap: 14px; }
+        .conversion-status { color: var(--green); background: #edf5ef; border-radius: 20px; padding: 5px 10px; font-size: 13px; }
+        @media (max-width: 640px) { header { padding: 14px 16px; } main { padding: 20px 12px; } .version-card { grid-template-columns: minmax(0, 1fr); padding: 18px; gap: 14px; } .version-actions { justify-items: start; } }
+    </style>
+</head>
+<body>
+<header><span class="brand">FTFM</span><a id="workspace-back" class="back" href="/">← 문서 목록으로 돌아가기</a></header>
+<main>
+    <div class="page-heading">
+        <div><h1 id="history-title">버전 히스토리</h1><p id="history-count" class="subtitle"></p></div>
+        <div class="buttons">
+            <button id="history-refresh" class="button" type="button" disabled>목록 새로고침</button>
+            <a id="history-add" class="button primary" hidden>+ 새 버전 추가</a>
+        </div>
+    </div>
+    <p id="history-status" class="status" role="status" aria-live="polite">버전 목록을 불러오고 있어요.</p>
+    <p id="history-action-status" class="status" role="status" aria-live="polite"></p>
+    <a id="history-login" class="button" hidden>Google로 다시 로그인</a>
+    <ol id="version-list" aria-label="문서 버전 히스토리" aria-busy="true"></ol>
+</main>
+<script type="module">
+    import {initializeDocumentHistory} from "/js/document-history.mjs?v=history-62";
+    initializeDocumentHistory();
+</script>
+</body>
+</html>

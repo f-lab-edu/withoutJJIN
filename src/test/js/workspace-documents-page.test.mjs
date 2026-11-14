@@ -87,11 +87,11 @@ async function page(options = {}) {
         document: {getElementById: id => { assert.ok(nodes.has(id), "Missing HTML element: " + id); return nodes.get(id); },
             createElement: tag => new Element(tag)},
         window: {addEventListener: (name, listener) => { events[name] = listener; }},
-        location: {pathname: "/workspaces/3", assign: value => assignments.push(value), reload() {}},
+        location: {pathname: "/workspaces/3", search: options.search || "", assign: value => assignments.push(value), reload() {}},
         sessionStorage: {getItem: key => storage.get(key) ?? null,
             setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key)},
         Option: class extends Element { constructor(text, value) { super("option"); this.textContent = text; this.value = value; } },
-        AbortController, fetch: fetchImpl, console,
+        AbortController, URLSearchParams, fetch: fetchImpl, console,
         uploadWorkspaceFile: args => uploadWorkspaceFile({...args, fetchImpl}),
         completeWorkspaceUpload: args => completeWorkspaceUpload({...args, fetchImpl}),
         validateUploadFile, UploadCompletionError,
@@ -287,4 +287,40 @@ test("new file button clears the selected version target and does not send an up
     assert.equal(p.nodes.get("upload-submit").textContent, "파일 업로드");
     assert.equal(p.calls.some(call => call.init.method === "POST"), false);
     p.events.pagehide();
+});
+
+test("document cards link to their own history page", async () => {
+    const p = await page();
+    assert.equal(row(p).children[0].children[3].href, "/workspaces/3/documents/10/history");
+    p.events.pagehide();
+});
+
+test("history upload link selects the requested Document after authorization", async () => {
+    const p = await page({search: "?uploadDocumentId=11"});
+    assert.equal(p.nodes.get("upload-target").textContent, "새 버전 대상: 변환 중인 문서");
+    await chooseFile(p); await p.nodes.get("upload-form").fire("submit"); await flush();
+    assert.equal(p.calls.some(call => call.path === "/api/v1/workspaces/3/documents/11/uploads"), true);
+    p.events.pagehide();
+});
+
+test("unknown or malformed history upload target cannot silently create a new Document", async () => {
+    for (const search of ["?uploadDocumentId=999", "?uploadDocumentId=0", "?uploadDocumentId=10&uploadDocumentId=11", "?uploadDocumentId=9007199254740992"]) {
+        const p = await page({search});
+        assert.equal(p.nodes.get("upload-file").disabled, true);
+        assert.equal(p.nodes.get("upload-submit").disabled, true);
+        assert.match(p.nodes.get("upload-status").textContent, /찾을 수 없어요/);
+        await p.nodes.get("documents-add").fire("click");
+        assert.equal(p.nodes.get("upload-file").disabled, false);
+        p.events.pagehide();
+    }
+});
+
+test("an existing completion retry takes priority over a history upload target", async () => {
+    const p = await page({completionStatus: 502});
+    await versionButton(p).fire("click"); await chooseFile(p); await p.nodes.get("upload-form").fire("submit"); await flush();
+    const restored = await page({storage: p.storage, search: "?uploadDocumentId=11"});
+    assert.equal(restored.nodes.get("upload-target").textContent, "새 버전 대상: " + restored.model.documents[0].title);
+    assert.equal(restored.nodes.get("upload-retry").hidden, false);
+    assert.equal(restored.nodes.get("upload-file").disabled, true);
+    p.events.pagehide(); restored.events.pagehide();
 });
