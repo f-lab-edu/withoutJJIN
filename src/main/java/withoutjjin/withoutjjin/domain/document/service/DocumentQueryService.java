@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import withoutjjin.withoutjjin.domain.document.dto.DocumentListResponse;
+import withoutjjin.withoutjjin.domain.document.dto.DocumentVersionListResponse;
 import withoutjjin.withoutjjin.domain.document.dto.PdfUrlResponse;
 import withoutjjin.withoutjjin.domain.document.entity.Document;
 import withoutjjin.withoutjjin.domain.document.entity.DocumentConversionJob;
@@ -33,6 +34,16 @@ public class DocumentQueryService {
     public List<DocumentListResponse> getDocuments(Long workspaceId, String issuer, String subject) {
         workspaceService.getWorkSpaceForMember(workspaceId, issuer, subject);
         return documentRepository.findAllWithLatestConversionStatusByWorkspaceId(workspaceId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<DocumentVersionListResponse> getVersions(Long workspaceId, Long documentId,
+                                                         String issuer, String subject) {
+        workspaceService.getWorkSpaceForMember(workspaceId, issuer, subject);
+        if (!documentRepository.existsByIdAndWorkspaceId(documentId, workspaceId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "워크스페이스에서 문서를 찾을 수 없습니다.");
+        }
+        return documentVersionRepository.findAllWithConversionStatusByDocumentId(documentId);
     }
 
     @Transactional(readOnly = true)

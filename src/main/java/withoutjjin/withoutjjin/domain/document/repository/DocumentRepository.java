@@ -13,6 +13,8 @@ import java.util.Optional;
 
 public interface DocumentRepository extends JpaRepository<Document, Long> {
 
+    boolean existsByIdAndWorkspaceId(Long documentId, Long workspaceId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select doc from Document doc where doc.id = :documentId")
     Optional<Document> findByIdForUpdate(@Param("documentId") Long documentId);
