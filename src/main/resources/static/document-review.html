@@ -10,8 +10,8 @@
         * { box-sizing: border-box; }
         [hidden] { display: none !important; }
         body { margin: 0; color: var(--ink); background: #eef6ee; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
-        button, a { font: inherit; }
-        button:focus-visible, a:focus-visible { outline: 3px solid #79b99e; outline-offset: 3px; }
+        button, a, textarea { font: inherit; }
+        button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 3px solid #79b99e; outline-offset: 3px; }
         .topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 32px; border-bottom: 1px solid var(--line); background: var(--paper); }
         .brand { font-size: 21px; font-weight: 800; letter-spacing: -.04em; }
         .back { color: var(--green); text-decoration: none; font-weight: 650; }
@@ -37,12 +37,32 @@
         .pdf-pages canvas { display: block; max-width: 100%; height: auto; background: white; box-shadow: 0 2px 12px #18352c1a; }
         .pdf-page { position: relative; max-width: 100%; line-height: 0; }
         .pdf-pages[data-selection-enabled="true"] .pdf-page[data-ready="true"] { cursor: crosshair; touch-action: none; user-select: none; }
-        .pdf-selection { position: absolute; border: 2px solid #16785a; background: #39a87926; pointer-events: none; }
+        .pdf-selection { position: absolute; z-index: 2; border: 2px solid #16785a; background: #39a87926; pointer-events: none; }
+        .pdf-feedback-region { position: absolute; border: 2px solid; pointer-events: none; }
+        .pdf-feedback-region[data-active="true"] { z-index: 1; outline: 3px solid var(--ink); outline-offset: 3px; }
         .button[aria-pressed="true"] { border-color: var(--green); background: #edf7ef; color: var(--green); }
         .selection-summary { padding: 24px; }
         .selection-summary h3 { margin: 0 0 12px; font-size: 17px; }
         .selection-summary p { line-height: 1.8; }
         .selection-summary .hint { color: var(--muted); font-size: 14px; }
+        .feedback-form { display: grid; gap: 10px; }
+        .feedback-form label { font-size: 14px; font-weight: 650; }
+        .feedback-form textarea { width: 100%; min-height: 130px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; resize: vertical; color: var(--ink); background: #fbfdfb; line-height: 1.6; }
+        .feedback-form textarea:disabled { opacity: .65; }
+        .feedback-count { text-align: right; color: var(--muted); font-size: 13px; }
+        .feedback-form-status { padding: 0 24px 20px; margin: 0; }
+        .feedback-form-status:empty { display: none; }
+        .feedback-list-section { padding: 20px 24px; border-top: 1px solid var(--line); }
+        .feedback-list-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+        .feedback-list-heading h3 { margin: 0; font-size: 17px; }
+        .feedback-list-status { margin: 14px 0; font-size: 14px; }
+        .feedback-list { margin: 0; padding: 0; list-style: none; }
+        .feedback-item { padding: 16px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+        .feedback-item-page { display: inline-block; margin-left: 8px; font-size: 13px; color: var(--muted); }
+        .feedback-item-content { display: block; margin: 10px 0; white-space: pre-wrap; line-height: 1.7; }
+        .feedback-item-link { display: block; width: 100%; padding: 8px; border: 0; border-radius: 8px; text-align: left; color: inherit; background: transparent; cursor: pointer; overflow-wrap: anywhere; }
+        .feedback-item[data-active="true"] .feedback-item-link { background: #edf7ef; }
+        .feedback-item time { color: var(--muted); font-size: 12px; }
         .pdf-placeholder { display: grid; min-height: 65vh; place-items: center; padding: 24px; color: var(--muted); background: #f4f7f4; }
         .feedback-panel { position: sticky; top: 24px; min-height: 55vh; }
         .feedback-placeholder { padding: 52px 28px; color: var(--muted); text-align: center; line-height: 1.8; }
@@ -92,17 +112,32 @@
                 <h3 id="selection-heading">선택한 영역</h3>
                 <p id="selection-page" role="status" aria-live="polite"></p>
                 <p class="hint">다른 영역을 드래그하면 선택이 바뀝니다. 선택을 취소하려면 ‘선택 취소’ 또는 Esc를 눌러 주세요.</p>
+                <form id="feedback-form" class="feedback-form" aria-busy="false">
+                    <label for="feedback-content">피드백 내용</label>
+                    <textarea id="feedback-content" name="content" rows="5" maxlength="1000" required autocomplete="off" aria-describedby="feedback-count feedback-form-status" placeholder="선택한 영역에 대한 의견을 입력해 주세요." disabled></textarea>
+                    <span id="feedback-count" class="feedback-count">0 / 1000</span>
+                    <button id="feedback-submit" class="button primary" type="submit" disabled>피드백 등록</button>
+                </form>
             </section>
+            <p id="feedback-form-status" class="status feedback-form-status" role="status" aria-live="polite" data-error="false"></p>
             <div id="feedback-placeholder" class="feedback-placeholder">
                 <span class="feedback-symbol" aria-hidden="true">▢</span>
                 <strong>문서의 특정 부분에 대한 의견</strong>
                 <p>‘영역 선택’을 켜고 PDF에서 원하는 부분을 드래그해 주세요. 터치로 스크롤하려면 ‘영역 선택’을 꺼 주세요.</p>
             </div>
+            <section class="feedback-list-section" aria-labelledby="feedback-list-heading">
+                <div class="feedback-list-heading">
+                    <h3 id="feedback-list-heading">등록된 피드백</h3>
+                    <button id="feedback-refresh" class="button" type="button" disabled>목록 새로고침</button>
+                </div>
+                <p id="feedback-list-status" class="status feedback-list-status" role="status" aria-live="polite">PDF를 불러온 뒤 피드백을 표시해요.</p>
+                <ol id="feedback-list" class="feedback-list" aria-busy="false" aria-labelledby="feedback-list-heading"></ol>
+            </section>
         </aside>
     </div>
 </main>
 <script type="module">
-    import {initializeDocumentReview} from "/js/document-review.mjs?v=pdf-version-1";
+    import {initializeDocumentReview} from "/js/document-review.mjs?v=feedback-refresh-1";
     initializeDocumentReview();
 </script>
 </body>
