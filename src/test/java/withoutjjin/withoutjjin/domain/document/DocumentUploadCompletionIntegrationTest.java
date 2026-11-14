@@ -22,10 +22,12 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.server.ResponseStatusException;
 import withoutjjin.withoutjjin.domain.document.dto.CompleteUploadResponse;
 import withoutjjin.withoutjjin.domain.document.entity.DocumentUpload;
+import withoutjjin.withoutjjin.domain.document.entity.DocumentConversionJob;
 import withoutjjin.withoutjjin.domain.document.entity.DocumentUploadStatus;
 import withoutjjin.withoutjjin.domain.document.entity.DocumentVersion;
 import withoutjjin.withoutjjin.domain.document.entity.StoreFile;
 import withoutjjin.withoutjjin.domain.document.repository.DocumentRepository;
+import withoutjjin.withoutjjin.domain.document.repository.DocumentConversionJobRepository;
 import withoutjjin.withoutjjin.domain.document.repository.DocumentUploadRepository;
 import withoutjjin.withoutjjin.domain.document.repository.DocumentVersionRepository;
 import withoutjjin.withoutjjin.domain.document.repository.StoreFileRepository;
@@ -80,6 +82,7 @@ class DocumentUploadCompletionIntegrationTest {
     @MockitoBean private S3UploadVerifier verifier;
     @MockitoBean(name = "documentUploadClock") private Clock clock;
     @MockitoSpyBean private DocumentVersionRepository versions;
+    @MockitoSpyBean private DocumentConversionJobRepository conversionJobs;
 
     private AppUser requester;
     private AppUser otherUser;
@@ -102,7 +105,7 @@ class DocumentUploadCompletionIntegrationTest {
     }
 
     @Test
-    @DisplayName("완료 API가 실제 Service와 DB에 Document·DocumentVersion을 등록하고 ID들을 응답한다")
+    @DisplayName("완료 API가 Document·DocumentVersion·변환 대기 작업을 등록하고 기존 ID들을 응답한다")
     void registersDocumentThroughCompletionApi() throws Exception {
         var response = mockMvc.perform(post(
                         "/api/v1/uploads/{uploadId}/complete", upload.getId())
@@ -124,11 +127,12 @@ class DocumentUploadCompletionIntegrationTest {
         assertThat(countDocuments()).isEqualTo(1);
         assertThat(countVersions()).isEqualTo(1);
         assertThat(status()).isEqualTo("COMPLETED");
+        assertPendingJob(versionId);
         verify(verifier).verify(originalFile.getObjectKey(), 1024L, MEDIA_TYPE);
     }
 
     @Test
-    @DisplayName("S3 검증은 트랜잭션 밖에서 실행하고 Document·DocumentVersion·COMPLETED를 함께 커밋한다")
+    @DisplayName("S3 검증 후 Document·DocumentVersion·업로드 완료·변환 대기 작업을 함께 커밋한다")
     void commitsDocumentVersionAndCompletionTogether() {
         doAnswer(invocation -> {
             assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
@@ -154,6 +158,7 @@ class DocumentUploadCompletionIntegrationTest {
         assertThat(status()).isEqualTo("COMPLETED");
         assertThat(jdbc.queryForObject("SELECT document_id FROM document_upload WHERE id = ?",
                 Long.class, upload.getId())).isEqualTo(response.documentId());
+        assertPendingJob(response.documentVersionId());
     }
 
     @Test
@@ -166,6 +171,7 @@ class DocumentUploadCompletionIntegrationTest {
 
         assertThat(countDocuments()).isEqualTo(1);
         assertThat(countVersions()).isEqualTo(1);
+        assertPendingJob(first.documentVersionId());
         verify(verifier, times(1)).verify(originalFile.getObjectKey(), 1024L, MEDIA_TYPE);
     }
 
@@ -308,7 +314,31 @@ class DocumentUploadCompletionIntegrationTest {
     }
 
     @Test
-    @DisplayName("동시에 같은 uploadId를 완료해도 Document·DocumentVersion은 한 번만 생성한다")
+    @DisplayName("DocumentConversionJob 저장 실패 시 Document·DocumentVersion·업로드 완료 상태를 롤백한다")
+    void rollsBackCompletionWhenConversionJobSaveFails() {
+        DataIntegrityViolationException failure =
+                new DataIntegrityViolationException("테스트용 DocumentConversionJob 저장 실패");
+        doAnswer(invocation -> {
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isTrue();
+            // 업로드 상태 변경까지 실제 SQL로 실행한 뒤 실패시켜 전체 롤백을 확인한다.
+            documents.flush();
+            assertThat(countDocuments()).isEqualTo(1);
+            assertThat(countVersions()).isEqualTo(1);
+            assertThat(status()).isEqualTo("COMPLETED");
+            assertThat(countConversionJobs()).isZero();
+            throw failure;
+        }).when(conversionJobs).save(any(DocumentConversionJob.class));
+
+        assertThatThrownBy(this::complete).isSameAs(failure);
+
+        assertUnregistered();
+        assertThat(status()).isEqualTo("PENDING");
+        assertThat(jdbc.queryForObject("SELECT document_id FROM document_upload WHERE id = ?",
+                Long.class, upload.getId())).isNull();
+    }
+
+    @Test
+    @DisplayName("동시에 같은 uploadId를 완료해도 Document·DocumentVersion·변환 작업은 한 번만 생성한다")
     void registersOnlyOnceForConcurrentCompletion() throws Exception {
         CyclicBarrier bothVerified = new CyclicBarrier(2);
         doAnswer(invocation -> {
@@ -320,7 +350,9 @@ class DocumentUploadCompletionIntegrationTest {
         try {
             var first = executor.submit(this::complete);
             var second = executor.submit(this::complete);
-            assertThat(first.get(30, TimeUnit.SECONDS)).isEqualTo(second.get(30, TimeUnit.SECONDS));
+            CompleteUploadResponse firstResponse = first.get(30, TimeUnit.SECONDS);
+            assertThat(firstResponse).isEqualTo(second.get(30, TimeUnit.SECONDS));
+            assertPendingJob(firstResponse.documentVersionId());
             assertThat(countDocuments()).isEqualTo(1);
             assertThat(countVersions()).isEqualTo(1);
             assertThat(status()).isEqualTo("COMPLETED");
@@ -344,6 +376,24 @@ class DocumentUploadCompletionIntegrationTest {
     private void assertUnregistered() {
         assertThat(countDocuments()).isZero();
         assertThat(countVersions()).isZero();
+        assertThat(countConversionJobs()).isZero();
+    }
+
+    private void assertPendingJob(Long versionId) {
+        assertThat(countConversionJobs()).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT document_version_id FROM document_conversion_job WHERE document_upload_id = ?",
+                Long.class, upload.getId())).isEqualTo(versionId);
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM document_conversion_job WHERE document_upload_id = ?",
+                String.class, upload.getId())).isEqualTo("PENDING");
+    }
+
+    private long countConversionJobs() {
+        return jdbc.queryForObject(
+                "SELECT COUNT(*) FROM document_conversion_job j"
+                        + " JOIN document_upload u ON j.document_upload_id = u.id WHERE u.workspace_id = ?",
+                Long.class, workspace.getId());
     }
 
     private void removeMembership() {
@@ -381,6 +431,9 @@ class DocumentUploadCompletionIntegrationTest {
     @AfterEach
     void cleanUpOnlyThisTestsData() {
         if (workspace != null) {
+            jdbc.update("DELETE j FROM document_conversion_job j"
+                    + " JOIN document_upload u ON j.document_upload_id = u.id WHERE u.workspace_id = ?",
+                    workspace.getId());
             jdbc.update("DELETE FROM document_upload WHERE workspace_id = ?", workspace.getId());
             jdbc.update("DELETE v FROM document_version v JOIN document d ON v.document_id = d.id"
                     + " WHERE d.workspace_id = ?", workspace.getId());
