@@ -39,11 +39,11 @@ function fixture(options = {}) {
         }
     };
     const view = {
-        reset() { delete state.pdfUrl; delete state.document; delete state.pageCount; delete state.error; },
+        reset() { delete state.pdfUrl; delete state.document; delete state.pageCount; delete state.feedbackContext; delete state.error; },
         loading(value) { state.loading = value; },
         document(item) { state.document = item; },
         pdfUrl(value) { state.pdfUrl = value; },
-        ready(value) { state.pageCount = value; },
+        ready(value, context) { state.pageCount = value; state.feedbackContext = context; },
         error(message, status) { state.error = {message, status}; }
     };
     const controller = createDocumentReviewController({workspaceId: 3, documentId: 10, viewer, view, fetchImpl});
@@ -163,4 +163,30 @@ test("reopening clears the previous feedback version until the new PDF finishes 
     assert.equal(f.controller.getDocumentVersionId(), 92);
     f.controller.stop();
     assert.equal(f.controller.getDocumentVersionId(), null);
+});
+
+
+test("feedback form receives the rendered PDF version, authenticated account and page count", async () => {
+    const f = fixture();
+    f.model.versionNumber = 2;
+    f.model.documentVersionId = 92;
+    await f.controller.load();
+    assert.deepEqual(f.state.feedbackContext, {documentVersionId: 92, expectedUserId: 7, pageCount: 2});
+    f.controller.stop();
+    assert.equal(f.state.feedbackContext, undefined);
+});
+
+test("failed or cancelled rendering never enables the feedback form", async () => {
+    const failed = fixture({renderError: true});
+    await failed.controller.load();
+    assert.equal(failed.state.feedbackContext, undefined);
+    const pending = deferred();
+    const f = fixture({pendingRender: pending});
+    const loading = f.controller.load();
+    while (!f.opened.length) await new Promise(resolve => setImmediate(resolve));
+    assert.equal(f.state.feedbackContext, undefined);
+    f.controller.stop();
+    pending.resolve();
+    await loading;
+    assert.equal(f.state.feedbackContext, undefined);
 });

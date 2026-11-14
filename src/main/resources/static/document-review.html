@@ -10,8 +10,8 @@
         * { box-sizing: border-box; }
         [hidden] { display: none !important; }
         body { margin: 0; color: var(--ink); background: #eef6ee; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
-        button, a { font: inherit; }
-        button:focus-visible, a:focus-visible { outline: 3px solid #79b99e; outline-offset: 3px; }
+        button, a, textarea { font: inherit; }
+        button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 3px solid #79b99e; outline-offset: 3px; }
         .topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 32px; border-bottom: 1px solid var(--line); background: var(--paper); }
         .brand { font-size: 21px; font-weight: 800; letter-spacing: -.04em; }
         .back { color: var(--green); text-decoration: none; font-weight: 650; }
@@ -43,6 +43,13 @@
         .selection-summary h3 { margin: 0 0 12px; font-size: 17px; }
         .selection-summary p { line-height: 1.8; }
         .selection-summary .hint { color: var(--muted); font-size: 14px; }
+        .feedback-form { display: grid; gap: 10px; }
+        .feedback-form label { font-size: 14px; font-weight: 650; }
+        .feedback-form textarea { width: 100%; min-height: 130px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; resize: vertical; color: var(--ink); background: #fbfdfb; line-height: 1.6; }
+        .feedback-form textarea:disabled { opacity: .65; }
+        .feedback-count { text-align: right; color: var(--muted); font-size: 13px; }
+        .feedback-form-status { padding: 0 24px 20px; margin: 0; }
+        .feedback-form-status:empty { display: none; }
         .pdf-placeholder { display: grid; min-height: 65vh; place-items: center; padding: 24px; color: var(--muted); background: #f4f7f4; }
         .feedback-panel { position: sticky; top: 24px; min-height: 55vh; }
         .feedback-placeholder { padding: 52px 28px; color: var(--muted); text-align: center; line-height: 1.8; }
@@ -92,7 +99,14 @@
                 <h3 id="selection-heading">선택한 영역</h3>
                 <p id="selection-page" role="status" aria-live="polite"></p>
                 <p class="hint">다른 영역을 드래그하면 선택이 바뀝니다. 선택을 취소하려면 ‘선택 취소’ 또는 Esc를 눌러 주세요.</p>
+                <form id="feedback-form" class="feedback-form" aria-busy="false">
+                    <label for="feedback-content">피드백 내용</label>
+                    <textarea id="feedback-content" name="content" rows="5" maxlength="1000" required autocomplete="off" aria-describedby="feedback-count feedback-form-status" placeholder="선택한 영역에 대한 의견을 입력해 주세요." disabled></textarea>
+                    <span id="feedback-count" class="feedback-count">0 / 1000</span>
+                    <button id="feedback-submit" class="button primary" type="submit" disabled>피드백 등록</button>
+                </form>
             </section>
+            <p id="feedback-form-status" class="status feedback-form-status" role="status" aria-live="polite" data-error="false"></p>
             <div id="feedback-placeholder" class="feedback-placeholder">
                 <span class="feedback-symbol" aria-hidden="true">▢</span>
                 <strong>문서의 특정 부분에 대한 의견</strong>
@@ -102,7 +116,7 @@
     </div>
 </main>
 <script type="module">
-    import {initializeDocumentReview} from "/js/document-review.mjs?v=pdf-version-1";
+    import {initializeDocumentReview} from "/js/document-review.mjs?v=feedback-form-1";
     initializeDocumentReview();
 </script>
 </body>

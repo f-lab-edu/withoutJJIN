@@ -2,6 +2,7 @@ import {DocumentRequestError, fetchWorkspaceDocuments, fetchDocumentPdfUrl} from
 import {createWorkspacePdfViewer} from "./workspace-pdf-viewer.mjs?v=area-selection-1";
 
 import {createPdfAreaSelector} from "./pdf-area-selection.mjs?v=selection-color-1";
+import {createDocumentFeedbackForm} from "./document-feedback-form.mjs?v=feedback-form-1";
 
 export function parseReviewPath(pathname) {
     const match = pathname.match(/^\/workspaces\/([1-9]\d*)\/documents\/([1-9]\d*)\/review$/);
@@ -56,7 +57,8 @@ export function createDocumentReviewController({workspaceId, documentId, viewer,
             const pageCount = await viewer.open(result.pdfUrl, {signal: request.signal});
             if (!isCurrent() || pageCount === null) return;
             documentVersionId = result.documentVersionId;
-            view.ready(pageCount);
+            view.ready(pageCount, {documentVersionId: result.documentVersionId,
+                expectedUserId: user.id, pageCount});
         } catch (error) {
             if (!isCurrent() || error.name === "AbortError") return;
             const message = error instanceof DocumentRequestError ? error.message
@@ -82,32 +84,73 @@ export function initializeDocumentReview() {
     }
     $("workspace-back").href = "/workspaces/" + path.workspaceId;
     const viewer = createWorkspacePdfViewer({container: $("pdf-pages")});
-    let pdfReady = false, selectionMode = true;
+    let pdfReady = false, pdfLoading = false, selectionMode = true, registering = false;
     const selector = createPdfAreaSelector({container: $("pdf-pages"), onChange(area) {
         $("selection-summary").hidden = !area;
         $("feedback-placeholder").hidden = Boolean(area);
-        $("selection-clear").disabled = !area;
         $("selection-page").textContent = area ? area.pageNumber + "페이지에서 영역을 선택했어요." : "";
-        // 다음 단계의 피드백 요청에 사용할 수 있는 페이지 기준 좌표다. 현재는 DB에 저장하지 않는다.
         for (const field of ["pageNumber", "x", "y", "width", "height", "color"]) {
             if (area) $("selection-summary").dataset[field] = String(area[field]);
             else delete $("selection-summary").dataset[field];
         }
+        syncFeedbackControls();
     }});
     selector.setColor($("selection-color").value);
     $("selection-color").addEventListener("change", event => { selector.setColor(event.target.value); });
+
     function syncSelectionMode() {
-        const enabled = pdfReady && selectionMode;
+        const enabled = pdfReady && selectionMode && !registering;
         selector.setEnabled(enabled);
-        $("selection-mode").disabled = !pdfReady;
+        $("selection-mode").disabled = !pdfReady || registering;
         $("selection-mode").setAttribute("aria-pressed", String(enabled));
     }
+
+    function syncFeedbackControls() {
+        $("feedback-content").disabled = !pdfReady || registering;
+        $("feedback-submit").disabled = !pdfReady || registering || !selector.getSelection()
+            || !$("feedback-content").value.trim() || $("feedback-content").value.length > 1000;
+        $("feedback-submit").textContent = registering ? "등록 중…" : "피드백 등록";
+        $("feedback-form").setAttribute("aria-busy", String(registering));
+        $("feedback-count").textContent = $("feedback-content").value.length + " / 1000";
+        $("selection-clear").disabled = registering || !selector.getSelection();
+        $("selection-color").disabled = !pdfReady || registering;
+        $("pdf-renew").disabled = pdfLoading || registering;
+        syncSelectionMode();
+    }
+
+    const feedbackForm = createDocumentFeedbackForm({getSelection: selector.getSelection,
+        clearSelection: selector.clearSelection, view: {
+            reset() {
+                $("feedback-content").value = "";
+                $("feedback-form-status").textContent = "";
+                $("feedback-form-status").dataset.error = "false";
+            },
+            busy(value) {
+                registering = value;
+                if (value) {
+                    $("feedback-form-status").textContent = "피드백을 등록하고 있어요.";
+                    $("feedback-form-status").dataset.error = "false";
+                }
+                syncFeedbackControls();
+            },
+            success() {
+                $("feedback-content").value = "";
+                $("feedback-form-status").textContent = "피드백을 등록했어요.";
+                $("feedback-form-status").dataset.error = "false";
+            },
+            error(message, status) {
+                $("feedback-form-status").textContent = message;
+                $("feedback-form-status").dataset.error = "true";
+                $("review-login").hidden = status !== 401;
+            }
+        }});
+
     const controller = createDocumentReviewController({...path, viewer, view: {
         reset() {
             delete $("review-content").dataset.documentVersionId;
             pdfReady = false;
+            feedbackForm.reset();
             selector.clearSelection();
-            syncSelectionMode();
             $("pdf-new-tab").removeAttribute("href");
             $("pdf-new-tab").hidden = true;
             $("review-login").hidden = true;
@@ -122,7 +165,8 @@ export function initializeDocumentReview() {
             document.title = "PDF 피드백 · FTFM";
         },
         loading(busy) {
-            $("pdf-renew").disabled = busy;
+            pdfLoading = busy;
+            syncFeedbackControls();
             $("review-content").setAttribute("aria-busy", String(busy));
             if (busy) {
                 $("pdf-status").textContent = "PDF를 불러오고 있어요.";
@@ -142,9 +186,9 @@ export function initializeDocumentReview() {
             $("pdf-new-tab").href = url;
             $("pdf-new-tab").hidden = false;
         },
-        ready(pageCount) {
+        ready(pageCount, context) {
             pdfReady = true;
-            syncSelectionMode();
+            feedbackForm.setContext(context);
             $("pdf-placeholder").hidden = true;
             $("page-count").textContent = pageCount + "페이지";
             $("pdf-status").textContent = "PDF " + pageCount + "페이지를 표시했어요.";
@@ -152,14 +196,19 @@ export function initializeDocumentReview() {
         error(message, status) {
             delete $("review-content").dataset.documentVersionId;
             pdfReady = false;
+            feedbackForm.reset();
             selector.clearSelection();
-            syncSelectionMode();
             $("pdf-status").textContent = message;
             $("pdf-status").dataset.error = "true";
             $("pdf-placeholder").textContent = "PDF를 표시하지 못했어요.";
             $("review-login").hidden = status !== 401;
         }
     }});
+    $("feedback-form").addEventListener("submit", event => {
+        event.preventDefault();
+        void feedbackForm.submit($("feedback-content").value);
+    });
+    $("feedback-content").addEventListener("input", syncFeedbackControls);
     $("pdf-renew").addEventListener("click", () => { void controller.load(); });
     $("selection-mode").addEventListener("click", () => {
         selectionMode = !selectionMode;
