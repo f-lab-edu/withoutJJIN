@@ -115,3 +115,19 @@ PDF를 다시 열거나 화면에서 나가면 이전 ID를 지우며, 브라우
 ```powershell
 node --test src/test/js/document-feedback-form.test.mjs src/test/js/document-feedback.test.mjs src/test/js/document-review.test.mjs
 ```
+
+
+## #51 피드백 목록 표시 연결
+
+- PDF 그리기 완료 후 PDF URL 응답의 `documentVersionId`와 로그인 회원 ID로 목록을 조회한다.
+- `document-feedback-list.mjs`는 기존 `fetchDocumentFeedback()`을 호출한다.
+- 오른쪽 패널에 작성자, 페이지 번호, 내용, 작성 시각을 표시한다. 사용자 입력은 `textContent`로 표시한다.
+- `createdAt`은 API가 반환한 LocalDateTime 그대로 표시하며 브라우저 시간대로 변환하지 않는다.
+- 목록 로딩, 빈 목록, 조회 실패와 목록 새로고침을 지원한다. 목록 조회 실패가 PDF 표시나 입력 내용을 지우지 않는다.
+- PDF 다시 열기와 화면 이탈 시 이전 목록 요청을 취소하고, 늦게 도착한 결과는 버린다.
+- 목록 표시까지의 변경이다. 저장된 사각형 표시, 목록 클릭 이동과 등록 후 자동 갱신은 다음 커밋에서 연결한다.
+
+관련 테스트:
+```powershell
+node --test src/test/js/document-feedback-list.test.mjs src/test/js/document-feedback.test.mjs src/test/js/document-feedback-form.test.mjs src/test/js/document-review.test.mjs
+```

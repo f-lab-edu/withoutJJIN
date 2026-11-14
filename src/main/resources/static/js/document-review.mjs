@@ -3,6 +3,7 @@ import {createWorkspacePdfViewer} from "./workspace-pdf-viewer.mjs?v=area-select
 
 import {createPdfAreaSelector} from "./pdf-area-selection.mjs?v=selection-color-1";
 import {createDocumentFeedbackForm} from "./document-feedback-form.mjs?v=feedback-form-1";
+import {createDocumentFeedbackList, createDocumentFeedbackListView} from "./document-feedback-list.mjs?v=feedback-list-1";
 
 export function parseReviewPath(pathname) {
     const match = pathname.match(/^\/workspaces\/([1-9]\d*)\/documents\/([1-9]\d*)\/review$/);
@@ -118,6 +119,11 @@ export function initializeDocumentReview() {
         syncSelectionMode();
     }
 
+    const feedbackList = createDocumentFeedbackList({view: createDocumentFeedbackListView({
+        list: $("feedback-list"), status: $("feedback-list-status"), refresh: $("feedback-refresh"),
+        onUnauthorized() { $("review-login").hidden = false; }
+    })});
+
     const feedbackForm = createDocumentFeedbackForm({getSelection: selector.getSelection,
         clearSelection: selector.clearSelection, view: {
             reset() {
@@ -150,6 +156,7 @@ export function initializeDocumentReview() {
             delete $("review-content").dataset.documentVersionId;
             pdfReady = false;
             feedbackForm.reset();
+            feedbackList.reset();
             selector.clearSelection();
             $("pdf-new-tab").removeAttribute("href");
             $("pdf-new-tab").hidden = true;
@@ -189,6 +196,8 @@ export function initializeDocumentReview() {
         ready(pageCount, context) {
             pdfReady = true;
             feedbackForm.setContext(context);
+            feedbackList.setContext(context);
+            void feedbackList.load();
             $("pdf-placeholder").hidden = true;
             $("page-count").textContent = pageCount + "페이지";
             $("pdf-status").textContent = "PDF " + pageCount + "페이지를 표시했어요.";
@@ -197,6 +206,7 @@ export function initializeDocumentReview() {
             delete $("review-content").dataset.documentVersionId;
             pdfReady = false;
             feedbackForm.reset();
+            feedbackList.reset();
             selector.clearSelection();
             $("pdf-status").textContent = message;
             $("pdf-status").dataset.error = "true";
@@ -208,6 +218,7 @@ export function initializeDocumentReview() {
         event.preventDefault();
         void feedbackForm.submit($("feedback-content").value);
     });
+    $("feedback-refresh").addEventListener("click", () => { void feedbackList.load(); });
     $("feedback-content").addEventListener("input", syncFeedbackControls);
     $("pdf-renew").addEventListener("click", () => { void controller.load(); });
     $("selection-mode").addEventListener("click", () => {
