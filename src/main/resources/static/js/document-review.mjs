@@ -3,7 +3,7 @@ import {createWorkspacePdfViewer} from "./workspace-pdf-viewer.mjs?v=area-select
 
 import {createPdfAreaSelector} from "./pdf-area-selection.mjs?v=selection-color-1";
 import {createDocumentFeedbackForm} from "./document-feedback-form.mjs?v=feedback-form-1";
-import {createDocumentFeedbackList, createDocumentFeedbackListView} from "./document-feedback-list.mjs?v=feedback-regions-1";
+import {createDocumentFeedbackList, createDocumentFeedbackListView} from "./document-feedback-list.mjs?v=feedback-refresh-1";
 
 import {createPdfFeedbackRegions} from "./pdf-feedback-regions.mjs?v=feedback-regions-1";
 
@@ -147,6 +147,8 @@ export function initializeDocumentReview() {
                 $("feedback-content").value = "";
                 $("feedback-form-status").textContent = "피드백을 등록했어요.";
                 $("feedback-form-status").dataset.error = "false";
+                // 작성자 표시 이름까지 포함된 GET 응답으로 목록과 PDF 영역을 함께 갱신한다.
+                void feedbackList.load({afterCreate: true});
             },
             error(message, status) {
                 $("feedback-form-status").textContent = message;

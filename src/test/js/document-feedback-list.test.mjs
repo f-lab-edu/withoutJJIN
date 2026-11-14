@@ -3,14 +3,16 @@ import assert from "node:assert/strict";
 import {createDocumentFeedbackList, createDocumentFeedbackListView} from "../../main/resources/static/js/document-feedback-list.mjs";
 import {FeedbackRequestError} from "../../main/resources/static/js/document-feedback.mjs?v=feedback-api-1";
 
+import {createDocumentFeedbackForm} from "../../main/resources/static/js/document-feedback-form.mjs";
+
 const context = {documentVersionId: 91, expectedUserId: 7, pageCount: 2};
 const item = {id: 501, documentVersionId: 91, createdBy: 7, createdByDisplayName: "작성자",
     pageNumber: 2, content: "수정해 주세요.", createdAt: "2030-01-01T12:00:00"};
 
 function deferred() {
-    let resolve;
-    const promise = new Promise(yes => { resolve = yes; });
-    return {promise, resolve};
+    let resolve, reject;
+    const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
+    return {promise, resolve, reject};
 }
 
 function fixture(fetchFeedback = async () => [item]) {
@@ -187,4 +189,117 @@ test("does not mark a list item active if its PDF region is no longer available"
     const button = list.children[0].children[0];
     button.click();
     assert.equal(button.attributes["aria-pressed"], "false");
+});
+
+
+test("registration success refreshes the list and saved regions using the GET response", async () => {
+    const doc = {createElement: tag => new Element(tag, doc)};
+    const list = new Element("ol", doc), status = new Element("p", doc), refresh = {};
+    const area = {pageNumber: 2, x: .1, y: .2, width: .3, height: .4, color: "pink"};
+    const saved = {...item, ...area};
+    const rendered = [], requests = [];
+    let busy = false, error = null, selected = {...area}, content = saved.content, reload;
+    const regions = {clear() {}, setItems: values => rendered.push(values)};
+    const feedbackList = createDocumentFeedbackList({
+        view: createDocumentFeedbackListView({list, status, refresh, regions}),
+        fetchFeedback: async options => { requests.push(options); return [saved]; }
+    });
+    feedbackList.setContext(context);
+    const form = createDocumentFeedbackForm({
+        getSelection: () => selected, clearSelection: () => { selected = null; },
+        submitFeedback: async () => saved,
+        view: {reset() {}, busy: value => { busy = value; },
+            success() { content = ""; reload = feedbackList.load({afterCreate: true}); },
+            error: message => { error = message; }}
+    });
+    form.setContext(context);
+    await form.submit(content);
+    await reload;
+    assert.equal(content, "");
+    assert.equal(selected, null);
+    assert.equal(error, null);
+    assert.equal(busy, false);
+    assert.equal(requests[0].documentVersionId, 91);
+    assert.equal(requests[0].expectedUserId, 7);
+    assert.deepEqual(rendered.at(-1), [saved]);
+    assert.equal(list.children[0].children[0].children[0].textContent, "작성자");
+    assert.equal(status.textContent, "피드백 1개");
+});
+
+test("GET failure after a successful POST never retries registration and permits a GET-only retry", async () => {
+    let fail = true, posts = 0, reload, busy = false, registrationError = null;
+    const f = fixture(async () => {
+        if (fail) throw new FeedbackRequestError("목록 조회 오류", 500);
+        return [item];
+    });
+    f.controller.setContext(context);
+    let selected = {pageNumber: 2}, content = item.content;
+    const form = createDocumentFeedbackForm({getSelection: () => selected,
+        clearSelection: () => { selected = null; },
+        submitFeedback: async () => { posts++; return item; },
+        view: {reset() {}, busy: value => { busy = value; },
+            success() { content = ""; reload = f.controller.load({afterCreate: true}); },
+            error: message => { registrationError = message; }}
+    });
+    form.setContext(context);
+    await form.submit(content);
+    await reload;
+    assert.equal(posts, 1);
+    assert.equal(content, "");
+    assert.equal(selected, null);
+    assert.equal(busy, false);
+    assert.equal(registrationError, null);
+    assert.match(f.state.error.message, /피드백은 등록됐지만/);
+    assert.match(f.state.error.message, /목록 새로고침/);
+    assert.equal(f.state.available, true);
+    fail = false;
+    await f.controller.load();
+    assert.equal(posts, 1);
+    assert.deepEqual(f.state.items, [item]);
+});
+
+test("registration failure preserves the draft and never requests a list refresh", async () => {
+    const f = fixture();
+    f.controller.setContext(context);
+    let selected = {pageNumber: 2}, content = item.content, error;
+    const form = createDocumentFeedbackForm({getSelection: () => selected,
+        clearSelection: () => { selected = null; },
+        submitFeedback: async () => { throw new FeedbackRequestError("등록 거부", 403); },
+        view: {reset() {}, busy() {},
+            success() { content = ""; void f.controller.load({afterCreate: true}); },
+            error: message => { error = message; }}
+    });
+    form.setContext(context);
+    await form.submit(content);
+    assert.equal(f.calls.length, 0);
+    assert.equal(content, item.content);
+    assert.deepEqual(selected, {pageNumber: 2});
+    assert.equal(error, "등록 거부");
+});
+
+test("post-registration refresh cancels a stale pre-registration list request", async () => {
+    const pending = deferred();
+    let count = 0;
+    const f = fixture(() => ++count === 1 ? pending.promise : [item]);
+    f.controller.setContext(context);
+    const oldLoad = f.controller.load();
+    await f.controller.load({afterCreate: true});
+    pending.resolve([]);
+    await oldLoad;
+    assert.equal(f.calls[0].signal.aborted, true);
+    assert.deepEqual(f.state.items, [item]);
+});
+
+test("a late refresh failure cannot overwrite the next PDF version", async () => {
+    const pending = deferred();
+    const f = fixture(options => options.documentVersionId === 91 ? pending.promise
+        : [{...item, documentVersionId: 92}]);
+    f.controller.setContext(context);
+    const previous = f.controller.load({afterCreate: true});
+    f.controller.setContext({...context, documentVersionId: 92});
+    await f.controller.load();
+    pending.reject(new FeedbackRequestError("이전 버전 오류", 500));
+    await previous;
+    assert.equal(f.state.error, null);
+    assert.equal(f.state.items[0].documentVersionId, 92);
 });

@@ -16,7 +16,7 @@ export function createDocumentFeedbackList({view, fetchFeedback = fetchDocumentF
         view.available(true);
     }
 
-    async function load() {
+    async function load({afterCreate = false} = {}) {
         if (!context) return;
         current?.abort();
         const target = context, request = new AbortController();
@@ -36,8 +36,13 @@ export function createDocumentFeedbackList({view, fetchFeedback = fetchDocumentF
             view.items(items);
         } catch (error) {
             if (!isCurrent() || error?.name === "AbortError") return;
-            view.error(error instanceof FeedbackRequestError ? error.message
-                : "피드백 목록을 불러오지 못했어요. 다시 시도해 주세요.", error?.status);
+            const message = error instanceof FeedbackRequestError ? error.message
+                : "피드백 목록을 불러오지 못했어요. 다시 시도해 주세요.";
+            // POST는 이미 성공했다. 목록 조회 실패를 등록 실패로 안내하지 않는다.
+            view.error(afterCreate
+                ? "피드백은 등록됐지만 목록을 갱신하지 못했어요. " + message
+                    + " 다시 등록하지 말고 ‘목록 새로고침’을 눌러 주세요."
+                : message, error?.status);
         } finally {
             if (isCurrent()) {
                 current = null;

@@ -147,3 +147,18 @@ node --test src/test/js/document-feedback-list.test.mjs src/test/js/document-fee
 ```powershell
 node --test src/test/js/pdf-feedback-regions.test.mjs src/test/js/document-feedback-list.test.mjs src/test/js/pdf-area-selection.test.mjs src/test/js/document-review.test.mjs
 ```
+
+
+## #51 등록 성공 후 목록·영역 자동 갱신
+
+- POST 성공 후 입력과 작성 중 선택을 비우고 현재 `documentVersionId`의 GET 목록을 다시 조회한다.
+- GET 결과의 작성자·내용·시각과 저장된 PDF 영역을 함께 표시한다. 등록 POST를 다시 보내지 않는다.
+- POST 성공 후 GET이 실패하면 등록 성공 안내는 유지하고, 목록에 등록 완료 사실과 ‘목록 새로고침’ 안내를 표시한다.
+- POST 실패 시에는 입력과 선택 영역을 유지하고 자동 목록 갱신을 실행하지 않는다.
+- 등록 전 시작한 목록 조회는 갱신 요청이 취소한다. PDF를 바꾸거나 화면을 떠난 뒤 도착한 결과는 적용하지 않는다.
+- 실제 브라우저에서 영역 선택 → 등록 → 목록·영역 반영 → 새로고침 후 유지 → 목록 클릭 이동을 별도로 확인한다.
+
+관련 테스트:
+```powershell
+node --test src/test/js/document-feedback-list.test.mjs src/test/js/document-feedback-form.test.mjs src/test/js/document-feedback.test.mjs src/test/js/document-review.test.mjs src/test/js/pdf-feedback-regions.test.mjs src/test/js/pdf-area-selection.test.mjs
+```
