@@ -32,7 +32,7 @@ class DocumentUploadCompletionServiceTest {
         verifier = mock(S3UploadVerifier.class);
         service = new DocumentUploadCompletionService(transactions, verifier);
         prepared = new PreparedUpload(
-                5L, "workspaces/10/uploads/test", 1024L, "application/docx", null);
+                5L, "workspaces/10/uploads/test", 1024L, "application/docx", null, null);
         when(transactions.prepare(1L, ISSUER, SUBJECT)).thenReturn(prepared);
     }
 
@@ -55,7 +55,7 @@ class DocumentUploadCompletionServiceTest {
     void returnsCompletedResponseWithoutAnotherS3Request() {
         CompleteUploadResponse expected = new CompleteUploadResponse(1L, 2L, 3L);
         when(transactions.prepare(1L, ISSUER, SUBJECT))
-                .thenReturn(new PreparedUpload(null, null, null, null, expected));
+                .thenReturn(new PreparedUpload(null, null, null, null, null, expected));
 
         assertThat(service.completeUpload(1L, ISSUER, SUBJECT)).isEqualTo(expected);
 

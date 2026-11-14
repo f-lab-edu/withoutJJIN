@@ -1,5 +1,7 @@
 package withoutjjin.withoutjjin.domain.document.service;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -35,6 +37,7 @@ public class DocumentUploadCompletionTransactions {
     private final AppUserService appUserService;
     private final WorkspaceService workspaceService;
     private final Clock clock;
+    private final EntityManager entityManager;
 
     public DocumentUploadCompletionTransactions(
             DocumentUploadRepository uploads,
@@ -43,7 +46,8 @@ public class DocumentUploadCompletionTransactions {
             DocumentConversionJobRepository conversionJobs,
             AppUserService appUserService,
             WorkspaceService workspaceService,
-            @Qualifier("documentUploadClock") Clock clock
+            @Qualifier("documentUploadClock") Clock clock,
+            EntityManager entityManager
     ) {
         this.uploads = uploads;
         this.documents = documents;
@@ -52,6 +56,7 @@ public class DocumentUploadCompletionTransactions {
         this.appUserService = appUserService;
         this.workspaceService = workspaceService;
         this.clock = clock;
+        this.entityManager = entityManager;
     }
 
     @Transactional(readOnly = true)
@@ -62,9 +67,9 @@ public class DocumentUploadCompletionTransactions {
                 false);
 
         if (upload.getStatus() == DocumentUploadStatus.COMPLETED) {  //이미 완료상태
-            // 이미 완료했으므로 S3를 다시 검증할 필요가 없어. 따라서 앞의 네 필드는 사용하지 않고,
-            // completedResponse에 기존 처리 결과를 담아.
+            // 이미 완료한 업로드는 S3를 다시 검증하지 않고 기존 처리 결과만 반환한다.
             return new PreparedUpload(
+                    null,
                     null,
                     null,
                     null,
@@ -79,11 +84,12 @@ public class DocumentUploadCompletionTransactions {
                 originalFile.getObjectKey(),
                 originalFile.getSizeBytes(),
                 originalFile.getMediaType(),
+                documentId(upload),
                 null);
 
     }
 
-    // 잠금 대기 전에 시작된 이전 조회 시점 때문에 첫 DocumentVersion을 놓치지 않도록 한다.
+    // 다른 완료 요청의 커밋과 새 버전 번호를 잠금 획득 후 조회한다.
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public CompleteUploadResponse complete(
             Long uploadId, String issuer, String subject, PreparedUpload prepared) {
@@ -96,20 +102,31 @@ public class DocumentUploadCompletionTransactions {
         if (!Objects.equals(originalFile.getId(), prepared.originalFileId())
                 || !Objects.equals(originalFile.getObjectKey(), prepared.objectKey())
                 || !Objects.equals(originalFile.getSizeBytes(), prepared.sizeBytes())
-                || !Objects.equals(originalFile.getMediaType(), prepared.mediaType())) {
+                || !Objects.equals(originalFile.getMediaType(), prepared.mediaType())
+                || !Objects.equals(documentId(upload), prepared.documentId())) {
             throw new ResponseStatusException(
-                    HttpStatus.CONFLICT, "S3 검증 중 DocumentUpload.originalFile이 변경되었습니다.");
+                    HttpStatus.CONFLICT, "S3 검증 중 DocumentUpload의 원본 파일 또는 Document가 변경되었습니다.");
         }
 
-        Document document = documents.save(new Document(
-                originalFile.getFileName(),
-                0,
-                upload.getCreatedBy(),
-                null,
-                upload.getWorkspace()));
-
+        Document document;
+        if (upload.getDocument() == null) {
+            document = documents.save(new Document(originalFile.getFileName(), 0,
+                    upload.getCreatedBy(), null, upload.getWorkspace()));
+        } else {
+            document = documents.findByIdForUpdate(upload.getDocument().getId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Document를 찾을 수 없습니다."));
+            // 같은 영속성 컨텍스트에서 미리 읽었어도 잠금 이후의 최신 revision을 사용한다.
+            entityManager.refresh(document, LockModeType.PESSIMISTIC_WRITE);
+            if (!Objects.equals(document.getWorkspace().getId(), upload.getWorkspace().getId())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "DocumentUpload와 Document의 워크스페이스가 다릅니다.");
+            }
+        }
+        if (document.getRevision() == Integer.MAX_VALUE) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Document의 버전 번호 상한을 초과했습니다.");
+        }
+        int nextVersionNumber = document.getRevision() + 1;
         DocumentVersion version = versions.save(new DocumentVersion(
-                1,
+                nextVersionNumber,
                 "",
                 null,
                 document,
@@ -118,7 +135,7 @@ public class DocumentUploadCompletionTransactions {
                 originalFile.getSizeBytes(),
                 upload.getCreatedBy()));
 
-        document.updateRevision(1);
+        document.updateRevision(nextVersionNumber);
         upload.complete(document);
         // Document·DocumentVersion 등록과 업로드 완료 상태를 변환 대기 작업과 함께 커밋한다.
         conversionJobs.save(new DocumentConversionJob(upload, version));
@@ -136,6 +153,8 @@ public class DocumentUploadCompletionTransactions {
                 ? uploads.findByIdForUpdate(uploadId) : uploads.findById(uploadId))
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "DocumentUpload를 찾을 수 없습니다."));
+        // prepare 또는 상위 트랜잭션에서 읽은 PENDING 상태가 남아 있어도 최신 행 상태로 검사한다.
+        if (forUpdate) entityManager.refresh(upload, LockModeType.PESSIMISTIC_WRITE);
         if (!upload.getCreatedBy().getId().equals(requester.getId())) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN, "DocumentUpload 요청자만 완료할 수 있습니다.");
@@ -152,9 +171,9 @@ public class DocumentUploadCompletionTransactions {
         if (!upload.getExpiresAt().isAfter(LocalDateTime.now(clock))) {
             throw new ResponseStatusException(HttpStatus.GONE, "DocumentUpload가 만료되었습니다.");
         }
-        if (upload.getDocument() != null) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT, "기존 Document의 새 버전 업로드는 지원하지 않습니다.");
+        if (upload.getDocument() != null && !Objects.equals(
+                upload.getWorkspace().getId(), upload.getDocument().getWorkspace().getId())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "DocumentUpload와 Document의 워크스페이스가 다릅니다.");
         }
         if (upload.getOriginalFile() == null) {
             throw new ResponseStatusException(
@@ -168,12 +187,19 @@ public class DocumentUploadCompletionTransactions {
         if (upload.getDocument() == null) {
             throw new IllegalStateException("COMPLETED 상태의 DocumentUpload에 Document가 없습니다.");
         }
-        DocumentVersion version = versions
-                .findByDocumentIdAndVersionNumber(upload.getDocument().getId(), 1)
+        DocumentVersion version = conversionJobs.findByDocumentUploadId(upload.getId())
                 .orElseThrow(() -> new IllegalStateException(
-                        "COMPLETED 상태의 DocumentUpload에 첫 DocumentVersion이 없습니다."));
+                        "COMPLETED 상태의 DocumentUpload에 DocumentConversionJob이 없습니다."))
+                .getDocumentVersion();
+        if (!Objects.equals(version.getDocument().getId(), upload.getDocument().getId())) {
+            throw new IllegalStateException("DocumentUpload와 DocumentVersion의 Document가 다릅니다.");
+        }
         return new CompleteUploadResponse(
                 upload.getId(), upload.getDocument().getId(), version.getId());
+    }
+
+    private Long documentId(DocumentUpload upload) {
+        return upload.getDocument() == null ? null : upload.getDocument().getId();
     }
 
     public record PreparedUpload(
@@ -181,6 +207,7 @@ public class DocumentUploadCompletionTransactions {
             String objectKey,
             Long sizeBytes,
             String mediaType,
+            Long documentId,
             CompleteUploadResponse completedResponse
     ) {
     }
