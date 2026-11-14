@@ -3,7 +3,9 @@ import {createWorkspacePdfViewer} from "./workspace-pdf-viewer.mjs?v=area-select
 
 import {createPdfAreaSelector} from "./pdf-area-selection.mjs?v=selection-color-1";
 import {createDocumentFeedbackForm} from "./document-feedback-form.mjs?v=feedback-form-1";
-import {createDocumentFeedbackList, createDocumentFeedbackListView} from "./document-feedback-list.mjs?v=feedback-list-1";
+import {createDocumentFeedbackList, createDocumentFeedbackListView} from "./document-feedback-list.mjs?v=feedback-regions-1";
+
+import {createPdfFeedbackRegions} from "./pdf-feedback-regions.mjs?v=feedback-regions-1";
 
 export function parseReviewPath(pathname) {
     const match = pathname.match(/^\/workspaces\/([1-9]\d*)\/documents\/([1-9]\d*)\/review$/);
@@ -119,7 +121,9 @@ export function initializeDocumentReview() {
         syncSelectionMode();
     }
 
+    const feedbackRegions = createPdfFeedbackRegions({container: $("pdf-pages")});
     const feedbackList = createDocumentFeedbackList({view: createDocumentFeedbackListView({
+        regions: feedbackRegions,
         list: $("feedback-list"), status: $("feedback-list-status"), refresh: $("feedback-refresh"),
         onUnauthorized() { $("review-login").hidden = false; }
     })});

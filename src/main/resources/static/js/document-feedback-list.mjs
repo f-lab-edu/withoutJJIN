@@ -49,7 +49,15 @@ export function createDocumentFeedbackList({view, fetchFeedback = fetchDocumentF
     return {setContext, load, reset};
 }
 
-export function createDocumentFeedbackListView({list, status, refresh, onUnauthorized = () => {}}) {
+export function createDocumentFeedbackListView({list, status, refresh, regions, onUnauthorized = () => {}}) {
+    const buttons = new Map();
+
+    function clearItems() {
+        list.replaceChildren();
+        buttons.clear();
+        regions?.clear();
+    }
+
     function message(text, error = false) {
         status.textContent = text;
         status.dataset.error = String(error);
@@ -57,19 +65,21 @@ export function createDocumentFeedbackListView({list, status, refresh, onUnautho
 
     return {
         reset() {
-            list.replaceChildren();
+            clearItems();
             list.setAttribute("aria-busy", "false");
             refresh.disabled = true;
             message("PDF를 불러온 뒤 피드백을 표시해요.");
         },
         available(value) { refresh.disabled = !value; },
         loading() {
-            list.replaceChildren();
+            clearItems();
             list.setAttribute("aria-busy", "true");
             refresh.disabled = true;
             message("피드백 목록을 불러오고 있어요.");
         },
         items(values) {
+            regions?.setItems(values);
+            buttons.clear();
             const nodes = values.map(value => {
                 const doc = list.ownerDocument;
                 const item = doc.createElement("li");
@@ -80,7 +90,7 @@ export function createDocumentFeedbackListView({list, status, refresh, onUnautho
                 const page = doc.createElement("span");
                 page.className = "feedback-item-page";
                 page.textContent = value.pageNumber + "페이지";
-                const content = doc.createElement("p");
+                const content = doc.createElement("span");
                 content.className = "feedback-item-content";
                 // 사용자 입력은 HTML로 해석하지 않고 텍스트로 표시한다.
                 content.textContent = value.content;
@@ -88,7 +98,20 @@ export function createDocumentFeedbackListView({list, status, refresh, onUnautho
                 time.dateTime = value.createdAt;
                 // API의 LocalDateTime을 그대로 표시하여 브라우저 시간대로 변환하지 않는다.
                 time.textContent = value.createdAt.replace("T", " ");
-                item.append(author, page, content, time);
+                const button = doc.createElement("button");
+                button.type = "button";
+                button.className = "feedback-item-link";
+                button.setAttribute("aria-pressed", "false");
+                button.addEventListener("click", () => {
+                    if (!regions?.focus(value.id)) return;
+                    for (const [id, entry] of buttons) {
+                        entry.button.setAttribute("aria-pressed", String(id === value.id));
+                        entry.item.dataset.active = String(id === value.id);
+                    }
+                });
+                button.append(author, page, content, time);
+                buttons.set(value.id, {button, item});
+                item.append(button);
                 return item;
             });
             list.replaceChildren(...nodes);
@@ -96,7 +119,7 @@ export function createDocumentFeedbackListView({list, status, refresh, onUnautho
             message(values.length ? "피드백 " + values.length + "개" : "아직 등록된 피드백이 없어요.");
         },
         error(text, code) {
-            list.replaceChildren();
+            clearItems();
             list.setAttribute("aria-busy", "false");
             message(text, true);
             if (code === 401) onUnauthorized();

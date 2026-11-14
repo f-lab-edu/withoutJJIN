@@ -131,3 +131,19 @@ node --test src/test/js/document-feedback-form.test.mjs src/test/js/document-fee
 ```powershell
 node --test src/test/js/document-feedback-list.test.mjs src/test/js/document-feedback.test.mjs src/test/js/document-feedback-form.test.mjs src/test/js/document-review.test.mjs
 ```
+
+
+## #51 저장된 영역 표시와 목록 이동
+
+- `pdf-feedback-regions.mjs`가 조회된 피드백마다 해당 페이지에 사각형을 표시한다.
+- 좌표와 크기를 페이지 기준 %로 표시하므로 화면 크기가 바뀌어도 같은 문서 위치를 가리킨다.
+- 저장된 영역은 `.pdf-feedback-region`, 작성 중 영역은 `.pdf-selection`으로 별도로 관리한다.
+- 목록 항목은 버튼이다. 클릭 또는 키보드 Enter/Space로 해당 사각형 위치로 스크롤하고 활성 항목과 영역을 강조한다.
+- 목록 재조회, 실패, PDF 다시 열기, 화면 이탈 때 저장된 영역을 지운다. 목록 새로고침은 작성 중 선택 영역을 지우지 않는다.
+- 영역은 마우스 이벤트를 가로채지 않으므로 저장된 영역 위에서도 새 영역을 선택할 수 있다.
+- 등록 성공 후 목록과 영역의 자동 갱신은 다음 커밋에서 연결한다.
+
+관련 테스트:
+```powershell
+node --test src/test/js/pdf-feedback-regions.test.mjs src/test/js/document-feedback-list.test.mjs src/test/js/pdf-area-selection.test.mjs src/test/js/document-review.test.mjs
+```

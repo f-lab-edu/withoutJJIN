@@ -107,9 +107,12 @@ class Element {
         this.dataset = {};
         this.children = [];
         this.attributes = {};
+        this.listeners = new Map();
     }
     set innerHTML(value) { throw new Error("User content must not be interpreted as HTML"); }
     setAttribute(name, value) { this.attributes[name] = value; }
+    addEventListener(type, handler) { this.listeners.set(type, handler); }
+    click() { this.listeners.get("click")?.(); }
     append(...nodes) { this.children.push(...nodes); }
     replaceChildren(...nodes) { this.children = nodes; }
 }
@@ -120,7 +123,7 @@ test("renders author and content as text with page number and unshifted creation
     const view = createDocumentFeedbackListView({list, status, refresh});
     const unsafe = '<img src=x onerror="alert(1)">';
     view.items([{...item, content: unsafe, createdByDisplayName: unsafe}]);
-    const nodes = list.children[0].children;
+    const nodes = list.children[0].children[0].children;
     assert.equal(nodes[0].textContent, unsafe);
     assert.equal(nodes[1].textContent, "2페이지");
     assert.equal(nodes[2].textContent, unsafe);
@@ -147,4 +150,41 @@ test("distinguishes waiting, loading, empty and failed states and offers login o
     assert.equal(status.dataset.error, "true");
     assert.equal(refresh.disabled, false);
     assert.deepEqual(list.children, []);
+});
+
+
+test("list activation focuses the saved region and updates only the active button", () => {
+    const doc = {createElement: tag => new Element(tag, doc)};
+    const list = new Element("ol", doc), status = new Element("p", doc), refresh = {};
+    const focused = [], cleared = [], displayed = [];
+    const regions = {setItems: values => displayed.push(values), clear: () => cleared.push(true),
+        focus: id => { focused.push(id); return true; }};
+    const view = createDocumentFeedbackListView({list, status, refresh, regions});
+    view.items([item, {...item, id: 502}]);
+    const [first, second] = list.children.map(node => node.children[0]);
+    assert.equal(first.tagName, "button");
+    assert.equal(first.type, "button");
+    first.click();
+    second.click();
+    assert.deepEqual(focused, [501, 502]);
+    assert.equal(first.attributes["aria-pressed"], "false");
+    assert.equal(second.attributes["aria-pressed"], "true");
+    assert.equal(list.children[1].dataset.active, "true");
+    assert.equal(displayed.length, 1);
+    view.loading();
+    view.error("조회 실패", 500);
+    view.reset();
+    assert.equal(cleared.length, 3);
+    assert.deepEqual(list.children, []);
+});
+
+test("does not mark a list item active if its PDF region is no longer available", () => {
+    const doc = {createElement: tag => new Element(tag, doc)};
+    const list = new Element("ol", doc), status = new Element("p", doc), refresh = {};
+    const view = createDocumentFeedbackListView({list, status, refresh,
+        regions: {setItems() {}, clear() {}, focus: () => false}});
+    view.items([item]);
+    const button = list.children[0].children[0];
+    button.click();
+    assert.equal(button.attributes["aria-pressed"], "false");
 });
