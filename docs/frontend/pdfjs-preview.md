@@ -162,3 +162,67 @@ node --test src/test/js/pdf-feedback-regions.test.mjs src/test/js/document-feedb
 ```powershell
 node --test src/test/js/document-feedback-list.test.mjs src/test/js/document-feedback-form.test.mjs src/test/js/document-feedback.test.mjs src/test/js/document-review.test.mjs src/test/js/pdf-feedback-regions.test.mjs src/test/js/pdf-area-selection.test.mjs
 ```
+
+
+## #55 본인 피드백 수정 화면
+
+- 현재 PDF를 연 로그인 회원의 ID와 `createdBy`가 같은 항목에만 수정 버튼을 표시한다.
+- 수정 버튼은 기존 내용을 별도 입력창에 불러온다. 내용은 `textarea.value`로 설정한다.
+- 수정 취소는 PATCH를 보내지 않으며, 실패하면 입력 내용을 유지한다.
+- 저장 중 중복 제출을 막고 수정·취소 버튼을 비활성화한다.
+- 수정 중에는 등록·영역 선택·PDF 다시 열기·목록 새로고침을 잠시 막아 작성 중 내용을 보존한다.
+- 수정 성공 후 GET 목록을 다시 조회하여 목록과 저장된 영역을 표시한다. 영역 좌표·색상은 변경하지 않는다.
+- PATCH 성공 후 GET 실패 시 수정 완료 사실과 목록 새로고침 안내를 표시한다.
+- PDF 화면 이탈과 재로딩은 진행 중 PATCH를 취소하고 이전 결과를 무시한다.
+- 삭제 버튼과 삭제 확인 안내는 다음 커밋에서 연결한다. 실제 브라우저 확인은 별도로 진행한다.
+
+
+## #55 본인 피드백 삭제 화면
+
+- `createdBy`가 현재 로그인 회원 ID와 같은 항목에만 삭제 버튼을 표시한다. 서버의 작성자·워크스페이스 권한 검사도 유지한다.
+- 삭제 버튼은 페이지·내용을 표시하는 확인 화면을 연다. 내용은 `textContent`로 표시하고, 취소 버튼에 초점을 둔다.
+- ‘삭제 확인’을 눌러야 DELETE를 보낸다. 취소는 서버 요청을 보내지 않는다.
+- 요청 중 삭제 확인·취소 버튼을 비활성화하여 중복 DELETE를 막는다.
+- 확인 화면에서는 등록·수정·영역 선택·목록 새로고침·PDF 다시 열기를 잠시 막는다. 작성 중 등록 내용과 선택 영역은 지우지 않는다.
+- DELETE 실패 시 목록·저장된 영역·확인 대상을 유지한다. 자동 재시도하지 않는다. 401이면 로그인 안내도 표시한다.
+- DELETE 성공 후 현재 DocumentVersion의 GET 목록을 다시 조회하여 삭제한 피드백과 저장된 영역을 제거한다.
+- DELETE 성공 후 GET 실패 시 삭제 완료 안내와 목록 새로고침 안내를 표시한다. DELETE를 다시 보내지 않는다.
+- PDF 화면 이탈·재로딩 시 진행 중 요청을 취소하고 이전 응답을 적용하지 않는다. 취소가 서버에서 이미 처리한 삭제를 되돌리지는 않는다.
+- 실제 브라우저 동작 확인은 별도로 진행한다.
+
+관련 테스트:
+```powershell
+node --test src/test/js/document-feedback-deleter.test.mjs src/test/js/document-feedback-list.test.mjs src/test/js/document-review-edit.test.mjs src/test/js/document-feedback-mutation.test.mjs
+```
+
+
+## PDF 내부 스크롤로 피드백 위치 이동
+
+- `pdf-feedback-regions.mjs`의 `focus()`는 `scrollIntoView()` 대신 `pdf-pages.scrollTo()`로 PDF 컨테이너만 움직인다.
+- 현재 영역의 화면 좌표와 PDF 컨테이너의 스크롤·테두리·크기를 사용하여 세로 중앙으로 이동한다. 가로는 영역이 가려진 경우에만 이동한다.
+- 데스크톱(901px 이상)은 상단 도구를 유지하고 PDF와 오른쪽 피드백 패널을 각각 스크롤한다.
+- 좁은 화면은 기존 세로 배치를 유지한다. 피드백 클릭은 PDF 내부 스크롤만 변경한다.
+- 두 스크롤 영역에 `overscroll-behavior: contain`을 적용하여 스크롤 끝에서 바깥 페이지로 스크롤이 이어지지 않게 한다.
+- 피드백 선택·수정·삭제 확인에서 같은 `focus()`를 사용한다. 저장된 좌표와 색상, API는 바꾸지 않는다.
+- 로컬 Chrome에서 테스트용 6페이지 문서와 API 응답으로 1365×1000, 1024×768, 390×844 화면을 확인했다. 피드백 클릭 시 PDF만 이동하고 바깥 페이지·오른쪽 패널의 스크롤 위치는 유지됐다. 실제 S3 문서에 대한 검증은 별도다.
+
+관련 테스트:
+```powershell
+node --test src/test/js/pdf-feedback-regions.test.mjs src/test/js/document-review-edit.test.mjs
+```
+
+
+## PDF 영역과 피드백 목록의 번호 연결
+
+- 현재 DocumentVersion의 GET 목록 순서(작성 시각, ID 오름차순)에 따라 1부터 번호를 표시한다. PDF 페이지별로 번호를 다시 시작하지 않는다.
+- `document-feedback-list.mjs`와 `pdf-feedback-regions.mjs`는 같은 목록 순서로 목록 항목과 PDF 영역 오른쪽 위에 번호를 표시한다.
+- 드래그 중·등록 전 선택 영역은 숫자 대신 ‘작성 중’을 표시한다. 등록 후 GET 목록을 갱신하면서 저장된 영역과 목록에 같은 번호를 표시한다.
+- 번호는 화면 표시용이며 DB에 저장하지 않는다. 목록 이동·수정·삭제에는 기존 `DocumentFeedback.id`를 사용한다.
+- 삭제 후 목록을 다시 조회하면 남은 목록에 맞춰 번호를 다시 붙인다. 다른 DocumentVersion에서는 다시 1부터 표시한다.
+- 번호는 페이지의 비율 좌표를 변경하지 않고 표시하며, 영역 선택을 방해하는 포인터 이벤트를 받지 않는다.
+- 로컬 Chrome에서 테스트용 6페이지 문서와 API 응답으로 1365×1000, 1024×768, 390×844 화면의 드래그·등록·삭제와 번호 일치를 확인했다. 실제 S3 문서에 대한 검증은 별도다.
+
+관련 테스트:
+```powershell
+node --test src/test/js/pdf-feedback-regions.test.mjs src/test/js/document-feedback-list.test.mjs src/test/js/document-review-edit.test.mjs
+```

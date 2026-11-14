@@ -9,6 +9,10 @@ function fixture() {
         children: [], append(node) { this.children.push(node); node.parent = this; }}));
     const scrolled = [];
     const container = {
+        scrollTop: 100, scrollLeft: 0, clientTop: 2, clientLeft: 2,
+        clientHeight: 600, clientWidth: 800, scrollHeight: 5000, scrollWidth: 1000,
+        getBoundingClientRect() { return {top: 100, left: 20}; },
+        scrollTo(options) { scrolled.push(options); this.scrollTop = options.top; this.scrollLeft = options.left; },
         querySelectorAll() { return pages; },
         contains(node) { return pages.some(page => page.children.includes(node)); },
         ownerDocument: {createElement() {
@@ -16,10 +20,12 @@ function fixture() {
                 remove() {
                     if (this.parent) this.parent.children = this.parent.children.filter(node => node !== this);
                 },
-                scrollIntoView(options) { scrolled.push({node: this, options}); }};
+                bounds: {top: 1000, left: 100, right: 300, height: 120},
+                getBoundingClientRect() { return this.bounds; },
+                scrollIntoView() { throw new Error("Must not scroll ancestor containers"); }};
         }}
     };
-    return {regions: createPdfFeedbackRegions({container}), pages, scrolled};
+    return {regions: createPdfFeedbackRegions({container}), container, pages, scrolled};
 }
 
 test("draws saved areas on their own pages with proportional coordinates and stored colors", () => {
@@ -57,8 +63,8 @@ test("focus scrolls to the requested region and highlights only that region", ()
     assert.equal(f.regions.focus(502), true);
     assert.equal(f.pages[0].children[0].dataset.active, "false");
     assert.equal(f.pages[1].children[0].dataset.active, "true");
-    assert.equal(f.scrolled[1].node, f.pages[1].children[0]);
-    assert.deepEqual(f.scrolled[1].options, {block: "center", inline: "nearest", behavior: "auto"});
+    assert.deepEqual(f.scrolled[0], {top: 758, left: 0, behavior: "auto"});
+    assert.deepEqual(f.scrolled[1], {top: 1416, left: 0, behavior: "auto"});
     assert.equal(f.regions.focus(999), false);
     assert.equal(f.scrolled.length, 2);
 });
@@ -83,4 +89,60 @@ test("rejects invalid coordinates, duplicate IDs and unrendered or missing pages
     assert.throws(() => f.regions.setItems([first, first]), RangeError);
     f.pages[0].dataset.ready = "false";
     assert.throws(() => f.regions.setItems([first]), RangeError);
+});
+
+test("uses current screen geometry after resizing and does not reset an already visible horizontal position", () => {
+    const f = fixture();
+    f.regions.setItems([first]);
+    f.container.scrollTop = 700;
+    f.container.scrollLeft = 80;
+    f.container.clientHeight = 400;
+    f.pages[0].children[0].bounds = {top: 250, left: 50, right: 300, height: 100};
+    f.regions.focus(501);
+    assert.deepEqual(f.scrolled[0], {top: 698, left: 80, behavior: "auto"});
+});
+
+test("keeps scrolling within the PDF content bounds at the first and last page", () => {
+    const f = fixture();
+    f.regions.setItems([first]);
+    const box = f.pages[0].children[0];
+    box.bounds = {top: -500, left: -200, right: 0, height: 20};
+    f.regions.focus(501);
+    assert.deepEqual(f.scrolled[0], {top: 0, left: 0, behavior: "auto"});
+    box.bounds = {top: 9000, left: 900, right: 1100, height: 20};
+    f.regions.focus(501);
+    assert.deepEqual(f.scrolled[1], {top: 4400, left: 200, behavior: "auto"});
+});
+
+test("moves only enough horizontally to reveal a region clipped at the left edge", () => {
+    const f = fixture();
+    f.regions.setItems([first]);
+    f.container.scrollLeft = 150;
+    f.pages[0].children[0].bounds = {top: 1000, left: -20, right: 180, height: 120};
+    f.regions.focus(501);
+    assert.equal(f.scrolled[0].left, 108);
+});
+
+test("numbers follow the list order across PDF pages rather than database IDs", () => {
+    const f = fixture();
+    const items = [{...first, id: 900, pageNumber: 2}, {...first, id: 4}];
+    f.regions.setItems(items);
+    assert.equal(f.pages[1].children[0].dataset.feedbackNumber, "1");
+    assert.equal(f.pages[0].children[0].dataset.feedbackNumber, "2");
+    assert.equal(f.pages[1].children[0].dataset.feedbackId, "900");
+    assert.equal(f.pages[0].children[0].dataset.feedbackId, "4");
+    assert.equal(f.regions.focus(4), true);
+    assert.equal(f.pages[0].children[0].dataset.active, "true");
+    assert.equal(Object.hasOwn(items[0], "feedbackNumber"), false);
+});
+
+test("renumbers after deletion and starts from one after switching to another PDF", () => {
+    const f = fixture();
+    f.regions.setItems([first, {...first, id: 502}, {...first, id: 503}]);
+    f.regions.setItems([{...first, id: 502}, {...first, id: 503}]);
+    assert.deepEqual(f.pages[0].children.map(box => box.dataset.feedbackNumber), ["1", "2"]);
+    assert.equal(f.regions.focus(501), false);
+    f.regions.clear();
+    f.regions.setItems([{...first, id: 999, pageNumber: 2}]);
+    assert.equal(f.pages[1].children[0].dataset.feedbackNumber, "1");
 });

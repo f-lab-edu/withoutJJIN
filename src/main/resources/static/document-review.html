@@ -33,12 +33,15 @@
         .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 20px 24px; border-bottom: 1px solid var(--line); }
         h2 { margin: 0; font-size: 18px; }
         .page-count { color: var(--muted); font-size: 13px; white-space: nowrap; }
-        .pdf-pages { display: grid; justify-items: center; gap: 20px; max-height: 75vh; overflow: auto; padding: 20px; background: #e7ede8; }
+        .pdf-pages { display: grid; align-content: start; justify-items: center; overscroll-behavior: contain; gap: 20px; max-height: 75vh; overflow: auto; padding: 20px; background: #e7ede8; }
         .pdf-pages canvas { display: block; max-width: 100%; height: auto; background: white; box-shadow: 0 2px 12px #18352c1a; }
         .pdf-page { position: relative; max-width: 100%; line-height: 0; }
         .pdf-pages[data-selection-enabled="true"] .pdf-page[data-ready="true"] { cursor: crosshair; touch-action: none; user-select: none; }
         .pdf-selection { position: absolute; z-index: 2; border: 2px solid #16785a; background: #39a87926; pointer-events: none; }
         .pdf-feedback-region { position: absolute; border: 2px solid; pointer-events: none; }
+        .pdf-feedback-region::after, .pdf-selection::after { position: absolute; top: 0; right: 0; transform: translateY(-50%); display: inline-flex; align-items: center; justify-content: center; min-width: 24px; padding: 4px 7px; border: 2px solid white; border-radius: 999px; background: var(--ink); color: white; font: 700 12px/1.2 system-ui, sans-serif; white-space: nowrap; }
+        .pdf-feedback-region::after { content: attr(data-feedback-number); }
+        .pdf-selection::after { content: "작성 중"; }
         .pdf-feedback-region[data-active="true"] { z-index: 1; outline: 3px solid var(--ink); outline-offset: 3px; }
         .button[aria-pressed="true"] { border-color: var(--green); background: #edf7ef; color: var(--green); }
         .selection-summary { padding: 24px; }
@@ -60,14 +63,34 @@
         .feedback-item { padding: 16px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
         .feedback-item-page { display: inline-block; margin-left: 8px; font-size: 13px; color: var(--muted); }
         .feedback-item-content { display: block; margin: 10px 0; white-space: pre-wrap; line-height: 1.7; }
-        .feedback-item-link { display: block; width: 100%; padding: 8px; border: 0; border-radius: 8px; text-align: left; color: inherit; background: transparent; cursor: pointer; overflow-wrap: anywhere; }
+        .feedback-item-link { position: relative; display: block; width: 100%; padding: 8px 54px 8px 8px; border: 0; border-radius: 8px; text-align: left; color: inherit; background: transparent; cursor: pointer; overflow-wrap: anywhere; }
+        .feedback-item-number { position: absolute; top: 8px; right: 8px; display: inline-flex; align-items: center; justify-content: center; min-width: 26px; padding: 4px 7px; border-radius: 999px; background: var(--ink); color: white; font-size: 12px; font-weight: 700; line-height: 1.2; }
         .feedback-item[data-active="true"] .feedback-item-link { background: #edf7ef; }
+        .feedback-edit-button, .feedback-delete-button { margin: 8px 0 0 8px; padding: 6px 12px; font-size: 13px; }
+        .feedback-delete-section { padding: 20px 24px; border-bottom: 1px solid var(--line); }
+        .feedback-delete-section h3 { margin: 0 0 12px; font-size: 16px; }
+        .feedback-delete-content { white-space: pre-wrap; overflow-wrap: anywhere; }
+        .feedback-delete-button { color: #9b2929; }
+        .feedback-edit-section { padding: 20px 24px; border-bottom: 1px solid var(--line); }
+        .feedback-edit-section h3 { margin: 0 0 12px; font-size: 17px; }
         .feedback-item time { color: var(--muted); font-size: 12px; }
         .pdf-placeholder { display: grid; min-height: 65vh; place-items: center; padding: 24px; color: var(--muted); background: #f4f7f4; }
-        .feedback-panel { position: sticky; top: 24px; min-height: 55vh; }
+        .feedback-panel { position: sticky; top: 24px; min-height: 55vh; max-height: 75vh; overflow-y: auto; overscroll-behavior: contain; }
         .feedback-placeholder { padding: 52px 28px; color: var(--muted); text-align: center; line-height: 1.8; }
         .feedback-symbol { display: grid; place-items: center; width: 52px; height: 52px; margin: 0 auto 20px; border-radius: 50%; background: #edf5ef; color: var(--green); font-size: 24px; }
         .feedback-placeholder strong { color: var(--ink); }
+        @media (min-width: 901px) {
+            body { height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+            .topbar { flex-shrink: 0; }
+            main { width: 100%; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+            .heading, main > .status { flex-shrink: 0; }
+            .review-grid { flex: 1; min-height: 0; align-items: stretch; }
+            .pdf-panel { display: flex; flex-direction: column; min-height: 0; }
+            .pdf-panel > .panel-head { flex-shrink: 0; }
+            .pdf-pages { flex: 1; min-height: 0; max-height: none; }
+            .pdf-placeholder { flex: 1; min-height: 0; }
+            .feedback-panel { position: static; min-height: 0; max-height: none; }
+        }
         @media (max-width: 900px) { main { padding: 24px 16px; } .topbar { padding: 18px 16px; } .review-grid { grid-template-columns: minmax(0, 1fr); } .feedback-panel { position: static; min-height: 240px; } .pdf-pages { padding: 10px; } }
     </style>
 </head>
@@ -101,13 +124,38 @@
     </div>
     <p id="pdf-status" class="status" role="status" aria-live="polite">PDF를 불러오고 있어요.</p>
     <div id="review-content" class="review-grid" aria-busy="true">
-        <section class="panel" aria-labelledby="pdf-heading">
+        <section class="panel pdf-panel" aria-labelledby="pdf-heading">
             <div class="panel-head"><h2 id="pdf-heading">PDF 문서</h2><span id="page-count" class="page-count"></span></div>
             <div id="pdf-placeholder" class="pdf-placeholder">문서를 준비하고 있어요.</div>
             <div id="pdf-pages" class="pdf-pages" role="region" aria-label="변환된 PDF 페이지" tabindex="0" hidden></div>
         </section>
         <aside class="panel feedback-panel" aria-labelledby="feedback-heading">
             <div class="panel-head"><h2 id="feedback-heading">문서 피드백</h2></div>
+            <section id="feedback-delete-section" class="feedback-delete-section" aria-labelledby="feedback-delete-heading" aria-busy="false" hidden>
+                <h3 id="feedback-delete-heading">피드백을 삭제할까요?</h3>
+                <p id="feedback-delete-page" class="status"></p>
+                <p id="feedback-delete-content" class="feedback-delete-content"></p>
+                <p>삭제하면 피드백 내용과 PDF에 표시된 영역이 사라져요.</p>
+                <div class="actions">
+                    <button id="feedback-delete-confirm" class="button" type="button">삭제 확인</button>
+                    <button id="feedback-delete-cancel" class="button" type="button">취소</button>
+                </div>
+            </section>
+            <p id="feedback-delete-status" class="status feedback-form-status" role="status" aria-live="polite" data-error="false"></p>
+            <section id="feedback-edit-section" class="feedback-edit-section" aria-labelledby="feedback-edit-heading" hidden>
+                <h3 id="feedback-edit-heading">피드백 수정</h3>
+                <p id="feedback-edit-page" class="status"></p>
+                <form id="feedback-edit-form" class="feedback-form" aria-busy="false">
+                    <label for="feedback-edit-content">수정할 내용</label>
+                    <textarea id="feedback-edit-content" name="content" rows="5" maxlength="1000" required autocomplete="off" aria-describedby="feedback-edit-count feedback-edit-status"></textarea>
+                    <span id="feedback-edit-count" class="feedback-count">0 / 1000</span>
+                    <div class="actions">
+                        <button id="feedback-edit-save" class="button primary" type="submit">수정 저장</button>
+                        <button id="feedback-edit-cancel" class="button" type="button">수정 취소</button>
+                    </div>
+                </form>
+            </section>
+            <p id="feedback-edit-status" class="status feedback-form-status" role="status" aria-live="polite" data-error="false"></p>
             <section id="selection-summary" class="selection-summary" aria-labelledby="selection-heading" hidden>
                 <h3 id="selection-heading">선택한 영역</h3>
                 <p id="selection-page" role="status" aria-live="polite"></p>
@@ -137,7 +185,7 @@
     </div>
 </main>
 <script type="module">
-    import {initializeDocumentReview} from "/js/document-review.mjs?v=feedback-refresh-1";
+    import {initializeDocumentReview} from "/js/document-review.mjs?v=feedback-number-1";
     initializeDocumentReview();
 </script>
 </body>

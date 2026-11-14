@@ -13,10 +13,11 @@ export function createDocumentFeedbackList({view, fetchFeedback = fetchDocumentF
     function setContext(value) {
         reset();
         context = {...value};
+        view.setContext?.({...context});
         view.available(true);
     }
 
-    async function load({afterCreate = false} = {}) {
+    async function load({afterCreate = false, afterUpdate = false, afterDelete = false} = {}) {
         if (!context) return;
         current?.abort();
         const target = context, request = new AbortController();
@@ -38,10 +39,11 @@ export function createDocumentFeedbackList({view, fetchFeedback = fetchDocumentF
             if (!isCurrent() || error?.name === "AbortError") return;
             const message = error instanceof FeedbackRequestError ? error.message
                 : "피드백 목록을 불러오지 못했어요. 다시 시도해 주세요.";
-            // POST는 이미 성공했다. 목록 조회 실패를 등록 실패로 안내하지 않는다.
-            view.error(afterCreate
-                ? "피드백은 등록됐지만 목록을 갱신하지 못했어요. " + message
-                    + " 다시 등록하지 말고 ‘목록 새로고침’을 눌러 주세요."
+            // 쓰기 요청은 이미 성공했다. 목록 조회 실패와 구분한다.
+            const completed = afterCreate ? "등록" : afterUpdate ? "수정" : afterDelete ? "삭제" : null;
+            view.error(completed
+                ? "피드백은 " + completed + "됐지만 목록을 갱신하지 못했어요. " + message
+                    + " 다시 " + completed + "하지 말고 ‘목록 새로고침’을 눌러 주세요."
                 : message, error?.status);
         } finally {
             if (isCurrent()) {
@@ -54,8 +56,19 @@ export function createDocumentFeedbackList({view, fetchFeedback = fetchDocumentF
     return {setContext, load, reset};
 }
 
-export function createDocumentFeedbackListView({list, status, refresh, regions, onUnauthorized = () => {}}) {
+export function createDocumentFeedbackListView({list, status, refresh, regions, onUnauthorized = () => {},
+        onEdit, onDelete, isBlocked = () => false}) {
     const buttons = new Map();
+    let expectedUserId = null, refreshAvailable = false;
+
+    function syncControls() {
+        const blocked = isBlocked();
+        refresh.disabled = !refreshAvailable || blocked;
+        for (const entry of buttons.values()) {
+            if (entry.editButton) entry.editButton.disabled = blocked;
+            if (entry.deleteButton) entry.deleteButton.disabled = blocked;
+        }
+    }
 
     function clearItems() {
         list.replaceChildren();
@@ -69,14 +82,19 @@ export function createDocumentFeedbackListView({list, status, refresh, regions, 
     }
 
     return {
+        setContext(value) { expectedUserId = value.expectedUserId; },
+        syncControls,
         reset() {
+            expectedUserId = null;
+            refreshAvailable = false;
             clearItems();
             list.setAttribute("aria-busy", "false");
             refresh.disabled = true;
             message("PDF를 불러온 뒤 피드백을 표시해요.");
         },
-        available(value) { refresh.disabled = !value; },
+        available(value) { refreshAvailable = value; syncControls(); },
         loading() {
+            refreshAvailable = false;
             clearItems();
             list.setAttribute("aria-busy", "true");
             refresh.disabled = true;
@@ -85,11 +103,12 @@ export function createDocumentFeedbackListView({list, status, refresh, regions, 
         items(values) {
             regions?.setItems(values);
             buttons.clear();
-            const nodes = values.map(value => {
+            const nodes = values.map((value, index) => {
                 const doc = list.ownerDocument;
                 const item = doc.createElement("li");
                 item.className = "feedback-item";
                 item.dataset.feedbackId = String(value.id);
+                item.dataset.feedbackNumber = String(index + 1);
                 const author = doc.createElement("strong");
                 author.textContent = value.createdByDisplayName?.trim() || "회원 #" + value.createdBy;
                 const page = doc.createElement("span");
@@ -114,12 +133,41 @@ export function createDocumentFeedbackListView({list, status, refresh, regions, 
                         entry.item.dataset.active = String(id === value.id);
                     }
                 });
-                button.append(author, page, content, time);
-                buttons.set(value.id, {button, item});
+                const number = doc.createElement("span");
+                number.className = "feedback-item-number";
+                number.textContent = String(index + 1);
+                number.setAttribute("aria-label", "피드백 " + (index + 1) + "번");
+                button.append(author, page, content, time, number);
                 item.append(button);
+                let editButton = null;
+                if (value.createdBy === expectedUserId && typeof onEdit === "function") {
+                    editButton = doc.createElement("button");
+                    editButton.type = "button";
+                    editButton.className = "button feedback-edit-button";
+                    editButton.textContent = "수정";
+                    editButton.setAttribute("aria-label", value.pageNumber + "페이지 피드백 수정");
+                    editButton.addEventListener("click", () => {
+                        if (!isBlocked()) onEdit({...value});
+                    });
+                    item.append(editButton);
+                }
+                let deleteButton = null;
+                if (value.createdBy === expectedUserId && typeof onDelete === "function") {
+                    deleteButton = doc.createElement("button");
+                    deleteButton.type = "button";
+                    deleteButton.className = "button feedback-delete-button";
+                    deleteButton.textContent = "삭제";
+                    deleteButton.setAttribute("aria-label", value.pageNumber + "페이지 피드백 삭제");
+                    deleteButton.addEventListener("click", () => {
+                        if (!isBlocked()) onDelete({...value});
+                    });
+                    item.append(deleteButton);
+                }
+                buttons.set(value.id, {button, item, editButton, deleteButton});
                 return item;
             });
             list.replaceChildren(...nodes);
+            syncControls();
             list.setAttribute("aria-busy", "false");
             message(values.length ? "피드백 " + values.length + "개" : "아직 등록된 피드백이 없어요.");
         },

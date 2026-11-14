@@ -303,3 +303,111 @@ test("a late refresh failure cannot overwrite the next PDF version", async () =>
     assert.equal(f.state.error, null);
     assert.equal(f.state.items[0].documentVersionId, 92);
 });
+
+
+test("only the displayed account's own feedback receives an edit button", () => {
+    const doc = {createElement: tag => new Element(tag, doc)};
+    const list = new Element("ol", doc), status = new Element("p", doc), refresh = {};
+    const opened = [];
+    let blocked = false;
+    const view = createDocumentFeedbackListView({list, status, refresh,
+        onEdit: value => opened.push(value), isBlocked: () => blocked});
+    view.setContext(context);
+    view.available(true);
+    view.items([item, {...item, id: 502, createdBy: 8}]);
+    assert.equal(list.children[0].children.length, 2);
+    assert.equal(list.children[1].children.length, 1);
+    const edit = list.children[0].children[1];
+    assert.equal(edit.textContent, "수정");
+    edit.click();
+    assert.deepEqual(opened, [item]);
+    assert.notEqual(opened[0], item);
+    blocked = true;
+    view.syncControls();
+    assert.equal(edit.disabled, true);
+    assert.equal(refresh.disabled, true);
+    edit.click();
+    assert.equal(opened.length, 1);
+    blocked = false;
+    view.syncControls();
+    assert.equal(edit.disabled, false);
+    assert.equal(refresh.disabled, false);
+    view.reset();
+    view.items([item]);
+    assert.equal(list.children[0].children.length, 1);
+});
+
+test("a failed list refresh after PATCH clearly reports that the modification already succeeded", async () => {
+    const f = fixture(async () => { throw new FeedbackRequestError("목록 오류", 500); });
+    f.controller.setContext(context);
+    await f.controller.load({afterUpdate: true});
+    assert.match(f.state.error.message, /수정됐지만/);
+    assert.match(f.state.error.message, /목록 새로고침/);
+    assert.doesNotMatch(f.state.error.message, /등록됐지만/);
+});
+
+test("only the current author's feedback receives deletion controls and blocked controls cannot open confirmation", () => {
+    const doc = {createElement: tag => new Element(tag, doc)};
+    const list = new Element("ol", doc), status = new Element("p", doc), refresh = {};
+    const selected = [];
+    let blocked = false;
+    const view = createDocumentFeedbackListView({list, status, refresh,
+        onEdit() {}, onDelete: value => selected.push(value), isBlocked: () => blocked});
+    view.setContext(context);
+    view.available(true);
+    view.items([item, {...item, id: 502, createdBy: 8}]);
+    assert.equal(list.children[0].children.length, 3);
+    assert.equal(list.children[1].children.length, 1);
+    const edit = list.children[0].children[1], remove = list.children[0].children[2];
+    assert.equal(remove.textContent, "삭제");
+    remove.click();
+    assert.deepEqual(selected, [item]);
+    assert.notEqual(selected[0], item);
+    blocked = true;
+    view.syncControls();
+    assert.equal(remove.disabled, true);
+    assert.equal(edit.disabled, true);
+    assert.equal(refresh.disabled, true);
+    remove.click();
+    assert.equal(selected.length, 1);
+    blocked = false;
+    view.syncControls();
+    assert.equal(remove.disabled, false);
+    view.reset();
+    view.items([item]);
+    assert.equal(list.children[0].children.length, 1);
+});
+
+test("a failed list refresh after DELETE reports deletion success without suggesting another DELETE", async () => {
+    const f = fixture(async () => { throw new FeedbackRequestError("목록 오류", 500); });
+    f.controller.setContext(context);
+    await f.controller.load({afterDelete: true});
+    assert.equal(f.calls.length, 1);
+    assert.match(f.state.error.message, /삭제됐지만/);
+    assert.match(f.state.error.message, /다시 삭제하지 말고/);
+    assert.match(f.state.error.message, /목록 새로고침/);
+});
+
+test("list numbers match the same sequence passed to PDF regions and activation still uses feedback IDs", () => {
+    const doc = {createElement: tag => new Element(tag, doc)};
+    const list = new Element("ol", doc), status = new Element("p", doc), refresh = {};
+    const rendered = [], focused = [];
+    const view = createDocumentFeedbackListView({list, status, refresh, regions: {
+        setItems: values => rendered.push(values), clear() {}, focus(id) { focused.push(id); return true; }
+    }});
+    const values = [{...item, id: 900}, {...item, id: 4, pageNumber: 1}];
+    view.items(values);
+    assert.deepEqual(rendered[0], values);
+    assert.deepEqual(list.children.map(row => row.dataset.feedbackNumber), ["1", "2"]);
+    const labels = list.children.map(row => row.children[0].children.at(-1));
+    assert.deepEqual(labels.map(label => label.textContent), ["1", "2"]);
+    assert.equal(labels[1].attributes["aria-label"], "피드백 2번");
+    list.children[1].children[0].click();
+    assert.deepEqual(focused, [4]);
+    view.items([values[1]]);
+    assert.equal(list.children[0].dataset.feedbackId, "4");
+    assert.equal(list.children[0].children[0].children.at(-1).textContent, "1");
+    view.reset();
+    view.items([{...item, id: 999, documentVersionId: 92}]);
+    assert.equal(list.children[0].dataset.feedbackNumber, "1");
+});

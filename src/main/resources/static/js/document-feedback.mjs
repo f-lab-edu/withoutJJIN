@@ -30,10 +30,14 @@ function validateIds(documentVersionId, expectedUserId) {
     }
 }
 
-async function requestJson(fetchImpl, path, options, creating = false) {
-    const unknownResult = creating
-        ? "피드백 등록 결과를 확인하지 못했어요. 목록을 새로고침해 등록 여부를 확인해 주세요."
-        : "피드백 정보를 확인하지 못했어요. 잠시 뒤 다시 시도해 주세요.";
+async function requestFeedback(fetchImpl, path, options, operation = "read") {
+    const unknownResult = {
+        read: "피드백 정보를 확인하지 못했어요. 잠시 뒤 다시 시도해 주세요.",
+        create: "피드백 등록 결과를 확인하지 못했어요. 목록을 새로고침해 등록 여부를 확인해 주세요.",
+        update: "피드백 수정 결과를 확인하지 못했어요. 목록을 새로고침해 수정 여부를 확인해 주세요.",
+        delete: "피드백 삭제 결과를 확인하지 못했어요. 목록을 새로고침해 삭제 여부를 확인해 주세요."
+    }[operation];
+    const mutatingExisting = operation === "update" || operation === "delete";
     options.signal?.throwIfAborted();
     let response;
     try {
@@ -46,13 +50,20 @@ async function requestJson(fetchImpl, path, options, creating = false) {
     options.signal?.throwIfAborted();
     if (!response.ok) {
         const messages = {
-            400: "페이지·선택 영역·색상·피드백 내용을 확인해 주세요.",
+            400: mutatingExisting ? "피드백 ID와 수정 내용을 확인해 주세요."
+                : "페이지·선택 영역·색상·피드백 내용을 확인해 주세요.",
             401: "로그인이 만료됐어요. 다시 로그인해 주세요.",
             403: "피드백 접근 권한 또는 보안 토큰을 확인할 수 없어요. 화면을 새로고침해 주세요.",
-            404: "문서 버전을 찾을 수 없어요.",
+            404: mutatingExisting ? "피드백을 찾을 수 없어요. 목록을 새로고침해 주세요."
+                : "문서 버전을 찾을 수 없어요.",
             409: "이 문서 버전의 PDF가 아직 준비되지 않았어요. PDF를 다시 열어 주세요."
         };
         throw new FeedbackRequestError(messages[response.status] || unknownResult, response.status);
+    }
+    if (operation === "delete") {
+        // DELETE 성공 응답은 204이며 JSON 본문이 없다.
+        if (response.status !== 204) throw new FeedbackRequestError(unknownResult);
+        return;
     }
     try {
         const body = await response.json();
@@ -66,7 +77,7 @@ async function requestJson(fetchImpl, path, options, creating = false) {
 }
 
 async function requireCurrentUser(fetchImpl, expectedUserId, signal) {
-    const user = await requestJson(fetchImpl, "/api/v1/auth/me", {signal});
+    const user = await requestFeedback(fetchImpl, "/api/v1/auth/me", {signal});
     if (user?.id !== expectedUserId) {
         throw new FeedbackRequestError("로그인 계정이 바뀌었어요. 화면을 새로고침해 주세요.", 401);
     }
@@ -91,7 +102,7 @@ function feedbackResponse(value, documentVersionId, withDisplayName) {
 export async function fetchDocumentFeedback({documentVersionId, expectedUserId, fetchImpl = fetch, signal}) {
     validateIds(documentVersionId, expectedUserId);
     await requireCurrentUser(fetchImpl, expectedUserId, signal);
-    const values = await requestJson(fetchImpl, `/api/v1/document-versions/${documentVersionId}/feedback`, {signal});
+    const values = await requestFeedback(fetchImpl, `/api/v1/document-versions/${documentVersionId}/feedback`, {signal});
     if (!Array.isArray(values)) {
         throw new FeedbackRequestError("피드백 목록 응답을 확인할 수 없어요.");
     }
@@ -112,13 +123,55 @@ export async function createDocumentFeedback({documentVersionId, expectedUserId,
     if (typeof user.csrfToken !== "string" || !user.csrfToken.trim()) {
         throw new FeedbackRequestError("보안 토큰을 확인할 수 없어요. 화면을 새로고침해 주세요.", 403);
     }
-    const value = await requestJson(fetchImpl, `/api/v1/document-versions/${documentVersionId}/feedback`, {
+    const value = await requestFeedback(fetchImpl, `/api/v1/document-versions/${documentVersionId}/feedback`, {
         method: "POST", headers: {"Content-Type": "application/json", "X-CSRF-TOKEN": user.csrfToken},
         body: JSON.stringify(body), signal
-    }, true);
+    }, "create");
     const result = feedbackResponse(value, documentVersionId, false);
     if (result.createdBy !== expectedUserId) {
         throw new FeedbackRequestError("피드백 작성자와 로그인 정보가 달라요. 화면을 새로고침해 주세요.", 401);
     }
     return result;
+}
+
+
+function validateMutationIds(feedbackId, expectedUserId) {
+    if (!isId(feedbackId) || !isId(expectedUserId)) {
+        throw new FeedbackRequestError("피드백과 로그인 정보를 확인해 주세요.", 400);
+    }
+}
+
+async function mutationHeaders(fetchImpl, expectedUserId, signal) {
+    const user = await requireCurrentUser(fetchImpl, expectedUserId, signal);
+    if (typeof user.csrfToken !== "string" || !user.csrfToken.trim()) {
+        throw new FeedbackRequestError("보안 토큰을 확인할 수 없어요. 화면을 새로고침해 주세요.", 403);
+    }
+    return {"X-CSRF-TOKEN": user.csrfToken};
+}
+
+export async function updateDocumentFeedback({feedbackId, documentVersionId, expectedUserId, content,
+        fetchImpl = fetch, signal}) {
+    validateMutationIds(feedbackId, expectedUserId);
+    validateIds(documentVersionId, expectedUserId);
+    if (!isContent(content)) {
+        throw new FeedbackRequestError("피드백 내용은 공백이 아니고 1000자 이하여야 합니다.", 400);
+    }
+    const headers = await mutationHeaders(fetchImpl, expectedUserId, signal);
+    const value = await requestFeedback(fetchImpl, `/api/v1/feedback/${feedbackId}`, {
+        method: "PATCH", headers: {"Content-Type": "application/json", ...headers},
+        body: JSON.stringify({content}), signal
+    }, "update");
+    const result = feedbackResponse(value, documentVersionId, false);
+    if (result.id !== feedbackId || result.createdBy !== expectedUserId || result.content !== content) {
+        throw new FeedbackRequestError("피드백 수정 응답이 요청과 달라요. 목록을 새로고침해 주세요.");
+    }
+    return result;
+}
+
+export async function deleteDocumentFeedback({feedbackId, expectedUserId, fetchImpl = fetch, signal}) {
+    validateMutationIds(feedbackId, expectedUserId);
+    const headers = await mutationHeaders(fetchImpl, expectedUserId, signal);
+    await requestFeedback(fetchImpl, `/api/v1/feedback/${feedbackId}`, {
+        method: "DELETE", headers, signal
+    }, "delete");
 }
