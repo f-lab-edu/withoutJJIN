@@ -681,6 +681,8 @@
                     <form id="upload-form" class="upload-form">
                         <label for="upload-file">업로드할 Word 파일</label>
                         <p id="upload-help" class="subtitle">.docx 파일을 선택하면 원본을 저장하고 문서로 등록해요.</p>
+                        <p id="upload-target" class="subtitle" role="status" aria-live="polite" hidden></p>
+                        <button id="upload-target-clear" class="button" type="button" hidden>새 문서로 전환</button>
                         <input id="upload-file" type="file" accept=".docx" aria-describedby="upload-help" required disabled>
                         <button id="upload-submit" class="button primary" type="submit" disabled>파일 업로드</button>
                         <p id="upload-status" role="status" aria-live="polite" hidden></p>
@@ -690,7 +692,7 @@
                             <button id="upload-new" class="button" type="button" hidden>새 업로드 시작</button>
                         </div>
                         <div id="upload-result" class="upload-result" hidden>
-                            <p><strong id="upload-filename"></strong> 문서 등록이 완료됐어요.</p>
+                            <p><strong id="upload-filename"></strong> <span id="upload-result-message">문서 등록이 완료됐어요.</span></p>
                             <details id="upload-details">
                                 <summary>등록 정보 확인</summary>
                                 <dl>
@@ -731,7 +733,7 @@
 </div>
 <script type="module">
     import {uploadWorkspaceFile, validateUploadFile, completeWorkspaceUpload, UploadCompletionError}
-        from "/js/workspace-upload.mjs?v=upload-completion-20261108";
+        from "/js/workspace-upload.mjs?v=document-version-1";
     import {createDocumentListController, conversionLabel, hasPendingConversions}
         from "/js/workspace-documents.mjs?v=pdf-version-1";
     (() => {
@@ -740,7 +742,8 @@
         const match = location.pathname.match(/^\/workspaces\/([1-9]\d*)$/);
         const workspaceId = match ? Number(match[1]) : null;
         const validId = Number.isSafeInteger(workspaceId) && workspaceId > 0;
-        const state = {user: null, detail: null, busy: false, panel: "files", pendingUpload: null, documentsController: null};
+        const state = {user: null, detail: null, busy: false, panel: "files", pendingUpload: null, documentsController: null, uploadDocument: null};
+        const versionUploadButtons = new Set();
 
         async function api(path, options = {}) {
             let response;
@@ -770,6 +773,12 @@
             $("upload-form").setAttribute("aria-busy", String(state.busy));
             $("upload-file").disabled = state.busy || !state.detail || !!state.pendingUpload;
             $("upload-submit").disabled = state.busy || !state.detail || !!state.pendingUpload || !$("upload-file").files.length;
+            $("upload-submit").textContent = state.uploadDocument ? "새 버전 업로드" : "파일 업로드";
+            $("upload-target").hidden = !state.uploadDocument;
+            $("upload-target").textContent = state.uploadDocument ? "새 버전 대상: " + state.uploadDocument.title : "";
+            $("upload-target-clear").hidden = !state.uploadDocument;
+            $("upload-target-clear").disabled = state.busy || !!state.pendingUpload;
+            for (const button of versionUploadButtons) button.disabled = state.busy || !!state.pendingUpload || !state.detail;
             $("upload-retry").hidden = !state.detail || !state.pendingUpload;
             $("upload-new").hidden = !state.detail || !state.pendingUpload;
             $("upload-retry").disabled = state.busy;
@@ -781,6 +790,8 @@
         }
 
         function clearDetail() {
+            state.uploadDocument = null;
+            versionUploadButtons.clear();
             state.documentsController?.stop();
             state.documentsController = null;
             $("documents-list").replaceChildren();
@@ -918,6 +929,7 @@
         }
 
         function renderDocuments(documents) {
+            versionUploadButtons.clear();
             $("documents-status").dataset.error = "false";
             $("documents-status").textContent = !documents.length ? "아직 등록된 문서가 없어요."
                 : hasPendingConversions(documents) ? "변환 중인 문서가 있어 5초마다 상태를 확인해요."
@@ -946,9 +958,39 @@
                     open.setAttribute("aria-label", item.title + " PDF 보기");
                     row.append(open);
                 }
+                const versionUpload = document.createElement("button");
+                versionUpload.type = "button";
+                versionUpload.className = "button document-version-upload";
+                versionUpload.textContent = "새 버전 업로드";
+                versionUpload.setAttribute("aria-label", item.title + " 새 버전 업로드");
+                versionUpload.disabled = state.busy || !!state.pendingUpload || !state.detail;
+                versionUpload.addEventListener("click", () => selectUploadDocument(item));
+                versionUploadButtons.add(versionUpload);
+                row.append(versionUpload);
                 return row;
             }));
         }
+
+        function selectUploadDocument(item) {
+            if (state.busy || state.pendingUpload || !state.detail) return;
+            state.uploadDocument = {id: item.id, title: item.title};
+            $("upload-file").value = "";
+            $("upload-result").hidden = true;
+            $("upload-login").dataset.required = "false";
+            uploadStatus(item.title + "의 새 버전으로 업로드할 Word 파일을 선택해 주세요.");
+            controls();
+            $("upload-form").scrollIntoView({block: "start", behavior: "auto"});
+            $("upload-file").focus();
+        }
+
+        $("upload-target-clear").addEventListener("click", () => {
+            if (state.busy || state.pendingUpload) return;
+            state.uploadDocument = null;
+            $("upload-file").value = "";
+            $("upload-result").hidden = true;
+            $("upload-status").hidden = true;
+            controls();
+        });
 
         function refreshDocuments() {
             if (!state.detail || !state.user) return;
@@ -1001,16 +1043,21 @@
             const matchesUser = pending?.expectedUserId === state.user.id;
             const validPending = matchesUser && pending.workspaceId === workspaceId
                 && Number.isSafeInteger(pending.uploadId) && pending.uploadId > 0
-                && typeof pending.fileName === "string" && pending.fileName.length <= 255;
+                && typeof pending.fileName === "string" && pending.fileName.length <= 255
+                && (pending.documentId == null || (Number.isSafeInteger(pending.documentId) && pending.documentId > 0));
             state.pendingUpload = validPending ? pending : null;
             if (state.pendingUpload) {
+                state.uploadDocument = pending.documentId == null ? null
+                    : {id: pending.documentId, title: pending.documentTitle || pending.fileName};
                 uploadStatus(pending.fileName + " 문서 등록 결과를 다시 확인해 주세요. 파일을 다시 업로드하지 않고 등록만 재시도해요.");
             }
         }
 
         function showUploadResult(result, fileName, storageKey) {
+            const target = state.uploadDocument;
             setPendingUpload(null);
             $("upload-filename").textContent = fileName;
+            $("upload-result-message").textContent = target ? "새 버전 등록이 완료됐어요." : "문서 등록이 완료됐어요.";
             $("upload-document-id").textContent = String(result.documentId);
             $("upload-version-id").textContent = String(result.documentVersionId);
             $("upload-key").textContent = storageKey || "—";
@@ -1018,7 +1065,9 @@
             $("upload-result").hidden = false;
             $("upload-login").dataset.required = "false";
             $("upload-file").value = "";
-            uploadStatus(fileName + " 문서 등록이 완료됐어요.");
+            uploadStatus(target ? target.title + "의 새 버전을 등록했어요. PDF 변환 상태는 목록에서 확인해 주세요."
+                : fileName + " 문서 등록이 완료됐어요.");
+            state.uploadDocument = null;
             refreshDocuments();
         }
 
@@ -1051,17 +1100,19 @@
             if (state.busy || !state.user || !state.detail || state.pendingUpload) return;
             const file = $("upload-file").files[0];
             const expectedUserId = state.user.id;
+            const target = state.uploadDocument ? {...state.uploadDocument} : null;
             state.busy = true;
             $("upload-result").hidden = true;
             controls();
             try {
-                const result = await uploadWorkspaceFile({workspaceId, file, expectedUserId, onProgress: uploadStatus});
+                const result = await uploadWorkspaceFile({workspaceId, documentId: target?.id ?? null, file, expectedUserId, onProgress: uploadStatus});
                 showUploadResult(result, file.name, result.storageKey);
             } catch (error) {
                 if (error instanceof UploadCompletionError) {
                     showCompletionFailure(error, {
                         workspaceId, uploadId: error.uploadId, expectedUserId,
-                        fileName: error.fileName, storageKey: error.storageKey
+                        fileName: error.fileName, storageKey: error.storageKey,
+                        documentId: target?.id ?? null, documentTitle: target?.title ?? null
                     });
                 } else {
                     if (error.status === 401) showError(error);
@@ -1080,7 +1131,8 @@
             controls();
             try {
                 const result = await completeWorkspaceUpload({
-                    uploadId: pending.uploadId, expectedUserId: pending.expectedUserId, onProgress: uploadStatus
+                    uploadId: pending.uploadId, expectedDocumentId: pending.documentId ?? null,
+                    expectedUserId: pending.expectedUserId, onProgress: uploadStatus
                 });
                 showUploadResult(result, pending.fileName, pending.storageKey);
             } catch (error) {
@@ -1094,6 +1146,8 @@
         $("upload-new").addEventListener("click", () => {
             if (state.busy) return;
             setPendingUpload(null);
+            state.uploadDocument = null;
+            $("upload-file").value = "";
             $("upload-form").reset();
             $("upload-result").hidden = true;
             $("upload-login").dataset.required = "false";
