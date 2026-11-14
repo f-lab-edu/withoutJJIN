@@ -12,6 +12,7 @@ import withoutjjin.withoutjjin.domain.document.entity.StoreFile;
 import withoutjjin.withoutjjin.domain.document.repository.DocumentConversionJobRepository;
 import withoutjjin.withoutjjin.domain.document.repository.DocumentVersionRepository;
 import withoutjjin.withoutjjin.domain.feedback.dto.CreateDocumentFeedbackRequest;
+import withoutjjin.withoutjjin.domain.feedback.dto.UpdateDocumentFeedbackRequest;
 import withoutjjin.withoutjjin.domain.feedback.dto.DocumentFeedbackResponse;
 import withoutjjin.withoutjjin.domain.feedback.dto.DocumentFeedbackListItemResponse;
 import withoutjjin.withoutjjin.domain.feedback.entity.DocumentFeedback;
@@ -58,6 +59,7 @@ public class DocumentFeedbackService {
         return DocumentFeedbackResponse.from(saved);
     }
 
+
     @Transactional(readOnly = true)
     public List<DocumentFeedbackListItemResponse> getFeedbacks(Long documentVersionId,
                                                               String issuer, String subject) {
@@ -73,6 +75,49 @@ public class DocumentFeedbackService {
                 .map(DocumentFeedbackListItemResponse::from)
                 .toList();
     }
+
+    @Transactional
+    public DocumentFeedbackResponse updateFeedback(Long feedbackId, UpdateDocumentFeedbackRequest request,
+                                                   String issuer, String subject) {
+        if (request == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "피드백 수정 요청이 필요합니다.");
+        }
+        DocumentFeedback feedback = findFeedbackForAuthor(feedbackId, issuer, subject);
+        try {
+            feedback.updateContent(request.content());
+        } catch (IllegalArgumentException exception) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, exception.getMessage(), exception);
+        }
+        // 조회한 DocumentFeedback의 변경 내용은 트랜잭션 커밋 시 변경 감지로 저장한다.
+        return DocumentFeedbackResponse.from(feedback);
+    }
+
+
+    @Transactional
+    public void deleteFeedback(Long feedbackId, String issuer, String subject) {
+        DocumentFeedback feedback = findFeedbackForAuthor(feedbackId, issuer, subject);
+        documentFeedbackRepository.delete(feedback);
+    }
+
+
+
+    private DocumentFeedback findFeedbackForAuthor(Long feedbackId, String issuer, String subject) {
+        if (feedbackId == null || feedbackId <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "DocumentFeedback ID는 1 이상이어야 합니다.");
+        }
+        AppUser requester = appUserService.getByIssuerAndSubject(issuer, subject);
+        DocumentFeedback feedback = documentFeedbackRepository.findById(feedbackId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "피드백을 찾을 수 없습니다."));
+        Long workspaceId = feedback.getDocumentVersion().getDocument().getWorkspace().getId();
+        workspaceService.getWorkSpaceForMember(workspaceId, requester);
+        if (!feedback.getCreatedBy().getId().equals(requester.getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "피드백 작성자만 수정·삭제할 수 있습니다.");
+        }
+        return feedback;
+    }
+
+
+
 
     private void requireCompletedPdf(DocumentVersion version) {
         DocumentConversionJob job = documentConversionJobRepository.findByDocumentVersionId(version.getId())
