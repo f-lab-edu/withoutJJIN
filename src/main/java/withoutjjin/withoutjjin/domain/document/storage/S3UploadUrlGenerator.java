@@ -43,6 +43,8 @@ public class S3UploadUrlGenerator {
         PutObjectRequest uploadRequest = PutObjectRequest.builder()
                 .bucket(bucket) // 버킷
                 .key(storageKey) //
+                // 기존 S3 객체가 있으면 덮어쓰지 못하도록 조건을 서명에 포함한다.
+                .ifNoneMatch("*") //이미 있는 파일일경우 412에러발생  //  '*' 모든파일을 조사하라는 듯
                 .build();
 
         // 4. 업로드 요청과 URL 유효기간을 묶음

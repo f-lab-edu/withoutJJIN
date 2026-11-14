@@ -46,7 +46,8 @@ test("uploads the selected file only after authenticated URL issuance", async ()
     assert.equal(put.options.body, file);
     assert.equal(put.options.credentials, "omit");
     assert.equal(put.options.headers["X-CSRF-TOKEN"], undefined);
-    assert.deepEqual(Object.keys(put.options.headers), ["Content-Type"]);
+    assert.equal(put.options.headers["If-None-Match"], "*");
+    assert.deepEqual(Object.keys(put.options.headers), ["Content-Type", "If-None-Match"]);
     assert.equal(progress.length, 2);
 });
 
@@ -101,5 +102,20 @@ test("S3 rejection is not reported as upload success", async () => {
 test("ambiguous network failure does not automatically resend the file", async () => {
     const mock = setup([json(me), json(upload), new TypeError("Failed to fetch")]);
     await assert.rejects(send(mock), /결과를 확인하지 못/);
+    assert.equal(mock.calls.length, 3);
+});
+
+
+test("S3 precondition failure is not reported as upload success or retried", async () => {
+    const mock = setup([json(me), json(upload), json(null, 412)]);
+    await assert.rejects(send(mock), error =>
+        error.message.includes("이미 사용한 업로드 주소")
+        && error.message.includes("HTTP 412"));
+    assert.equal(mock.calls.length, 3);
+});
+
+test("S3 concurrent conflict does not automatically resend the file", async () => {
+    const mock = setup([json(me), json(upload), json(null, 409)]);
+    await assert.rejects(send(mock), /HTTP 409/);
     assert.equal(mock.calls.length, 3);
 });
