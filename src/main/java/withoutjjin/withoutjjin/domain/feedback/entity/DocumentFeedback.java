@@ -87,9 +87,7 @@ public class DocumentFeedback {
         if (color == null) {
             throw new IllegalArgumentException("피드백 영역 색상이 필요합니다.");
         }
-        if (content == null || content.isBlank() || content.length() > MAX_CONTENT_LENGTH) {
-            throw new IllegalArgumentException("피드백 내용은 비어 있을 수 없으며 1000자 이하여야 합니다.");
-        }
+        validateContent(content);
         this.documentVersion = documentVersion;
         this.createdBy = createdBy;
         this.pageNumber = pageNumber;
@@ -99,6 +97,17 @@ public class DocumentFeedback {
         this.height = height;
         this.color = color;
         this.content = content;
+    }
+
+    public void updateContent(String content) {
+        validateContent(content);
+        this.content = content;
+    }
+
+    private static void validateContent(String content) {
+        if (content == null || content.isBlank() || content.length() > MAX_CONTENT_LENGTH) {
+            throw new IllegalArgumentException("피드백 내용은 비어 있을 수 없으며 1000자 이하여야 합니다.");
+        }
     }
 
     private static void validateRegion(Double x, Double y, Double width, Double height) {
