@@ -1,4 +1,4 @@
-package withoutjjin.withoutjjin.domain.document;
+package withoutjjin.withoutjjin.domain.document.controller;
 
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;

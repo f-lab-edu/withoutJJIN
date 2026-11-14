@@ -5,6 +5,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.web.savedrequest.RequestCache;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import withoutjjin.withoutjjin.domain.document.controller.DocumentReviewPageController;
 import withoutjjin.withoutjjin.global.config.SecurityConfig;
 
 import static org.assertj.core.api.Assertions.assertThat;

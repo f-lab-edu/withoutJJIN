@@ -1,4 +1,4 @@
-package withoutjjin.withoutjjin.domain.document;
+package withoutjjin.withoutjjin.domain.document.controller;
 
 import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
