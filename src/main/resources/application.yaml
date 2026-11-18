@@ -13,7 +13,8 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    # 직접 콘솔 출력 대신 Logback으로 SQL을 출력하여 스케줄러 SQL만 필터링한다.
+    show-sql: false
     properties:
       hibernate:
         format_sql: true
@@ -82,3 +83,8 @@ document:
       poll-delay: ${DOCUMENT_CONVERSION_POLL_DELAY:10s}
       # 한 회차에 조회할 최대 건수. 변환은 한 건씩 순차 실행한다.
       batch-size: ${DOCUMENT_CONVERSION_BATCH_SIZE:5}
+
+
+logging:
+  level:
+    org.hibernate.SQL: DEBUG
