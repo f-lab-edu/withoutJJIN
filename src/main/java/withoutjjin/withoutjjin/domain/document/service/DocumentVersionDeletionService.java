@@ -84,7 +84,7 @@ public class DocumentVersionDeletionService {
         entityManager.refresh(upload, LockModeType.PESSIMISTIC_WRITE);
         List<StoreFile> targetFiles = validateFiles(workspaceId, version, upload, job);
         List<S3ObjectDeletionTask> tasks = targetFiles.stream()
-                .map(file -> new S3ObjectDeletionTask(file.getObjectKey()))
+                .map(file -> new S3ObjectDeletionTask(file.getObjectKey(), upload.getExpiresAt()))
                 .toList();
 
         // FK를 참조하는 행부터 삭제하며 어느 단계에서 실패해도 전체를 롤백한다.

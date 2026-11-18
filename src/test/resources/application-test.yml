@@ -18,3 +18,8 @@ document:
     worker:
       # 개발 환경에서 자동 변환을 켜 두어도 통합 테스트에서는 실행하지 않는다.
       enabled: false
+  storage:
+    deletion:
+      worker:
+        # 테스트에서는 실제 S3 삭제 스케줄러를 실행하지 않는다.
+        enabled: false
