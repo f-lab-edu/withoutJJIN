@@ -15,6 +15,11 @@ public interface DocumentConversionJobRepository extends JpaRepository<DocumentC
 
     Optional<DocumentConversionJob> findByDocumentVersionId(Long documentVersionId);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select job from DocumentConversionJob job where job.documentVersion.id = :documentVersionId")
+    Optional<DocumentConversionJob> findByDocumentVersionIdForUpdate(
+            @Param("documentVersionId") Long documentVersionId);
+
     Optional<DocumentConversionJob> findByDocumentUploadId(Long documentUploadId);
 
     @Query("""
