@@ -106,4 +106,4 @@ GET /api/v1/workspaces/{workspaceId}/documents/{documentId}/versions/{documentVe
 - 마지막 버전까지 삭제해도 Document는 목록에 남는다. 응답은 revision=0, versionCount=0, conversionStatus=null이며 버전 히스토리는 빈 배열이다. 최신 PDF URL은 발급하지 않는다(409).
 - 삭제한 DocumentVersion의 버전별 PDF·원본 URL 조회는 404다.
 
-삭제 이후 조회 검증은 `DocumentQueryAfterVersionDeletionApiTest`에서 실제 DB 삭제 서비스를 호출한 뒤 목록·최신 PDF·히스토리·버전별 URL 응답을 확인한다. S3 URL 생성은 모의 객체로 대체하며, 삭제 HTTP API와 화면 버튼은 후속 커밋에서 연결한다.
+삭제 이후 조회 검증은 `DocumentQueryAfterVersionDeletionApiTest`에서 실제 DELETE API를 호출한 뒤 목록·최신 PDF·히스토리·버전별 URL 응답을 확인한다. S3 URL 생성은 모의 객체로 대체하며, 화면 버튼은 후속 커밋에서 연결한다. 삭제 API는 `docs/api/document-version-deletion.md`를 참고한다.

@@ -19,7 +19,6 @@ import withoutjjin.withoutjjin.domain.document.entity.DocumentConversionJobStatu
 import withoutjjin.withoutjjin.domain.document.entity.DocumentUpload;
 import withoutjjin.withoutjjin.domain.document.entity.DocumentVersion;
 import withoutjjin.withoutjjin.domain.document.entity.StoreFile;
-import withoutjjin.withoutjjin.domain.document.service.DocumentVersionDeletionService;
 import withoutjjin.withoutjjin.domain.document.storage.GeneratedDownloadUrl;
 import withoutjjin.withoutjjin.domain.document.storage.S3DownloadUrlGenerator;
 import withoutjjin.withoutjjin.domain.user.entity.AppUser;
@@ -33,7 +32,9 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -48,7 +49,6 @@ class DocumentQueryAfterVersionDeletionApiTest {
 
     @Autowired private EntityManager em;
     @Autowired private MockMvc mvc;
-    @Autowired private DocumentVersionDeletionService deletionService;
     @MockitoBean private S3DownloadUrlGenerator generator;
 
     private AppUser uploader;
@@ -78,7 +78,7 @@ class DocumentQueryAfterVersionDeletionApiTest {
     @Test
     @DisplayName("V3 삭제 후 목록과 최신 PDF는 남은 V2를 가리키고 Document.revision은 3을 유지한다")
     void latestDeletionReturnsRemainingV2ForListPdfAndHistory() throws Exception {
-        delete(v3);
+        deleteVersion(v3);
         stubPdf(v2);
 
         expectList(2, 2, "COMPLETED");
@@ -96,7 +96,7 @@ class DocumentQueryAfterVersionDeletionApiTest {
     @Test
     @DisplayName("중간 버전을 삭제하면 최신 버전은 V3이고 개수만 줄어든다")
     void deletingMiddleVersionDoesNotChangeLatestPdf() throws Exception {
-        delete(v2);
+        deleteVersion(v2);
         stubPdf(v3);
 
         expectList(3, 2, "COMPLETED");
@@ -113,7 +113,7 @@ class DocumentQueryAfterVersionDeletionApiTest {
         version(4, status);
         Asset v5 = version(5, DocumentConversionJobStatus.COMPLETED);
         flushAndClear();
-        delete(v5);
+        deleteVersion(v5);
 
         expectList(4, 4, status.name());
         mvc.perform(get(pdfPath()).with(login())).andExpect(status().isConflict());
@@ -128,7 +128,7 @@ class DocumentQueryAfterVersionDeletionApiTest {
         version(4, null);
         Asset v5 = version(5, DocumentConversionJobStatus.COMPLETED);
         flushAndClear();
-        delete(v5);
+        deleteVersion(v5);
 
         mvc.perform(get(listPath()).with(login()))
                 .andExpect(status().isOk())
@@ -142,9 +142,9 @@ class DocumentQueryAfterVersionDeletionApiTest {
     @Test
     @DisplayName("모든 버전 삭제 후 Document는 목록에 남고 버전 번호·개수는 0이며 PDF는 발급하지 않는다")
     void allVersionsDeletedKeepsEmptyDocumentAndIssuedRevision() throws Exception {
-        delete(v3);
-        delete(v2);
-        delete(v1);
+        deleteVersion(v3);
+        deleteVersion(v2);
+        deleteVersion(v1);
 
         mvc.perform(get(listPath()).with(login()))
                 .andExpect(status().isOk())
@@ -164,7 +164,7 @@ class DocumentQueryAfterVersionDeletionApiTest {
     @Test
     @DisplayName("삭제한 버전의 PDF·원본 URL은 404이며 서명하지 않는다")
     void deletedVersionUrlsReturnNotFound() throws Exception {
-        delete(v3);
+        deleteVersion(v3);
 
         String path = historyPath() + "/" + v3.version().getId();
         mvc.perform(get(path + "/pdf-url").with(login())).andExpect(status().isNotFound());
@@ -196,9 +196,12 @@ class DocumentQueryAfterVersionDeletionApiTest {
                 "https://example.invalid/v" + asset.version().getVersionNumber() + ".pdf", EXPIRES));
     }
 
-    private void delete(Asset asset) {
-        deletionService.deleteVersion(workspace.getId(), document.getId(), asset.version().getId(),
-                uploader.getIssuer(), uploader.getSubject());
+    private void deleteVersion(Asset asset) throws Exception {
+        mvc.perform(delete(historyPath() + "/" + asset.version().getId())
+                        .with(login()).with(csrf().asHeader()))
+                .andExpect(status().isNoContent())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(content().string(""));
         flushAndClear();
     }
 
