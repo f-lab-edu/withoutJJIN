@@ -15,6 +15,8 @@ public interface DocumentVersionRepository extends JpaRepository<DocumentVersion
 
     boolean existsByStorageKeyAndIdNot(String storageKey, Long documentVersionId);
 
+    Optional<DocumentVersion> findFirstByDocumentIdOrderByVersionNumberDesc(Long documentId);
+
     @Query("""
             select new withoutjjin.withoutjjin.domain.document.dto.DocumentVersionListResponse(
                 dv.id, dv.document.id, dv.versionNumber, dv.originalFileName, dv.fileSize,

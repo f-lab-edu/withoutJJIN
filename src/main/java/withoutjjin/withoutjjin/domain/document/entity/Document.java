@@ -32,7 +32,8 @@ public class Document {
     @Column(name = "title", nullable = false)
     private String title;
 
-    // 파일을 아직 등록하지 않은 문서는 0, 첫 버전을 등록하면 1이다.
+    // 마지막으로 발급한 DocumentVersion 번호다. 처음에는 0이며 버전 삭제 시에도 줄이지 않는다.
+    // 현재 남은 최신 버전 번호는 DocumentVersion에서 별도로 조회한다.
     @Column(name = "revision", nullable = false)
     private Integer revision;
 

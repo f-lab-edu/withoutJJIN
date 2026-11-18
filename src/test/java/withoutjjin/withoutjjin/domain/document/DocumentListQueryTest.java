@@ -64,8 +64,8 @@ class DocumentListQueryTest {
     }
 
     @Test
-    @DisplayName("작업 저장 순서가 아닌 Document.revision에 해당하는 최신 버전의 상태만 반환한다")
-    void selectsLatestRevisionStatusWithoutDuplicatingDocument() {
+    @DisplayName("작업 저장 순서가 아닌 남은 최대 버전 번호에 해당하는 상태만 반환한다")
+    void selectsHighestRemainingVersionStatusWithoutDuplicatingDocument() {
         Document document = document(workspace, "버전이 여러 개인 문서", 2, time(0));
         // 최신 버전을 먼저 저장하여 작업 ID의 최댓값을 잘못 선택하는 구현도 검증한다.
         addVersion(document, 2, DocumentConversionJobStatus.COMPLETED);
@@ -148,6 +148,46 @@ class DocumentListQueryTest {
             assertThat(response.versionCount()).isEqualTo(2L);
             assertThat(response.conversionStatus()).isEqualTo(DocumentConversionJobStatus.PROCESSING);
         });
+    }
+
+    @Test
+    @DisplayName("마지막 발급 번호에 해당하는 버전이 없어도 남은 최대 버전 번호와 상태를 반환한다")
+    void selectsHighestRemainingVersionRatherThanLastIssuedNumber() {
+        Document document = document(workspace, "V5를 삭제한 문서", 5, time(0));
+        addVersion(document, 4, DocumentConversionJobStatus.PENDING);
+        addVersion(document, 2, DocumentConversionJobStatus.COMPLETED);
+        flushAndClear();
+
+        assertThat(findDocuments()).containsExactly(new DocumentListResponse(
+                document.getId(), document.getTitle(), 4, time(0), DocumentConversionJobStatus.PENDING, 2L));
+        assertThat(entityManager.find(Document.class, document.getId()).getRevision()).isEqualTo(5);
+    }
+
+    @Test
+    @DisplayName("과거 발급 번호가 있어도 남은 버전이 없으면 응답 버전 번호와 개수는 0이다")
+    void returnsZeroForDocumentWhoseVersionsWereAllDeleted() {
+        Document document = document(workspace, "모든 버전을 삭제한 문서", 5, time(0));
+        flushAndClear();
+
+        assertThat(findDocuments()).containsExactly(new DocumentListResponse(
+                document.getId(), document.getTitle(), 0, time(0), null, 0L));
+        assertThat(entityManager.find(Document.class, document.getId()).getRevision()).isEqualTo(5);
+    }
+
+    @Test
+    @DisplayName("같은 워크스페이스에서도 각 Document의 남은 최신 번호와 상태·개수를 따로 계산한다")
+    void correlatesLatestVersionWithEachDocument() {
+        Document first = document(workspace, "첫 Document", 5, time(0));
+        addVersion(first, 1, DocumentConversionJobStatus.COMPLETED);
+        addVersion(first, 4, DocumentConversionJobStatus.FAILED);
+        Document second = document(workspace, "둘째 Document", 9, time(1));
+        addVersion(second, 8, DocumentConversionJobStatus.COMPLETED);
+        addVersion(second, 2, DocumentConversionJobStatus.PROCESSING);
+        flushAndClear();
+
+        assertThat(findDocuments()).containsExactly(
+                new DocumentListResponse(second.getId(), second.getTitle(), 8, time(1), DocumentConversionJobStatus.COMPLETED, 2L),
+                new DocumentListResponse(first.getId(), first.getTitle(), 4, time(0), DocumentConversionJobStatus.FAILED, 2L));
     }
 
     private List<DocumentListResponse> findDocuments() {

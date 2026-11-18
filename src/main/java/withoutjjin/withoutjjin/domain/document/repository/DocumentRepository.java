@@ -19,18 +19,21 @@ public interface DocumentRepository extends JpaRepository<Document, Long> {
     @Query("select doc from Document doc where doc.id = :documentId")
     Optional<Document> findByIdForUpdate(@Param("documentId") Long documentId);
 
-    // 최신 버전에 작업이 없어도 Document를 누락하지 않고 DTO 필드만 조회한다.
+    // 남은 최대 버전 번호를 조회한다. Document.revision은 마지막 발급 번호이므로 사용하지 않는다.
     @Query("""
             select new withoutjjin.withoutjjin.domain.document.dto.DocumentListResponse(
-                doc.id, doc.title, doc.revision, doc.createdAt, job.status, count(history.id)
+                doc.id, doc.title, coalesce(latest.versionNumber, 0), doc.createdAt, job.status, count(history.id)
             )
             from Document doc
             left join DocumentVersion history on history.document = doc
             left join DocumentVersion latest
-                on latest.document = doc and latest.versionNumber = doc.revision
+                on latest.document = doc and latest.versionNumber = (
+                    select max(remaining.versionNumber) from DocumentVersion remaining
+                    where remaining.document = doc
+                )
             left join DocumentConversionJob job on job.documentVersion = latest
             where doc.workspace.id = :workspaceId
-            group by doc.id, doc.title, doc.revision, doc.createdAt, job.status
+            group by doc.id, doc.title, latest.versionNumber, doc.createdAt, job.status
             order by doc.createdAt desc, doc.id desc
             """)
     List<DocumentListResponse> findAllWithLatestConversionStatusByWorkspaceId(

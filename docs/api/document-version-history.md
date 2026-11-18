@@ -96,3 +96,14 @@ GET /api/v1/workspaces/{workspaceId}/documents/{documentId}/versions/{documentVe
 - API 응답과 S3 GET 응답에 no-store를 적용한다. URL 기본 유효기간은 기존 설정과 같은 5분이다.
 - 이미 발급된 URL은 유효기간 동안 사용될 수 있다. 새 URL 발급 시에는 매번 멤버십을 확인한다.
 - 자동화 테스트에서는 임시 MySQL 스키마와 가짜 인증 정보로 검증한다. 실제 S3에 요청하거나 파일을 다운로드하지 않는다.
+
+## 버전 삭제 이후 최신 버전 조회
+
+- 문서 목록 API `GET /api/v1/workspaces/{workspaceId}/documents`의 `revision`은 현재 남은 `DocumentVersion.versionNumber`의 최댓값이다. 버전이 없으면 0이다.
+- `versionCount`는 남은 DocumentVersion 행 수이며, `conversionStatus`는 현재 남은 최대 번호의 버전에 연결된 DocumentConversionJob 상태다. 연결된 작업이 없으면 null이다.
+- `GET /api/v1/documents/{documentId}/pdf-url`도 현재 남은 최대 번호의 DocumentVersion을 조회한다. 그 버전의 PDF가 준비되지 않았으면 409이며, 더 낮은 번호의 완료 PDF를 대신 반환하지 않는다.
+- V3을 삭제해 V1·V2가 남았다면 목록과 최신 PDF 조회는 V2를 가리킨다. 번호 발급에 사용하는 `Document.revision`은 3으로 유지하여 다음 업로드에는 V4를 발급한다.
+- 마지막 버전까지 삭제해도 Document는 목록에 남는다. 응답은 revision=0, versionCount=0, conversionStatus=null이며 버전 히스토리는 빈 배열이다. 최신 PDF URL은 발급하지 않는다(409).
+- 삭제한 DocumentVersion의 버전별 PDF·원본 URL 조회는 404다.
+
+삭제 이후 조회 검증은 `DocumentQueryAfterVersionDeletionApiTest`에서 실제 DB 삭제 서비스를 호출한 뒤 목록·최신 PDF·히스토리·버전별 URL 응답을 확인한다. S3 URL 생성은 모의 객체로 대체하며, 삭제 HTTP API와 화면 버튼은 후속 커밋에서 연결한다.

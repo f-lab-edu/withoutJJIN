@@ -43,7 +43,7 @@ public class DocumentQueryService {
     @Transactional(readOnly = true)
     public List<DocumentVersionListResponse> getVersions(Long workspaceId, Long documentId,
                                                          String issuer, String subject) {
-        workspaceService.getWorkSpaceForMember(workspaceId, issuer, subject);
+        workspaceService.getWorkSpaceForMember(workspaceId, issuer, subject);// 해당유저가 조회하는지 확인
         if (!documentRepository.existsByIdAndWorkspaceId(documentId, workspaceId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "워크스페이스에서 문서를 찾을 수 없습니다.");
         }
@@ -55,7 +55,7 @@ public class DocumentQueryService {
         Document document = documentRepository.findById(documentId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "문서를 찾을 수 없습니다."));
         workspaceService.getWorkSpaceForMember(document.getWorkspace().getId(), issuer, subject);
-        DocumentVersion version = documentVersionRepository.findByDocumentIdAndVersionNumber(documentId, document.getRevision())
+        DocumentVersion version = documentVersionRepository.findFirstByDocumentIdOrderByVersionNumberDesc(documentId)
                 .orElseThrow(DocumentQueryService::pdfNotReady);
         return generatePdfUrl(version);
     }
