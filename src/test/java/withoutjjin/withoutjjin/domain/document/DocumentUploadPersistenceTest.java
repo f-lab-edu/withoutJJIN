@@ -8,9 +8,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 import withoutjjin.withoutjjin.domain.document.entity.Document;
+import withoutjjin.withoutjjin.domain.document.entity.DocumentVersion;
 import withoutjjin.withoutjjin.domain.document.entity.DocumentUpload;
 import withoutjjin.withoutjjin.domain.document.entity.DocumentUploadStatus;
 import withoutjjin.withoutjjin.domain.document.entity.StoreFile;
@@ -182,15 +182,58 @@ class DocumentUploadPersistenceTest {
         StoreFile pdf = storeFileRepository.saveAndFlush(new StoreFile(workspace,
                 "workspaces/" + workspace.getId() + "/reviews/" + UUID.randomUUID(),
                 "기획서.pdf", "application/pdf", 2048L));
-        DocumentUpload first = new DocumentUpload(workspace, null, requester, null, 0L, expiresAt);
-        // PDF 연결 기능은 후속 작업이므로 테스트에서만 값을 넣어 ORM 매핑을 검증한다.
-        ReflectionTestUtils.setField(first, "reviewPdfFile", pdf);
+        DocumentUpload first = completedUpload();
+        first.attachReviewPdf(pdf);
         documentUploadRepository.saveAndFlush(first);
 
-        DocumentUpload second = new DocumentUpload(workspace, null, requester, null, 0L, expiresAt);
-        ReflectionTestUtils.setField(second, "reviewPdfFile", pdf);
+        DocumentUpload second = completedUpload();
+        second.attachReviewPdf(pdf);
         assertThatThrownBy(() -> documentUploadRepository.saveAndFlush(second))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("PDF 연결과 페이지 수를 저장하고 DB에서 다시 조회한다")
+    void persistsReviewPdfAndPageCount() {
+        DocumentUpload upload = documentUploadRepository.saveAndFlush(completedUpload());
+        StoreFile original = upload.getOriginalFile();
+        DocumentVersion version = new DocumentVersion(1, "", null, upload.getDocument(),
+                original.getObjectKey(), original.getFileName(), original.getSizeBytes(), requester);
+        entityManager.persist(version);
+        StoreFile pdf = storeFileRepository.saveAndFlush(new StoreFile(workspace,
+                "workspaces/" + workspace.getId() + "/review-pdfs/" + UUID.randomUUID() + ".pdf",
+                "기획서.pdf", "application/pdf", 2048L));
+
+        upload.attachReviewPdf(pdf);
+        version.recordPageCount(3);
+        entityManager.flush();
+        Long uploadId = upload.getId();
+        Long versionId = version.getId();
+        Long originalId = original.getId();
+        Long pdfId = pdf.getId();
+        String originalKey = original.getObjectKey();
+        entityManager.clear();
+
+        DocumentUpload foundUpload = documentUploadRepository.findById(uploadId).orElseThrow();
+        DocumentVersion foundVersion = entityManager.find(DocumentVersion.class, versionId);
+        assertThat(foundUpload.getReviewPdfFile().getId()).isEqualTo(pdfId);
+        assertThat(foundUpload.getReviewPdfFile().getMediaType()).isEqualTo("application/pdf");
+        assertThat(foundUpload.getReviewPdfFile().getSizeBytes()).isEqualTo(2048L);
+        assertThat(foundUpload.getOriginalFile().getId()).isEqualTo(originalId);
+        assertThat(foundUpload.getStatus()).isEqualTo(DocumentUploadStatus.COMPLETED);
+        assertThat(foundVersion.getPageCount()).isEqualTo(3);
+        assertThat(foundVersion.getStorageKey()).isEqualTo(originalKey);
+        assertThat(foundVersion.getFileSize()).isEqualTo(1024L);
+    }
+
+    private DocumentUpload completedUpload() {
+        StoreFile original = storeFileRepository.save(file(workspace,
+                "workspaces/" + workspace.getId() + "/uploads/" + UUID.randomUUID()));
+        Document document = new Document("기획서", 1, requester, null, workspace);
+        entityManager.persist(document);
+        DocumentUpload upload = new DocumentUpload(workspace, null, requester, original, 1024L, expiresAt);
+        upload.complete(document);
+        return upload;
     }
 
     private StoreFile file(Workspace owner, String key) {

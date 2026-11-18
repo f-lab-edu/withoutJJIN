@@ -1,4 +1,4 @@
-package withoutjjin.withoutjjin.domain.document;
+package withoutjjin.withoutjjin.domain.document.controller;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
@@ -32,6 +32,20 @@ public class DocumentUploadController {
                 request
         );
 
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(response);
+    }
+
+    @PostMapping("/{workspaceId}/documents/{documentId}/uploads")
+    public ResponseEntity<CreateUploadUrlResponse> createVersionUploadUrl(
+            @PathVariable @Positive Long workspaceId,
+            @PathVariable @Positive Long documentId,
+            @AuthenticationPrincipal OidcUser oidcUser,
+            @Valid @RequestBody CreateUploadUrlRequest request
+    ) {
+        CreateUploadUrlResponse response = documentService.createVersionUploadUrl(
+                workspaceId, documentId, oidcUser.getIssuer().toString(), oidcUser.getSubject(), request);
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
                 .body(response);

@@ -34,7 +34,10 @@ public class SecurityConfig {
         // 로그인 후 돌아갈 내부 화면만 저장한다. API 요청과 외부 returnUrl은 저장하지 않는다.
         cache.setRequestMatcher(new OrRequestMatcher(
                 PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/invite/continue"),
-                PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/workspaces/{workspaceId}")
+                PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/workspaces/{workspaceId}"),
+                PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/workspaces/{workspaceId}/documents/{documentId}/review"),
+                PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/workspaces/{workspaceId}/documents/{documentId}/history"),
+                PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/workspaces/{workspaceId}/documents/{documentId}/versions/{documentVersionId}/review")
         ));
         return cache;
     }
@@ -73,7 +76,10 @@ public class SecurityConfig {
                         new LoginUrlAuthenticationEntryPoint("/oauth2/authorization/google"),
                         new OrRequestMatcher(
                                 PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/invite/continue"),
-                                PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/workspaces/{workspaceId}")
+                                PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/workspaces/{workspaceId}"),
+                                PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/workspaces/{workspaceId}/documents/{documentId}/review"),
+                                PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/workspaces/{workspaceId}/documents/{documentId}/history"),
+                                PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/workspaces/{workspaceId}/documents/{documentId}/versions/{documentVersionId}/review")
                         )
                 )
                 .defaultAuthenticationEntryPointFor(

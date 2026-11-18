@@ -7,8 +7,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import withoutjjin.withoutjjin.domain.document.dto.CreateUploadUrlRequest;
 import withoutjjin.withoutjjin.domain.document.dto.CreateUploadUrlResponse;
+import withoutjjin.withoutjjin.domain.document.entity.Document;
 import withoutjjin.withoutjjin.domain.document.entity.DocumentUpload;
 import withoutjjin.withoutjjin.domain.document.entity.StoreFile;
+import withoutjjin.withoutjjin.domain.document.repository.DocumentRepository;
 import withoutjjin.withoutjjin.domain.document.repository.DocumentUploadRepository;
 import withoutjjin.withoutjjin.domain.document.repository.StoreFileRepository;
 import withoutjjin.withoutjjin.domain.document.storage.GeneratedUploadUrl;
@@ -35,6 +37,7 @@ public class DocumentService {
     private final S3UploadUrlGenerator uploadUrlGenerator;
     private final StoreFileRepository storeFileRepository;
     private final DocumentUploadRepository documentUploadRepository;
+    private final DocumentRepository documentRepository;
 
     // 파일 정보와 업로드 요청을 하나의 트랜잭션으로 저장한다.
     @Transactional
@@ -46,6 +49,26 @@ public class DocumentService {
         //멤버가 해당 워크스페이스에 참여하고있는 여부조사
         validateUploadRequest(request);
 
+        return saveUpload(workspace, null, requester, request);
+    }
+
+    @Transactional
+    public CreateUploadUrlResponse createVersionUploadUrl(
+            Long workspaceId, Long documentId, String issuer, String subject, CreateUploadUrlRequest request) {
+        AppUser requester = appUserService.getByIssuerAndSubject(issuer, subject);
+        Workspace workspace = workspaceService.getWorkSpaceForMember(workspaceId, requester);
+        Document document = documentRepository.findById(documentId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Document를 찾을 수 없습니다."));
+        if (!workspace.getId().equals(document.getWorkspace().getId())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "이 워크스페이스의 Document를 찾을 수 없습니다.");
+        }
+        validateUploadRequest(request);
+        return saveUpload(workspace, document, requester, request);
+    }
+
+    private CreateUploadUrlResponse saveUpload(
+            Workspace workspace, Document document, AppUser requester, CreateUploadUrlRequest request) {
         // URL 생성에 실패하면 DB에 요청을 남기지 않는다.
         GeneratedUploadUrl generated = uploadUrlGenerator.generate(workspace.getId()); //업로드를 위한 URL생성
 
@@ -68,7 +91,7 @@ public class DocumentService {
         DocumentUpload upload = documentUploadRepository.save(
                 new DocumentUpload(
                 workspace,
-        null,  // 문서 등록하기전
+                document, // 새 문서는 null, 새 버전 업로드는 대상 Document를 연결한다.
                 requester,
                 originalFile, // 원본 파일
                 request.fileSize(),
