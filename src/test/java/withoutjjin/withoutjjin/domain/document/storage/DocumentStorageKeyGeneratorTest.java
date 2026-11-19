@@ -21,4 +21,17 @@ class DocumentStorageKeyGeneratorTest {
         assertThat(second).startsWith("workspaces/10/uploads/");
         assertThat(first).isNotEqualTo(second);
     }
+
+    @Test
+    @DisplayName("PDF 저장 키는 원본 저장 키와 구분되고 호출마다 달라진다")
+    void generatesPdfKeySeparateFromOriginal() {
+        String original = generator.generate(10L);
+        String firstPdf = generator.generatePdf(10L);
+        String secondPdf = generator.generatePdf(10L);
+
+        assertThat(original).startsWith("workspaces/10/uploads/");
+        assertThat(firstPdf).startsWith("workspaces/10/review-pdfs/").endsWith(".pdf");
+        assertThat(secondPdf).startsWith("workspaces/10/review-pdfs/").endsWith(".pdf");
+        assertThat(firstPdf).isNotEqualTo(secondPdf).isNotEqualTo(original);
+    }
 }

@@ -22,6 +22,7 @@ dependencies {
     implementation platform('software.amazon.awssdk:bom:2.57.5')
     implementation 'software.amazon.awssdk:sesv2'
     implementation 'software.amazon.awssdk:s3' // 추가
+    implementation 'org.apache.pdfbox:pdfbox:3.0.8' // 변환 응답 PDF 검증 및 페이지 수 확인
 
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-security'

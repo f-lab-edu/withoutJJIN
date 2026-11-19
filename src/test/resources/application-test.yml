@@ -12,3 +12,9 @@ invitation:
 aws:
   s3:
     bucket: ftfm-test-bucket
+
+document:
+  conversion:
+    worker:
+      # 개발 환경에서 자동 변환을 켜 두어도 통합 테스트에서는 실행하지 않는다.
+      enabled: false
