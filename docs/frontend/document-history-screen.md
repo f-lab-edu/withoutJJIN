@@ -3,7 +3,7 @@
 워크스페이스 파일 화면에서 문서 목록을 먼저 표시하고, 화면 너비에 따라 두 열 또는 한 열 카드로 배치한다.
 
 - 카드에 Document.title, 최신 버전 번호, 실제 DocumentVersion 개수, Document 생성 시각 및 최신 PDF 변환 상태를 표시한다.
-- GET /api/v1/workspaces/{workspaceId}/documents 응답에 versionCount를 추가한다. revision은 버전 번호이며 versionCount와 다를 수 있다.
+- GET /api/v1/workspaces/{workspaceId}/documents 응답에 versionCount를 추가한다. revision은 현재 남은 DocumentVersion의 최대 versionNumber(없으면 0)이며 versionCount와 다를 수 있다. 번호 발급을 위한 Document.revision은 삭제해도 줄이지 않는다.
 - versionCount는 변환 작업 유무나 상태와 관계없이 해당 Document의 DocumentVersion 행 수를 센다. 버전이 없으면 0이다.
 - 카드의 PDF 보기와 새 버전 업로드는 기존 동작을 유지한다.
 - 새 파일 추가는 선택한 기존 문서 대상을 해제하고 업로드 입력으로 이동한다. 업로드 진행 중·완료 처리 재시도 대기 중에는 다른 업로드로 전환하지 않는다.
@@ -14,7 +14,7 @@
 - 원본 다운로드는 매번 로그인 계정을 확인하고 URL을 새로 발급한다. URL은 브라우저 저장소에 보관하지 않으며 중복 클릭·화면 이탈 후 늦은 응답을 처리한다.
 - 새 버전 추가는 워크스페이스의 uploadDocumentId 쿼리로 같은 Document를 선택한다. 알 수 없는 대상은 업로드를 막고, 이미 남아 있는 완료 처리 재시도를 우선한다.
 - 히스토리의 PDF 변환 대기·실행 중 상태는 5초마다 갱신한다. 빈 목록·오류·다시 로그인 상태를 표시한다.
-- 이번 작업에는 버전 삭제와 수정 요청·검토 상태 관리가 포함되지 않는다.
+- #62의 최초 히스토리 작업에는 버전 삭제와 수정 요청·검토 상태 관리가 포함되지 않았다. #68에서 연결한 삭제 화면은 `docs/frontend/document-version-deletion.md`에 기록한다.
 
 ## 히스토리 화면 검증
 
