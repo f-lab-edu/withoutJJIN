@@ -13,7 +13,8 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    # 직접 콘솔 출력 대신 Logback으로 SQL을 출력하여 스케줄러 SQL만 필터링한다.
+    show-sql: false
     properties:
       hibernate:
         format_sql: true
@@ -82,3 +83,18 @@ document:
       poll-delay: ${DOCUMENT_CONVERSION_POLL_DELAY:10s}
       # 한 회차에 조회할 최대 건수. 변환은 한 건씩 순차 실행한다.
       batch-size: ${DOCUMENT_CONVERSION_BATCH_SIZE:5}
+  storage:
+    deletion:
+      # 실제 S3 삭제 스케줄러는 명시적으로 활성화한다.
+      worker:
+        enabled: ${S3_OBJECT_DELETION_WORKER_ENABLED:false}
+        poll-delay: ${S3_OBJECT_DELETION_POLL_DELAY:10s}
+        batch-size: ${S3_OBJECT_DELETION_BATCH_SIZE:5}
+      # 작업 중 서버가 종료되면 이 시간이 지난 후 다시 처리한다.
+      claim-lease: ${S3_OBJECT_DELETION_CLAIM_LEASE:2m}
+      retry-delay: ${S3_OBJECT_DELETION_RETRY_DELAY:1m}
+
+
+logging:
+  level:
+    org.hibernate.SQL: DEBUG

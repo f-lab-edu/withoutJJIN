@@ -11,6 +11,13 @@ import withoutjjin.withoutjjin.domain.document.entity.DocumentUpload;
 
 public interface DocumentUploadRepository extends JpaRepository<DocumentUpload, Long> {
 
+    @Query("""
+            select count(upload) > 0 from DocumentUpload upload
+            where upload.id <> :uploadId
+                and (upload.originalFile.id = :fileId or upload.reviewPdfFile.id = :fileId)
+            """)
+    boolean existsOtherFileReference(@Param("fileId") Long fileId, @Param("uploadId") Long uploadId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select upload from DocumentUpload upload where upload.id = :uploadId")
     Optional<DocumentUpload> findByIdForUpdate(@Param("uploadId") Long uploadId);

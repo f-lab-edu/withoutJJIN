@@ -10,6 +10,7 @@ public record DocumentListResponse(
         Integer revision,
         LocalDateTime createdAt,
         // 최신 DocumentVersion 또는 DocumentConversionJob이 없으면 null이다.
-        DocumentConversionJobStatus conversionStatus
+        DocumentConversionJobStatus conversionStatus,
+        Long versionCount
 ) {
 }

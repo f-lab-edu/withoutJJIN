@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="no-referrer">
+    <title>PDF 피드백 · FTFM</title>
+    <style>
+        :root { color-scheme: light; --ink: #18352c; --muted: #718079; --green: #16785a; --line: #dce7de; --paper: #fff; }
+        * { box-sizing: border-box; }
+        [hidden] { display: none !important; }
+        body { margin: 0; color: var(--ink); background: #eef6ee; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+        button, a, textarea { font: inherit; }
+        button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 3px solid #79b99e; outline-offset: 3px; }
+        .topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 24px; border-bottom: 1px solid var(--line); background: var(--paper); }
+        .brand { font-size: 21px; font-weight: 800; letter-spacing: -.04em; }
+        .back { color: var(--green); text-decoration: none; font-weight: 650; }
+        main { width: 100%; margin: auto; padding: 16px; }
+        .heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+        .document-heading { display: flex; flex: 1 1 260px; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+        h1 { min-width: 0; max-width: 100%; margin: 0; font-size: clamp(18px, 2vw, 22px); line-height: 1.35; overflow-wrap: anywhere; }
+        .version { display: inline-block; flex-shrink: 0; padding: 4px 8px; border: 1px solid var(--line); border-radius: 20px; background: white; font-size: 12px; }
+        .actions { display: flex; flex-wrap: wrap; gap: 10px; }
+        .heading > .actions { gap: 8px; }
+        .heading .button, .heading .selection-color { padding: 8px 12px; font-size: 14px; }
+        .button { display: inline-flex; align-items: center; justify-content: center; padding: 10px 16px; border: 1px solid var(--line); border-radius: 10px; background: white; color: var(--ink); text-decoration: none; cursor: pointer; }
+        .selection-color { display: inline-flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: white; }
+        .selection-color select { max-width: 100%; font: inherit; color: var(--ink); background: transparent; border: 0; }
+        .button.primary { background: var(--green); border-color: var(--green); color: white; }
+        .button:disabled { opacity: .5; cursor: wait; }
+        .status { margin: 0 0 20px; color: var(--muted); line-height: 1.6; }
+        .status[data-error="true"] { color: #974534; }
+        main > .status { margin-bottom: 12px; font-size: 14px; }
+        .review-grid { display: grid; grid-template-columns: minmax(0, 1fr) clamp(280px, 24vw, 360px); gap: 16px; align-items: start; }
+        .panel { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: white; }
+        .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+        h2 { margin: 0; font-size: 16px; }
+        .page-count { color: var(--muted); font-size: 13px; white-space: nowrap; }
+        .pdf-pages { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; justify-items: center; overscroll-behavior: contain; scrollbar-gutter: stable; gap: 16px; max-height: 75vh; overflow: auto; padding: 12px; background: #e7ede8; }
+        .pdf-pages canvas { display: block; max-width: 100%; height: auto; background: white; box-shadow: 0 2px 12px #18352c1a; }
+        .pdf-page { position: relative; max-width: 100%; line-height: 0; }
+        .pdf-pages[data-selection-enabled="true"] .pdf-page[data-ready="true"] { cursor: crosshair; touch-action: none; user-select: none; }
+        .pdf-selection { position: absolute; z-index: 2; border: 2px solid #16785a; background: #39a87926; pointer-events: none; }
+        .pdf-feedback-region { position: absolute; border: 2px solid; pointer-events: none; }
+        .pdf-feedback-region::after, .pdf-selection::after { position: absolute; top: 0; right: 0; transform: translateY(-50%); display: inline-flex; align-items: center; justify-content: center; min-width: 24px; padding: 4px 7px; border: 2px solid white; border-radius: 999px; background: var(--ink); color: white; font: 700 12px/1.2 system-ui, sans-serif; white-space: nowrap; }
+        .pdf-feedback-region::after { content: attr(data-feedback-number); }
+        .pdf-selection::after { content: "작성 중"; }
+        .pdf-feedback-region[data-active="true"] { z-index: 1; outline: 3px solid var(--ink); outline-offset: 3px; }
+        .button[aria-pressed="true"] { border-color: var(--green); background: #edf7ef; color: var(--green); }
+        .selection-summary { padding: 24px; }
+        .selection-summary h3 { margin: 0 0 12px; font-size: 17px; }
+        .selection-summary p { line-height: 1.8; }
+        .selection-summary .hint { color: var(--muted); font-size: 14px; }
+        .feedback-form { display: grid; gap: 10px; }
+        .feedback-form label { font-size: 14px; font-weight: 650; }
+        .feedback-form textarea { width: 100%; min-height: 130px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; resize: vertical; color: var(--ink); background: #fbfdfb; line-height: 1.6; }
+        .feedback-form textarea:disabled { opacity: .65; }
+        .feedback-count { text-align: right; color: var(--muted); font-size: 13px; }
+        .feedback-form-status { padding: 0 24px 20px; margin: 0; }
+        .feedback-form-status:empty { display: none; }
+        .feedback-list-section { padding: 20px 24px; border-top: 1px solid var(--line); }
+        .feedback-list-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+        .feedback-list-heading h3 { margin: 0; font-size: 17px; }
+        .feedback-list-status { margin: 14px 0; font-size: 14px; }
+        .feedback-list { margin: 0; padding: 0; list-style: none; }
+        .feedback-item { padding: 16px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+        .feedback-item-page { display: inline-block; margin-left: 8px; font-size: 13px; color: var(--muted); }
+        .feedback-item-content { display: block; margin: 10px 0; white-space: pre-wrap; line-height: 1.7; }
+        .feedback-item-link { position: relative; display: block; width: 100%; padding: 8px 54px 8px 8px; border: 0; border-radius: 8px; text-align: left; color: inherit; background: transparent; cursor: pointer; overflow-wrap: anywhere; }
+        .feedback-item-number { position: absolute; top: 8px; right: 8px; display: inline-flex; align-items: center; justify-content: center; min-width: 26px; padding: 4px 7px; border-radius: 999px; background: var(--ink); color: white; font-size: 12px; font-weight: 700; line-height: 1.2; }
+        .feedback-item[data-active="true"] .feedback-item-link { background: #edf7ef; }
+        .feedback-edit-button, .feedback-delete-button { margin: 8px 0 0 8px; padding: 6px 12px; font-size: 13px; }
+        .feedback-delete-section { padding: 20px 24px; border-bottom: 1px solid var(--line); }
+        .feedback-delete-section h3 { margin: 0 0 12px; font-size: 16px; }
+        .feedback-delete-content { white-space: pre-wrap; overflow-wrap: anywhere; }
+        .feedback-delete-button { color: #9b2929; }
+        .feedback-edit-section { padding: 20px 24px; border-bottom: 1px solid var(--line); }
+        .feedback-edit-section h3 { margin: 0 0 12px; font-size: 17px; }
+        .feedback-item time { color: var(--muted); font-size: 12px; }
+        .pdf-placeholder { display: grid; min-height: 65vh; place-items: center; padding: 24px; color: var(--muted); background: #f4f7f4; }
+        .feedback-panel { position: sticky; top: 24px; min-height: 55vh; max-height: 75vh; overflow-y: auto; overscroll-behavior: contain; }
+        .feedback-placeholder { padding: 52px 28px; color: var(--muted); text-align: center; line-height: 1.8; }
+        .feedback-symbol { display: grid; place-items: center; width: 52px; height: 52px; margin: 0 auto 20px; border-radius: 50%; background: #edf5ef; color: var(--green); font-size: 24px; }
+        .feedback-placeholder strong { color: var(--ink); }
+        @media (min-width: 901px) {
+            body { height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+            .topbar { flex-shrink: 0; }
+            main { width: 100%; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+            .heading, main > .status { flex-shrink: 0; }
+            .review-grid { flex: 1; min-height: 0; align-items: stretch; }
+            .pdf-panel { display: flex; flex-direction: column; min-height: 0; }
+            .pdf-panel > .panel-head { flex-shrink: 0; }
+            .pdf-pages { flex: 1; min-height: 0; max-height: none; }
+            .pdf-placeholder { flex: 1; min-height: 0; }
+            .feedback-panel { position: static; min-height: 0; max-height: none; }
+        }
+        @media (max-width: 900px) { main { padding: 16px 12px; } .topbar { padding: 12px 16px; } .review-grid { grid-template-columns: minmax(0, 1fr); } .feedback-panel { position: static; min-height: 240px; } .pdf-pages { padding: 10px; } }
+    </style>
+</head>
+<body>
+<header class="topbar">
+    <span class="brand">FTFM</span>
+    <a id="workspace-back" class="back" href="/">← 워크스페이스로 돌아가기</a>
+</header>
+<main>
+    <div class="heading">
+        <div class="document-heading">
+            <h1 id="document-title">PDF 피드백</h1>
+            <span id="document-version" class="version" hidden></span>
+        </div>
+        <div class="actions">
+            <label class="selection-color" for="selection-color">영역 색상
+                <select id="selection-color" name="selectionColor">
+                    <option value="green">초록</option>
+                    <option value="yellow">노랑</option>
+                    <option value="blue">파랑</option>
+                    <option value="pink">분홍</option>
+                </select>
+            </label>
+            <button id="selection-mode" class="button" type="button" aria-pressed="false" disabled>영역 선택</button>
+            <button id="selection-clear" class="button" type="button" disabled>선택 취소</button>
+            <button id="pdf-renew" class="button" type="button" disabled>PDF 다시 열기</button>
+            <a id="pdf-new-tab" class="button" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" hidden>새 창에서 보기 ↗</a>
+            <a id="review-login" class="button primary" href="/oauth2/authorization/google" hidden>Google로 다시 로그인</a>
+        </div>
+    </div>
+    <p id="pdf-status" class="status" role="status" aria-live="polite">PDF를 불러오고 있어요.</p>
+    <div id="review-content" class="review-grid" aria-busy="true">
+        <section class="panel pdf-panel" aria-labelledby="pdf-heading">
+            <div class="panel-head"><h2 id="pdf-heading">PDF 문서</h2><span id="page-count" class="page-count"></span></div>
+            <div id="pdf-placeholder" class="pdf-placeholder">문서를 준비하고 있어요.</div>
+            <div id="pdf-pages" class="pdf-pages" role="region" aria-label="변환된 PDF 페이지" tabindex="0" hidden></div>
+        </section>
+        <aside class="panel feedback-panel" aria-labelledby="feedback-heading">
+            <div class="panel-head"><h2 id="feedback-heading">문서 피드백</h2></div>
+            <section id="feedback-delete-section" class="feedback-delete-section" aria-labelledby="feedback-delete-heading" aria-busy="false" hidden>
+                <h3 id="feedback-delete-heading">피드백을 삭제할까요?</h3>
+                <p id="feedback-delete-page" class="status"></p>
+                <p id="feedback-delete-content" class="feedback-delete-content"></p>
+                <p>삭제하면 피드백 내용과 PDF에 표시된 영역이 사라져요.</p>
+                <div class="actions">
+                    <button id="feedback-delete-confirm" class="button" type="button">삭제 확인</button>
+                    <button id="feedback-delete-cancel" class="button" type="button">취소</button>
+                </div>
+            </section>
+            <p id="feedback-delete-status" class="status feedback-form-status" role="status" aria-live="polite" data-error="false"></p>
+            <section id="feedback-edit-section" class="feedback-edit-section" aria-labelledby="feedback-edit-heading" hidden>
+                <h3 id="feedback-edit-heading">피드백 수정</h3>
+                <p id="feedback-edit-page" class="status"></p>
+                <form id="feedback-edit-form" class="feedback-form" aria-busy="false">
+                    <label for="feedback-edit-content">수정할 내용</label>
+                    <textarea id="feedback-edit-content" name="content" rows="5" maxlength="1000" required autocomplete="off" aria-describedby="feedback-edit-count feedback-edit-status"></textarea>
+                    <span id="feedback-edit-count" class="feedback-count">0 / 1000</span>
+                    <div class="actions">
+                        <button id="feedback-edit-save" class="button primary" type="submit">수정 저장</button>
+                        <button id="feedback-edit-cancel" class="button" type="button">수정 취소</button>
+                    </div>
+                </form>
+            </section>
+            <p id="feedback-edit-status" class="status feedback-form-status" role="status" aria-live="polite" data-error="false"></p>
+            <section id="selection-summary" class="selection-summary" aria-labelledby="selection-heading" hidden>
+                <h3 id="selection-heading">선택한 영역</h3>
+                <p id="selection-page" role="status" aria-live="polite"></p>
+                <p class="hint">다른 영역을 드래그하면 선택이 바뀝니다. 선택을 취소하려면 ‘선택 취소’ 또는 Esc를 눌러 주세요.</p>
+                <form id="feedback-form" class="feedback-form" aria-busy="false">
+                    <label for="feedback-content">피드백 내용</label>
+                    <textarea id="feedback-content" name="content" rows="5" maxlength="1000" required autocomplete="off" aria-describedby="feedback-count feedback-form-status" placeholder="선택한 영역에 대한 의견을 입력해 주세요." disabled></textarea>
+                    <span id="feedback-count" class="feedback-count">0 / 1000</span>
+                    <button id="feedback-submit" class="button primary" type="submit" disabled>피드백 등록</button>
+                </form>
+            </section>
+            <p id="feedback-form-status" class="status feedback-form-status" role="status" aria-live="polite" data-error="false"></p>
+            <div id="feedback-placeholder" class="feedback-placeholder">
+                <span class="feedback-symbol" aria-hidden="true">▢</span>
+                <strong>문서의 특정 부분에 대한 의견</strong>
+                <p>‘영역 선택’을 켜고 PDF에서 원하는 부분을 드래그해 주세요. 터치로 스크롤하려면 ‘영역 선택’을 꺼 주세요.</p>
+            </div>
+            <section class="feedback-list-section" aria-labelledby="feedback-list-heading">
+                <div class="feedback-list-heading">
+                    <h3 id="feedback-list-heading">등록된 피드백</h3>
+                    <button id="feedback-refresh" class="button" type="button" disabled>목록 새로고침</button>
+                </div>
+                <p id="feedback-list-status" class="status feedback-list-status" role="status" aria-live="polite">PDF를 불러온 뒤 피드백을 표시해요.</p>
+                <ol id="feedback-list" class="feedback-list" aria-busy="false" aria-labelledby="feedback-list-heading"></ol>
+            </section>
+        </aside>
+    </div>
+</main>
+<script type="module">
+    import {initializeDocumentReview} from "/js/document-review.mjs?v=selected-history-62";
+    initializeDocumentReview();
+</script>
+</body>
+</html>
