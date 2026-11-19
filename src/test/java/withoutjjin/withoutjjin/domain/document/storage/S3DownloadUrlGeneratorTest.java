@@ -66,4 +66,59 @@ class S3DownloadUrlGeneratorTest {
     void rejectsInvalidExpiration(String expiration) {
         assertThatIllegalArgumentException().isThrownBy(() -> new S3DownloadUrlGenerator(mock(S3Presigner.class), "ftfm-test-bucket", expiration));
     }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"resume.docx", "제출 이력서 \"최종\" 100%.docx", "기획서(최종)+수정본.docx"})
+    @DisplayName("원본 다운로드 URL은 UTF-8 파일명·첨부 다운로드·DOCX 형식·캐시 방지·5분 만료를 포함한다")
+    void signsOriginalDownloadWithoutContactingS3(String fileName) {
+        try (S3Presigner presigner = S3Presigner.builder().region(Region.AP_NORTHEAST_2)
+                .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create("test-access", "test-secret"))).build()) {
+            var generator = new S3DownloadUrlGenerator(presigner, "ftfm-test-bucket", "5m");
+            Instant before = Instant.now();
+            var generated = generator.generateOriginal("workspaces/10/uploads/test.docx", fileName);
+            URI uri = URI.create(generated.downloadUrl());
+            assertThat(uri.getHost()).isEqualTo("ftfm-test-bucket.s3.ap-northeast-2.amazonaws.com");
+            assertThat(uri.getPath()).isEqualTo("/workspaces/10/uploads/test.docx");
+            String disposition = queryValue(uri, "response-content-disposition");
+            var parsed = org.springframework.http.ContentDisposition.parse(disposition);
+            assertThat(parsed.getType()).isEqualTo("attachment");
+            assertThat(parsed.getFilename()).isEqualTo(fileName);
+            assertThat(disposition).doesNotContain("\r", "\n");
+            assertThat(queryValue(uri, "response-content-type")).isEqualTo("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+            assertThat(queryValue(uri, "response-cache-control")).isEqualTo("no-store");
+            assertThat(queryValue(uri, "X-Amz-Expires")).isEqualTo("300");
+            assertThat(queryValue(uri, "X-Amz-Signature")).isNotBlank();
+            assertThat(generated.expiresAt()).isBetween(before.plusSeconds(299), Instant.now().plusSeconds(301));
+            assertThat(generated.downloadUrl()).doesNotContain("test-secret");
+        }
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {" "})
+    @DisplayName("원본 저장 키가 없으면 서명하지 않는다")
+    void rejectsMissingOriginalKey(String key) {
+        S3Presigner presigner = mock(S3Presigner.class);
+        var generator = new S3DownloadUrlGenerator(presigner, "ftfm-test-bucket", "5m");
+        assertThatIllegalArgumentException().isThrownBy(() -> generator.generateOriginal(key, "document.docx"));
+        verifyNoInteractions(presigner);
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {" ", "file\r\nInjected.docx", "file\nname.docx", "file\tname.docx"})
+    @DisplayName("파일명이 비어 있거나 제어 문자를 포함하면 서명하지 않는다")
+    void rejectsInvalidOriginalFilename(String name) {
+        S3Presigner presigner = mock(S3Presigner.class);
+        var generator = new S3DownloadUrlGenerator(presigner, "ftfm-test-bucket", "5m");
+        assertThatIllegalArgumentException().isThrownBy(() -> generator.generateOriginal("workspaces/10/uploads/test.docx", name));
+        verifyNoInteractions(presigner);
+    }
+
+    private String queryValue(URI uri, String name) {
+        String entry = java.util.Arrays.stream(uri.getRawQuery().split("&"))
+                .filter(value -> value.startsWith(name + "=")).findFirst().orElseThrow();
+        return URLDecoder.decode(entry.substring(name.length() + 1), StandardCharsets.UTF_8);
+    }
+
 }
