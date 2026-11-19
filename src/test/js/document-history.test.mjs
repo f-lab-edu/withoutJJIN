@@ -26,6 +26,8 @@ function fixture(options = {}) {
     const view = {
         reset() { delete state.document; delete state.versions; },
         loading(value) { state.loading = value; }, downloading(value) { state.downloading = value; },
+        deleting(id, phase) { state.deleting = id; state.phase = phase; },
+        actionSuccess(message) { state.success = message; },
         document(value) { state.document = value; }, versions(value) {state.versions = value;},
         error(message, status) {state.error = {message, status};}, actionError(message, status) {state.actionError = {message, status};}
     };
