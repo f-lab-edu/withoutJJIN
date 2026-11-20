@@ -18,6 +18,7 @@ import org.springframework.mock.http.client.MockClientHttpResponse;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
+import withoutjjin.withoutjjin.domain.document.entity.DocumentConversionFailureCode;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -106,7 +107,9 @@ class WordPdfConverterTest {
     void rejectsNonPdfContentType(String contentType) throws IOException {
         server.expect(requestTo(CONVERT_URL)).andRespond(withSuccess(pdfWithPages(1), MediaType.parseMediaType(contentType)));
         assertThatThrownBy(() -> converter.convert(docx))
-                .isInstanceOf(WordPdfConversionException.class).hasMessageContaining("application/pdf");
+                .isInstanceOfSatisfying(WordPdfConversionException.class,
+                        error -> assertThat(error.getFailureCode()).isEqualTo(DocumentConversionFailureCode.INVALID_PDF))
+                .hasMessageContaining("application/pdf");
     }
 
     @Test
@@ -131,7 +134,9 @@ class WordPdfConverterTest {
     void rejectsInvalidPdfBody(String body) {
         server.expect(requestTo(CONVERT_URL)).andRespond(withSuccess(body.getBytes(StandardCharsets.UTF_8), MediaType.APPLICATION_PDF));
         assertThatThrownBy(() -> converter.convert(docx))
-                .isInstanceOf(WordPdfConversionException.class).hasMessageContaining("PDF로 열 수 없습니다");
+                .isInstanceOfSatisfying(WordPdfConversionException.class,
+                        error -> assertThat(error.getFailureCode()).isEqualTo(DocumentConversionFailureCode.INVALID_PDF))
+                .hasMessageContaining("PDF로 열 수 없습니다");
     }
 
     @Test
@@ -159,7 +164,9 @@ class WordPdfConverterTest {
         server.expect(requestTo(CONVERT_URL)).andRespond(withSuccess(pdfWithPages(1), MediaType.APPLICATION_PDF)
                 .header("Content-Length", String.valueOf(MAX_PDF_BYTES + 1)));
         assertThatThrownBy(() -> converter.convert(docx))
-                .isInstanceOf(WordPdfConversionException.class).hasMessageContaining("64MiB");
+                .isInstanceOfSatisfying(WordPdfConversionException.class,
+                        error -> assertThat(error.getFailureCode()).isEqualTo(DocumentConversionFailureCode.SIZE_LIMIT_EXCEEDED))
+                .hasMessageContaining("64MiB");
     }
 
     @Test
