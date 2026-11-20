@@ -15,6 +15,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 import withoutjjin.withoutjjin.domain.document.entity.Document;
 import withoutjjin.withoutjjin.domain.document.entity.DocumentConversionJob;
+import withoutjjin.withoutjjin.domain.document.entity.DocumentConversionFailureStage;
+import withoutjjin.withoutjjin.domain.document.entity.DocumentConversionFailureCode;
 import withoutjjin.withoutjjin.domain.document.entity.DocumentConversionJobStatus;
 import withoutjjin.withoutjjin.domain.document.entity.DocumentUpload;
 import withoutjjin.withoutjjin.domain.document.entity.DocumentVersion;
@@ -159,5 +161,57 @@ class DocumentConversionJobPersistenceTest {
     private DocumentVersion version(int versionNumber) {
         return new DocumentVersion(versionNumber, "", null, document,
                 original.getObjectKey(), original.getFileName(), original.getSizeBytes(), requester);
+    }
+
+    @Test
+    @DisplayName("실패 상태·단계·원인 코드·시각을 저장하고 같은 작업의 재시도 시 모두 초기화한다")
+    void persistsAndClearsFailureDetailsOnRetry() {
+        DocumentConversionJob job = repository.saveAndFlush(new DocumentConversionJob(upload, version));
+        Long jobId = job.getId();
+        job.startProcessing();
+        job.fail(DocumentConversionFailureStage.ORIGINAL_DOWNLOAD, DocumentConversionFailureCode.ACCESS_DENIED);
+        repository.flush();
+        entityManager.clear();
+
+        DocumentConversionJob failed = repository.findById(jobId).orElseThrow();
+        assertThat(failed.getStatus()).isEqualTo(DocumentConversionJobStatus.FAILED);
+        assertThat(failed.getFailureStage()).isEqualTo(DocumentConversionFailureStage.ORIGINAL_DOWNLOAD);
+        assertThat(failed.getFailureCode()).isEqualTo(DocumentConversionFailureCode.ACCESS_DENIED);
+        assertThat(failed.getFailedAt()).isNotNull();
+
+        failed.retry();
+        repository.flush();
+        entityManager.clear();
+
+        DocumentConversionJob retried = repository.findById(jobId).orElseThrow();
+        assertThat(retried.getStatus()).isEqualTo(DocumentConversionJobStatus.PENDING);
+        assertThat(retried.getFailureStage()).isNull();
+        assertThat(retried.getFailureCode()).isNull();
+        assertThat(retried.getFailedAt()).isNull();
+        // DB 저장 시각의 정밀도와 무관하게 실제로 저장된 생성 시각을 비교한다.
+        assertThat(retried.getCreatedAt()).isEqualTo(failed.getCreatedAt());
+        assertThat(retried.getDocumentUpload().getId()).isEqualTo(upload.getId());
+        assertThat(retried.getDocumentVersion().getId()).isEqualTo(version.getId());
+    }
+
+    @Test
+    @DisplayName("실패 정보가 NULL인 기존 FAILED 행도 조회하고 재시도할 수 있다")
+    void retriesLegacyFailureWithoutFailureDetails() {
+        Long jobId = repository.saveAndFlush(new DocumentConversionJob(upload, version)).getId();
+        entityManager.createNativeQuery("update document_conversion_job set status = 'FAILED',"
+                        + " failure_stage = null, failure_code = null, failed_at = null where id = :id")
+                .setParameter("id", jobId).executeUpdate();
+        entityManager.clear();
+
+        DocumentConversionJob legacy = repository.findById(jobId).orElseThrow();
+        assertThat(legacy.getFailureStage()).isNull();
+        assertThat(legacy.getFailureCode()).isNull();
+        assertThat(legacy.getFailedAt()).isNull();
+        legacy.retry();
+        repository.flush();
+        entityManager.clear();
+
+        assertThat(repository.findById(jobId).orElseThrow().getStatus())
+                .isEqualTo(DocumentConversionJobStatus.PENDING);
     }
 }
