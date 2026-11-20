@@ -10,6 +10,9 @@ import org.mockito.InOrder;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import withoutjjin.withoutjjin.domain.document.conversion.ConvertedPdf;
+import withoutjjin.withoutjjin.domain.document.conversion.DocumentConversionException;
+import withoutjjin.withoutjjin.domain.document.entity.DocumentConversionFailureStage;
+import withoutjjin.withoutjjin.domain.document.entity.DocumentConversionFailureCode;
 import withoutjjin.withoutjjin.domain.document.conversion.StoredPdf;
 import withoutjjin.withoutjjin.domain.document.conversion.WordPdfConverter;
 import withoutjjin.withoutjjin.domain.document.conversion.WordPdfConversionException;
@@ -55,7 +58,12 @@ class DocumentConversionServiceTest {
         SdkClientException failure = SdkClientException.create("S3 다운로드 실패");
         when(reader.downloadDocx(ORIGINAL_KEY)).thenThrow(failure);
 
-        assertThatThrownBy(() -> service.convertAndStore(10L, ORIGINAL_KEY)).isSameAs(failure);
+        assertThatThrownBy(() -> service.convertAndStore(10L, ORIGINAL_KEY))
+                .isInstanceOfSatisfying(DocumentConversionException.class, exception -> {
+                    assertThat(exception.getFailureStage()).isEqualTo(DocumentConversionFailureStage.ORIGINAL_DOWNLOAD);
+                    assertThat(exception.getFailureCode()).isEqualTo(DocumentConversionFailureCode.UNKNOWN);
+                    assertThat(exception.getCause()).isSameAs(failure);
+                });
 
         verifyNoInteractions(converter, writer);
     }
@@ -68,7 +76,12 @@ class DocumentConversionServiceTest {
         when(reader.downloadDocx(ORIGINAL_KEY)).thenReturn(docx);
         when(converter.convert(docx)).thenThrow(failure);
 
-        assertThatThrownBy(() -> service.convertAndStore(10L, ORIGINAL_KEY)).isSameAs(failure);
+        assertThatThrownBy(() -> service.convertAndStore(10L, ORIGINAL_KEY))
+                .isInstanceOfSatisfying(DocumentConversionException.class, exception -> {
+                    assertThat(exception.getFailureStage()).isEqualTo(DocumentConversionFailureStage.PDF_CONVERSION);
+                    assertThat(exception.getFailureCode()).isEqualTo(DocumentConversionFailureCode.CONVERSION_FAILED);
+                    assertThat(exception.getCause()).isSameAs(failure);
+                });
 
         verifyNoInteractions(writer);
     }
@@ -84,7 +97,12 @@ class DocumentConversionServiceTest {
         when(converter.convert(docx)).thenReturn(new ConvertedPdf(pdf, 2));
         when(writer.upload(10L, pdf)).thenThrow(failure);
 
-        assertThatThrownBy(() -> service.convertAndStore(10L, ORIGINAL_KEY)).isSameAs(failure);
+        assertThatThrownBy(() -> service.convertAndStore(10L, ORIGINAL_KEY))
+                .isInstanceOfSatisfying(DocumentConversionException.class, exception -> {
+                    assertThat(exception.getFailureStage()).isEqualTo(DocumentConversionFailureStage.PDF_UPLOAD);
+                    assertThat(exception.getFailureCode()).isEqualTo(DocumentConversionFailureCode.ACCESS_DENIED);
+                    assertThat(exception.getCause()).isSameAs(failure);
+                });
     }
 
     @ParameterizedTest
