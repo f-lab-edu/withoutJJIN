@@ -20,7 +20,8 @@ public interface DocumentVersionRepository extends JpaRepository<DocumentVersion
     @Query("""
             select new withoutjjin.withoutjjin.domain.document.dto.DocumentVersionListResponse(
                 dv.id, dv.document.id, dv.versionNumber, dv.originalFileName, dv.fileSize,
-                dv.pageCount, uploader.id, uploader.displayName, dv.createdAt, job.status
+                dv.pageCount, uploader.id, uploader.displayName, dv.createdAt, job.status,
+                job.failureStage, job.failureCode, job.failedAt
             )
             from DocumentVersion dv
             join dv.uploadedBy uploader
