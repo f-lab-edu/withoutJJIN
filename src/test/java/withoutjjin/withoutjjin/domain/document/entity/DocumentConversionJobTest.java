@@ -146,6 +146,31 @@ class DocumentConversionJobTest {
         assertThat(job.getStatus()).isEqualTo(status);
     }
 
+    @Test
+    @DisplayName("FAILED 변환 작업을 기존 연결을 유지한 채 PENDING으로 되돌린다")
+    void retriesFailedJob() {
+        DocumentConversionJob job = jobWithStatus(DocumentConversionJobStatus.FAILED);
+        DocumentUpload upload = job.getDocumentUpload();
+        DocumentVersion version = job.getDocumentVersion();
+
+        job.retry();
+
+        assertThat(job.getStatus()).isEqualTo(DocumentConversionJobStatus.PENDING);
+        assertThat(job.getDocumentUpload()).isSameAs(upload);
+        assertThat(job.getDocumentVersion()).isSameAs(version);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = DocumentConversionJobStatus.class, names = {"PENDING", "PROCESSING", "COMPLETED"})
+    @DisplayName("FAILED가 아닌 변환 작업은 재시도하지 않는다")
+    void rejectsRetryingNonFailedJob(DocumentConversionJobStatus status) {
+        DocumentConversionJob job = jobWithStatus(status);
+
+        assertThatThrownBy(job::retry)
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("FAILED");
+        assertThat(job.getStatus()).isEqualTo(status);
+    }
+
     private DocumentConversionJob jobWithStatus(DocumentConversionJobStatus status) {
         DocumentConversionJob job = new DocumentConversionJob(completedUpload(), version(document, original.getObjectKey()));
         if (status != DocumentConversionJobStatus.PENDING) {

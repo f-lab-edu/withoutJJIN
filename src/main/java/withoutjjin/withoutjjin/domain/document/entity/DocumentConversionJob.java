@@ -93,6 +93,11 @@ public class DocumentConversionJob {
         this.status = DocumentConversionJobStatus.FAILED;
     }
 
+    public void retry() {
+        requireStatus(DocumentConversionJobStatus.FAILED);
+        this.status = DocumentConversionJobStatus.PENDING;
+    }
+
     private void requireStatus(DocumentConversionJobStatus expected) {
         if (status != expected) {
             throw new IllegalStateException(expected + " 상태의 DocumentConversionJob만 변경할 수 있습니다.");
