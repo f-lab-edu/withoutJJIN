@@ -48,6 +48,18 @@ public class DocumentConversionJob {
     @Column(name = "status", nullable = false, length = 40)
     private DocumentConversionJobStatus status;
 
+    // 기존 FAILED 행에는 실패 정보가 없으므로 NULL을 허용한다.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "failure_stage", length = 40)
+    private DocumentConversionFailureStage failureStage;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "failure_code", length = 40)
+    private DocumentConversionFailureCode failureCode;
+
+    @Column(name = "failed_at")
+    private LocalDateTime failedAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -89,12 +101,25 @@ public class DocumentConversionJob {
     }
 
     public void fail() {
+        fail(DocumentConversionFailureStage.UNKNOWN, DocumentConversionFailureCode.UNKNOWN);
+    }
+
+    public void fail(DocumentConversionFailureStage failureStage, DocumentConversionFailureCode failureCode) {
         requireStatus(DocumentConversionJobStatus.PROCESSING);
+        if (failureStage == null || failureCode == null) {
+            throw new IllegalArgumentException("실패 단계와 원인 코드가 필요합니다.");
+        }
+        this.failureStage = failureStage;
+        this.failureCode = failureCode;
+        this.failedAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
         this.status = DocumentConversionJobStatus.FAILED;
     }
 
     public void retry() {
         requireStatus(DocumentConversionJobStatus.FAILED);
+        this.failureStage = null;
+        this.failureCode = null;
+        this.failedAt = null;
         this.status = DocumentConversionJobStatus.PENDING;
     }
 

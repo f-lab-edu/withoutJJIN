@@ -4,10 +4,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import withoutjjin.withoutjjin.domain.user.entity.AppUser;
 import withoutjjin.withoutjjin.domain.workspace.entity.Workspace;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -32,6 +34,9 @@ class DocumentConversionJobTest {
         assertThat(job.getDocumentUpload()).isSameAs(upload);
         assertThat(job.getDocumentVersion()).isSameAs(version);
         assertThat(job.getStatus()).isEqualTo(DocumentConversionJobStatus.PENDING);
+        assertThat(job.getFailureStage()).isNull();
+        assertThat(job.getFailureCode()).isNull();
+        assertThat(job.getFailedAt()).isNull();
     }
 
     @Test
@@ -111,6 +116,77 @@ class DocumentConversionJobTest {
         job.fail();
 
         assertThat(job.getStatus()).isEqualTo(DocumentConversionJobStatus.FAILED);
+        assertThat(job.getFailureStage()).isEqualTo(DocumentConversionFailureStage.UNKNOWN);
+        assertThat(job.getFailureCode()).isEqualTo(DocumentConversionFailureCode.UNKNOWN);
+        assertThat(job.getFailedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("실패 상태와 함께 단계·원인 코드·실패 시각을 기록한다")
+    void recordsFailureDetails() {
+        DocumentConversionJob job = jobWithStatus(DocumentConversionJobStatus.PROCESSING);
+        LocalDateTime before = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+
+        job.fail(DocumentConversionFailureStage.ORIGINAL_DOWNLOAD, DocumentConversionFailureCode.ACCESS_DENIED);
+
+        assertThat(job.getStatus()).isEqualTo(DocumentConversionJobStatus.FAILED);
+        assertThat(job.getFailureStage()).isEqualTo(DocumentConversionFailureStage.ORIGINAL_DOWNLOAD);
+        assertThat(job.getFailureCode()).isEqualTo(DocumentConversionFailureCode.ACCESS_DENIED);
+        assertThat(job.getFailedAt()).isBetween(before, LocalDateTime.now(ZoneId.of("Asia/Seoul")));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    @DisplayName("단계나 원인 코드가 없으면 상태와 실패 정보를 변경하지 않는다")
+    void rejectsIncompleteFailureDetails(boolean missingStage) {
+        DocumentConversionJob job = jobWithStatus(DocumentConversionJobStatus.PROCESSING);
+
+        assertThatThrownBy(() -> job.fail(
+                missingStage ? null : DocumentConversionFailureStage.PDF_UPLOAD,
+                missingStage ? DocumentConversionFailureCode.ACCESS_DENIED : null))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        assertThat(job.getStatus()).isEqualTo(DocumentConversionJobStatus.PROCESSING);
+        assertThat(job.getFailureStage()).isNull();
+        assertThat(job.getFailureCode()).isNull();
+        assertThat(job.getFailedAt()).isNull();
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = DocumentConversionJobStatus.class, names = {"PENDING", "COMPLETED", "FAILED"})
+    @DisplayName("PROCESSING이 아니면 실패 정보를 덮어쓰지 않는다")
+    void preservesFailureDetailsWhenStatusRejectsFailure(DocumentConversionJobStatus status) {
+        DocumentConversionJob job = jobWithStatus(status);
+        DocumentConversionFailureStage previousStage = job.getFailureStage();
+        DocumentConversionFailureCode previousCode = job.getFailureCode();
+        LocalDateTime previousFailedAt = job.getFailedAt();
+
+        assertThatThrownBy(() -> job.fail(DocumentConversionFailureStage.PDF_UPLOAD,
+                DocumentConversionFailureCode.ACCESS_DENIED)).isInstanceOf(IllegalStateException.class);
+
+        assertThat(job.getStatus()).isEqualTo(status);
+        assertThat(job.getFailureStage()).isEqualTo(previousStage);
+        assertThat(job.getFailureCode()).isEqualTo(previousCode);
+        assertThat(job.getFailedAt()).isEqualTo(previousFailedAt);
+    }
+
+    @Test
+    @DisplayName("재시도는 이전 실패 정보를 지우고 다음 실패에는 새 정보만 기록한다")
+    void clearsFailureOnRetryAndRecordsNextFailure() {
+        DocumentConversionJob job = jobWithStatus(DocumentConversionJobStatus.PROCESSING);
+        job.fail(DocumentConversionFailureStage.ORIGINAL_DOWNLOAD, DocumentConversionFailureCode.ACCESS_DENIED);
+
+        job.retry();
+
+        assertThat(job.getStatus()).isEqualTo(DocumentConversionJobStatus.PENDING);
+        assertThat(job.getFailureStage()).isNull();
+        assertThat(job.getFailureCode()).isNull();
+        assertThat(job.getFailedAt()).isNull();
+        job.startProcessing();
+        job.fail(DocumentConversionFailureStage.PDF_CONVERSION, DocumentConversionFailureCode.CONVERSION_FAILED);
+        assertThat(job.getFailureStage()).isEqualTo(DocumentConversionFailureStage.PDF_CONVERSION);
+        assertThat(job.getFailureCode()).isEqualTo(DocumentConversionFailureCode.CONVERSION_FAILED);
+        assertThat(job.getFailedAt()).isNotNull();
     }
 
     @ParameterizedTest
