@@ -160,6 +160,12 @@ class DocumentConversionWorkerIntegrationTest {
         assertThatThrownBy(() -> worker.process(job.getId())).isSameAs(failure);
 
         assertFailedWithoutResult();
+        assertThat(jdbc.queryForObject("SELECT failure_stage FROM document_conversion_job WHERE id = ?",
+                String.class, job.getId())).isEqualTo("RESULT_SAVE");
+        assertThat(jdbc.queryForObject("SELECT failure_code FROM document_conversion_job WHERE id = ?",
+                String.class, job.getId())).isEqualTo("RESULT_SAVE_FAILED");
+        assertThat(jdbc.queryForObject("SELECT failed_at FROM document_conversion_job WHERE id = ?",
+                Object.class, job.getId())).isNotNull();
     }
 
     @Test

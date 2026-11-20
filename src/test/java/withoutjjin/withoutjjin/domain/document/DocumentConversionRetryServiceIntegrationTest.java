@@ -19,6 +19,8 @@ import withoutjjin.withoutjjin.domain.document.conversion.StoredPdf;
 import withoutjjin.withoutjjin.domain.document.conversion.WordPdfConversionException;
 import withoutjjin.withoutjjin.domain.document.entity.Document;
 import withoutjjin.withoutjjin.domain.document.entity.DocumentConversionJob;
+import withoutjjin.withoutjjin.domain.document.entity.DocumentConversionFailureCode;
+import withoutjjin.withoutjjin.domain.document.entity.DocumentConversionFailureStage;
 import withoutjjin.withoutjjin.domain.document.entity.DocumentUpload;
 import withoutjjin.withoutjjin.domain.document.entity.DocumentVersion;
 import withoutjjin.withoutjjin.domain.document.entity.StoreFile;
@@ -34,6 +36,7 @@ import withoutjjin.withoutjjin.domain.workspace.entity.WorkspaceMember;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
@@ -102,7 +105,7 @@ class DocumentConversionRetryServiceIntegrationTest {
             versionId = version.getId();
             DocumentConversionJob job = new DocumentConversionJob(upload, version);
             job.startProcessing();
-            job.fail();
+            job.fail(DocumentConversionFailureStage.ORIGINAL_DOWNLOAD, DocumentConversionFailureCode.ACCESS_DENIED);
             em.persist(job);
             jobId = job.getId();
         });
@@ -131,6 +134,7 @@ class DocumentConversionRetryServiceIntegrationTest {
         retry();
 
         assertResourcesPreserved("PENDING");
+        assertFailureCleared();
         assertThat(jobs.findPendingIds(PageRequest.of(0, 100))).contains(jobId);
         assertThat(jdbc.queryForObject("select created_at from document_conversion_job where id = ?",
                 Object.class, jobId)).isEqualTo(createdAt);
@@ -152,6 +156,7 @@ class DocumentConversionRetryServiceIntegrationTest {
         assertThat(worker.process(jobId)).isTrue();
 
         assertResourcesPreserved("COMPLETED");
+        assertFailureCleared();
         Long pdfId = jdbc.queryForObject("select review_pdf_file_id from document_upload where id = ?",
                 Long.class, uploadId);
         assertThat(pdfId).isNotNull().isNotEqualTo(originalId);
@@ -166,15 +171,20 @@ class DocumentConversionRetryServiceIntegrationTest {
     @Test
     @DisplayName("재시도 트랜잭션이 롤백되면 FAILED를 유지하고 작업자가 변환하지 않는다")
     void doesNotQueueRetryWhenTransactionRollsBack() {
+        Map<String, Object> previousFailure = failureFields();
+        assertThat(previousFailure).containsEntry("failure_stage", "ORIGINAL_DOWNLOAD")
+                .containsEntry("failure_code", "ACCESS_DENIED");
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
             retry();
             em.flush();
             assertThat(jdbc.queryForObject("select status from document_conversion_job where id = ?",
                     String.class, jobId)).isEqualTo("PENDING");
+            assertFailureCleared();
             status.setRollbackOnly();
         });
 
         assertResourcesPreserved("FAILED");
+        assertThat(failureFields()).isEqualTo(previousFailure);
         assertThat(jobs.findPendingIds(PageRequest.of(0, 100))).doesNotContain(jobId);
         assertThat(worker.process(jobId)).isFalse();
         verifyNoInteractions(conversionService);
@@ -191,6 +201,7 @@ class DocumentConversionRetryServiceIntegrationTest {
             assertThat(List.of(first.get(30, TimeUnit.SECONDS), second.get(30, TimeUnit.SECONDS)))
                     .containsExactlyInAnyOrder(202, 409);
             assertResourcesPreserved("PENDING");
+            assertFailureCleared();
         } finally {
             executor.shutdownNow();
             assertThat(executor.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
@@ -206,6 +217,8 @@ class DocumentConversionRetryServiceIntegrationTest {
 
         assertThatThrownBy(() -> worker.process(jobId)).isSameAs(failure);
         assertResourcesPreserved("FAILED");
+        assertThat(failureFields()).containsEntry("failure_stage", "UNKNOWN")
+                .containsEntry("failure_code", "CONVERSION_FAILED");
         // 다시 실패한 작업은 사용자가 재요청하기 전까지 자동 처리하지 않는다.
         assertThat(jobs.findPendingIds(PageRequest.of(0, 100))).doesNotContain(jobId);
         assertThat(worker.process(jobId)).isFalse();
@@ -214,6 +227,19 @@ class DocumentConversionRetryServiceIntegrationTest {
         retry();
 
         assertResourcesPreserved("PENDING");
+        assertFailureCleared();
+    }
+
+    @Test
+    @DisplayName("실패 정보가 없는 기존 FAILED 작업도 재시도 API 서비스로 접수한다")
+    void acceptsLegacyFailureWithoutDetails() {
+        jdbc.update("update document_conversion_job set failure_stage = null, failure_code = null, failed_at = null where id = ?",
+                jobId);
+
+        retry();
+
+        assertResourcesPreserved("PENDING");
+        assertFailureCleared();
     }
 
     @Test
@@ -254,6 +280,14 @@ class DocumentConversionRetryServiceIntegrationTest {
     private void assertBadRequest(Runnable action) {
         assertThatThrownBy(action::run).isInstanceOfSatisfying(ResponseStatusException.class,
                 exception -> assertThat(exception.getStatusCode().value()).isEqualTo(400));
+    }
+
+    private Map<String, Object> failureFields() {
+        return jdbc.queryForMap("select failure_stage, failure_code, failed_at from document_conversion_job where id = ?", jobId);
+    }
+
+    private void assertFailureCleared() {
+        assertThat(failureFields().values()).containsOnlyNulls();
     }
 
     private int retryAfterBarrier(CyclicBarrier start) throws Exception {
