@@ -3,6 +3,16 @@ import {DocumentRequestError} from "./workspace-documents.mjs?v=pdf-version-1";
 const STATUSES = new Set(["PENDING", "PROCESSING", "COMPLETED", "FAILED"]);
 const validId = value => Number.isSafeInteger(value) && value > 0;
 
+function failureDetails(item) {
+    const text = value => typeof value === "string" && value.trim() ? value.trim() : null;
+    const failed = item.conversionStatus === "FAILED";
+    const failedAt = failed && typeof item.failedAt === "string"
+        && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?$/.test(item.failedAt)
+        && Number.isFinite(Date.parse(item.failedAt)) ? item.failedAt : null;
+    return {failureStage: failed ? text(item.failureStage) : null,
+        failureCode: failed ? text(item.failureCode) : null, failedAt};
+}
+
 async function request(path, {fetchImpl, signal}) {
     let response;
     try { response = await fetchImpl(path, {credentials: "same-origin", cache: "no-store", signal}); }
@@ -44,7 +54,8 @@ export async function fetchDocumentVersions({workspaceId, documentId, expectedUs
         ids.add(item.id); numbers.add(item.versionNumber);
         return false;
     })) throw new DocumentRequestError("문서 버전 목록 응답을 확인할 수 없어요.");
-    return [...result].sort((a, b) => b.versionNumber - a.versionNumber);
+    return result.map(item => ({...item, ...failureDetails(item)}))
+        .sort((a, b) => b.versionNumber - a.versionNumber);
 }
 
 async function fetchVersionUrl({workspaceId, documentId, documentVersionId, expectedUserId, fetchImpl = fetch, signal}, original) {
