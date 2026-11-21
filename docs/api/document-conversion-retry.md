@@ -13,7 +13,9 @@ PDF 변환에 실패한 문서 버전을 원본 재업로드 없이 다시 변�
 자동 판단하지 않는다.
 
 변환 작업자의 실패 단계·원인 저장은 [변환 실패 기록](../operations/document-conversion-failure.md)을
-참고한다. 화면의 재시도 버튼과 서버 중단으로 남은 `PROCESSING` 작업 복구는 별도 작업이다.
+참고한다. #78에서 연결한 실패 안내와 수동 재시도 화면은
+[히스토리 재시도 화면](../frontend/document-conversion-retry.md)에 기록한다.
+서버 중단으로 남은 `PROCESSING` 작업 복구는 별도 작업이다.
 
 ## 요청과 응답
 
