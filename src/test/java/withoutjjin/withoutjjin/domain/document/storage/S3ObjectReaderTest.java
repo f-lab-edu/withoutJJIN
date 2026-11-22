@@ -11,6 +11,8 @@ import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import java.time.Duration;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -25,7 +27,7 @@ class S3ObjectReaderTest {
         S3Client s3Client = mock(S3Client.class);
 
         S3ObjectReader reader =
-                new S3ObjectReader(s3Client, "ftfm-test-bucket");
+                new S3ObjectReader(s3Client, "ftfm-test-bucket", Duration.ofSeconds(10), Duration.ofSeconds(3));
 
         String objectKey = "workspaces/10/uploads/test-file";
 
@@ -54,6 +56,8 @@ class S3ObjectReaderTest {
 
         assertThat(actualRequest.bucket()).isEqualTo("ftfm-test-bucket");
         assertThat(actualRequest.key()).isEqualTo(objectKey);
+        assertThat(actualRequest.overrideConfiguration().orElseThrow().apiCallTimeout()).contains(Duration.ofSeconds(10));
+        assertThat(actualRequest.overrideConfiguration().orElseThrow().apiCallAttemptTimeout()).contains(Duration.ofSeconds(3));
         assertThat(result).isSameAs(expectedResponse);
     }
 
@@ -65,7 +69,7 @@ class S3ObjectReaderTest {
     void propagatesS3Error(int statusCode) {
         S3Client s3Client = mock(S3Client.class);
         S3ObjectReader reader =
-                new S3ObjectReader(s3Client, "ftfm-test-bucket");
+                new S3ObjectReader(s3Client, "ftfm-test-bucket", Duration.ofSeconds(10), Duration.ofSeconds(3));
 
         S3Exception failure = (S3Exception) S3Exception.builder()
                 .statusCode(statusCode)
@@ -85,7 +89,7 @@ class S3ObjectReaderTest {
     void propagatesConnectionFailure() {
         S3Client s3Client = mock(S3Client.class);
         S3ObjectReader reader =
-                new S3ObjectReader(s3Client, "ftfm-test-bucket");
+                new S3ObjectReader(s3Client, "ftfm-test-bucket", Duration.ofSeconds(10), Duration.ofSeconds(3));
 
         SdkClientException failure = SdkClientException.builder()
                 .message("S3 연결 실패")

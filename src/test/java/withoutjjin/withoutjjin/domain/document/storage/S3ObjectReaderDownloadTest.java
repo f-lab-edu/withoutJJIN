@@ -22,6 +22,8 @@ import java.io.InputStream;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
+import java.time.Duration;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -34,7 +36,7 @@ class S3ObjectReaderDownloadTest {
     private static final String OBJECT_KEY = "workspaces/10/uploads/source.docx";
 
     private final S3Client s3Client = mock(S3Client.class);
-    private final S3ObjectReader reader = new S3ObjectReader(s3Client, "ftfm-test-bucket");
+    private final S3ObjectReader reader = new S3ObjectReader(s3Client, "ftfm-test-bucket", Duration.ofSeconds(10), Duration.ofSeconds(3));
     private final Abortable abortable = mock(Abortable.class);
 
     @Test

@@ -22,6 +22,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 // Controller·Security·응답 형식을 검증한다. 실제 Service의 커밋은 별도 통합 테스트에서 검증한다.
@@ -44,9 +45,12 @@ class DocumentUploadCompletionApiTest {
         when(completionService.completeUpload(123L, ISSUER, SUBJECT))
                 .thenReturn(new CompleteUploadResponse(123L, 456L, 789L));
 
-        mockMvc.perform(post(PATH, 123)
+        org.springframework.test.web.servlet.MvcResult result = mockMvc.perform(post(PATH, 123)
                         .with(oidcLogin().idToken(token -> token.claim("iss", ISSUER).subject(SUBJECT)))
                         .with(csrf().asHeader()))
+                .andExpect(request().asyncStarted()).andReturn();
+        result.getAsyncResult(5000);
+        mockMvc.perform(asyncDispatch(result))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(header().string("Cache-Control", "no-store"))
@@ -109,9 +113,12 @@ class DocumentUploadCompletionApiTest {
                 .thenThrow(new ResponseStatusException(
                         HttpStatusCode.valueOf(statusCode), "테스트용 완료 처리 실패"));
 
-        mockMvc.perform(post(PATH, 123)
+        org.springframework.test.web.servlet.MvcResult result = mockMvc.perform(post(PATH, 123)
                         .with(oidcLogin().idToken(token -> token.claim("iss", ISSUER).subject(SUBJECT)))
                         .with(csrf().asHeader()))
+                .andExpect(request().asyncStarted()).andReturn();
+        result.getAsyncResult(5000);
+        mockMvc.perform(asyncDispatch(result))
                 .andExpect(status().is(statusCode))
                 .andExpect(header().doesNotExist("Location"));
 

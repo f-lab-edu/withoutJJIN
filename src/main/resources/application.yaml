@@ -67,6 +67,9 @@ aws:
     upload-url-expiration: 5m
     # PDF 조회 URL 유효기간. 발급할 때마다 소속과 최신 변환 상태를 확인한다.
     download-url-expiration: 5m
+    # 업로드 완료 확인용 HeadObject의 전체·단일 시도 시간 제한이다.
+    head-api-call-timeout: ${S3_HEAD_API_CALL_TIMEOUT:10s}
+    head-api-call-attempt-timeout: ${S3_HEAD_API_CALL_ATTEMPT_TIMEOUT:3s}
 
 document:
   upload-completion:

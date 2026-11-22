@@ -50,6 +50,7 @@ import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 // 별도 스레드의 실제 커밋·잠금·롤백을 확인하므로 테스트 메서드에 @Transactional을 붙이지 않는다.
@@ -119,9 +120,12 @@ class DocumentVersionCompletionIntegrationTest {
 
     @Test
     void completionApiRegistersV2ForTheSameDocumentAndPreservesV1FilesAndFeedback() throws Exception {
-        mvc.perform(post("/api/v1/uploads/{uploadId}/complete", upload.getId())
+        org.springframework.test.web.servlet.MvcResult pending = mvc.perform(post("/api/v1/uploads/{uploadId}/complete", upload.getId())
                         .with(oidcLogin().idToken(token -> token.claim("iss", member.getIssuer()).subject(member.getSubject())))
                         .with(csrf().asHeader()))
+                .andExpect(request().asyncStarted()).andReturn();
+        pending.getAsyncResult(5000);
+        mvc.perform(asyncDispatch(pending))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Cache-Control", "no-store"))
                 .andExpect(jsonPath("$.uploadId").value(upload.getId()))

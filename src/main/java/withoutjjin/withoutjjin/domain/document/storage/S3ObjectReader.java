@@ -11,6 +11,7 @@ import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 
 import java.io.IOException;
+import java.time.Duration;
 
 @Component
 public class S3ObjectReader {
@@ -19,11 +20,23 @@ public class S3ObjectReader {
 
     private final S3Client s3Client;
     private final String bucket;
+    private final Duration headCallTimeout;
+    private final Duration headAttemptTimeout;
 
     public S3ObjectReader(
             S3Client s3Client,
-            @Value("${aws.s3.bucket}") String bucket
+            @Value("${aws.s3.bucket}") String bucket,
+            @Value("${aws.s3.head-api-call-timeout:10s}") Duration headCallTimeout,
+            @Value("${aws.s3.head-api-call-attempt-timeout:3s}") Duration headAttemptTimeout
     ) {
+        if (headCallTimeout == null || headAttemptTimeout == null
+                || headCallTimeout.isZero() || headCallTimeout.isNegative()
+                || headAttemptTimeout.isZero() || headAttemptTimeout.isNegative()
+                || headAttemptTimeout.compareTo(headCallTimeout) > 0) {
+            throw new IllegalArgumentException("S3 HeadObject 시간 제한은 양수이며 전체 제한이 단일 시도 제한 이상이어야 합니다.");
+        }
+        this.headCallTimeout = headCallTimeout;
+        this.headAttemptTimeout = headAttemptTimeout;
         this.s3Client = s3Client;
         this.bucket = bucket;
     }
@@ -35,6 +48,8 @@ public class S3ObjectReader {
                 .bucket(bucket)
 //          aws.s3.bucket에 설정한 S3 버킷 이름
                 .key(objectKey)
+                .overrideConfiguration(config -> config.apiCallTimeout(headCallTimeout)
+                        .apiCallAttemptTimeout(headAttemptTimeout))
 //          호출할 때 전달할 StoreFile.objectKey
                 .build();
 

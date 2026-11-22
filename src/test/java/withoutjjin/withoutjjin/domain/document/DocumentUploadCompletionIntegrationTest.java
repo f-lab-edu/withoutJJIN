@@ -32,6 +32,8 @@ import withoutjjin.withoutjjin.domain.document.repository.DocumentUploadReposito
 import withoutjjin.withoutjjin.domain.document.repository.DocumentVersionRepository;
 import withoutjjin.withoutjjin.domain.document.repository.StoreFileRepository;
 import withoutjjin.withoutjjin.domain.document.service.DocumentUploadCompletionService;
+import withoutjjin.withoutjjin.domain.document.service.DocumentUploadCompletionAsyncService;
+import withoutjjin.withoutjjin.global.config.UploadCompletionAsyncProperties;
 import withoutjjin.withoutjjin.domain.document.storage.S3UploadVerifier;
 import withoutjjin.withoutjjin.domain.user.entity.AppUser;
 import withoutjjin.withoutjjin.domain.user.repository.AppUserRepository;
@@ -41,11 +43,15 @@ import withoutjjin.withoutjjin.domain.workspace.repository.WorkspaceMemberReposi
 import withoutjjin.withoutjjin.domain.workspace.repository.WorkspaceRepository;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.UUID;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
@@ -56,6 +62,7 @@ import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 // Service의 실제 커밋·롤백을 검증하므로 테스트 전체를 트랜잭션으로 감싸지 않는다.
@@ -107,12 +114,15 @@ class DocumentUploadCompletionIntegrationTest {
     @Test
     @DisplayName("완료 API가 Document·DocumentVersion·변환 대기 작업을 등록하고 기존 ID들을 응답한다")
     void registersDocumentThroughCompletionApi() throws Exception {
-        var response = mockMvc.perform(post(
+        org.springframework.test.web.servlet.MvcResult pending = mockMvc.perform(post(
                         "/api/v1/uploads/{uploadId}/complete", upload.getId())
                         .with(oidcLogin().idToken(token -> token
                                 .claim("iss", requester.getIssuer())
                                 .subject(requester.getSubject())))
                         .with(csrf().asHeader()))
+                .andExpect(request().asyncStarted()).andReturn();
+        pending.getAsyncResult(5000);
+        var response = mockMvc.perform(asyncDispatch(pending))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(header().string("Cache-Control", "no-store"))
                 .andExpect(jsonPath("$.uploadId").value(upload.getId()));
@@ -357,6 +367,45 @@ class DocumentUploadCompletionIntegrationTest {
             assertThat(countVersions()).isEqualTo(1);
             assertThat(status()).isEqualTo("COMPLETED");
         } finally {
+            executor.shutdownNow();
+            assertThat(executor.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
+        }
+    }
+
+    @Test
+    @DisplayName("504 이후 재요청이 먼저 완료되어도 늦은 원래 요청은 같은 문서 버전을 재사용한다")
+    void retryAfterResponseTimeoutDoesNotDuplicateLateCompletion() throws Exception {
+        CountDownLatch verifying = new CountDownLatch(1);
+        CountDownLatch releaseFirst = new CountDownLatch(1);
+        AtomicInteger attempts = new AtomicInteger();
+        doAnswer(invocation -> {
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            if (attempts.incrementAndGet() == 1) {
+                verifying.countDown();
+                assertThat(releaseFirst.await(5, TimeUnit.SECONDS)).isTrue();
+            }
+            return null;
+        }).when(verifier).verify(originalFile.getObjectKey(), 1024L, MEDIA_TYPE);
+        var executor = Executors.newSingleThreadExecutor();
+        try {
+            DocumentUploadCompletionAsyncService async = new DocumentUploadCompletionAsyncService(service, executor,
+                    new UploadCompletionAsyncProperties(1, 0, Duration.ofMillis(500)));
+            var first = async.completeUpload(upload.getId(), requester.getIssuer(), requester.getSubject());
+            assertThat(verifying.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThatThrownBy(() -> first.get(5, TimeUnit.SECONDS)).isInstanceOfSatisfying(ExecutionException.class,
+                    exception -> assertThat(exception.getCause()).isInstanceOfSatisfying(ResponseStatusException.class,
+                            response -> assertThat(response.getStatusCode().value()).isEqualTo(504)));
+            CompleteUploadResponse retried = complete();
+            releaseFirst.countDown();
+            executor.submit(() -> {}).get(5, TimeUnit.SECONDS);
+            assertThat(complete()).isEqualTo(retried);
+            assertThat(countDocuments()).isEqualTo(1);
+            assertThat(countVersions()).isEqualTo(1);
+            assertPendingJob(retried.documentVersionId());
+            assertThat(status()).isEqualTo("COMPLETED");
+            verify(verifier, times(2)).verify(originalFile.getObjectKey(), 1024L, MEDIA_TYPE);
+        } finally {
+            releaseFirst.countDown();
             executor.shutdownNow();
             assertThat(executor.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
         }
