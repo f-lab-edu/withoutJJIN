@@ -70,6 +70,12 @@ aws:
     # 업로드 완료 확인용 HeadObject의 전체·단일 시도 시간 제한이다.
     head-api-call-timeout: ${S3_HEAD_API_CALL_TIMEOUT:10s}
     head-api-call-attempt-timeout: ${S3_HEAD_API_CALL_ATTEMPT_TIMEOUT:3s}
+    async-head:
+      max-concurrency: ${S3_ASYNC_HEAD_MAX_CONCURRENCY:12}
+      max-pending-connection-acquires: ${S3_ASYNC_HEAD_MAX_PENDING_CONNECTION_ACQUIRES:12}
+      event-loop-threads: ${S3_ASYNC_HEAD_EVENT_LOOP_THREADS:2}
+      connection-timeout: ${S3_ASYNC_HEAD_CONNECTION_TIMEOUT:2s}
+      connection-acquisition-timeout: ${S3_ASYNC_HEAD_CONNECTION_ACQUISITION_TIMEOUT:1s}
 
 document:
   upload-completion:
