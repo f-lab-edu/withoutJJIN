@@ -83,6 +83,7 @@ document:
       threads: ${UPLOAD_COMPLETION_ASYNC_THREADS:4}
       queue-capacity: ${UPLOAD_COMPLETION_ASYNC_QUEUE_CAPACITY:8}
       response-timeout: ${UPLOAD_COMPLETION_ASYNC_RESPONSE_TIMEOUT:30s}
+      max-in-flight: ${UPLOAD_COMPLETION_ASYNC_MAX_IN_FLIGHT:12}
   conversion:
     # IntelliJ에서 실행하는 Spring의 접속 주소. 같은 Compose 내부에서는 http://gotenberg:3000을 사용한다.
     base-url: ${DOCUMENT_CONVERSION_BASE_URL:http://localhost:3000}

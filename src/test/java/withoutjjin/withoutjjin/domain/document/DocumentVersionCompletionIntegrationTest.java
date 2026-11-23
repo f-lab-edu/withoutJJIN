@@ -23,6 +23,8 @@ import withoutjjin.withoutjjin.domain.document.repository.*;
 import withoutjjin.withoutjjin.domain.document.service.DocumentUploadCompletionService;
 import withoutjjin.withoutjjin.domain.document.service.DocumentUploadCompletionTransactions;
 import withoutjjin.withoutjjin.domain.document.storage.S3UploadVerifier;
+import withoutjjin.withoutjjin.domain.document.storage.S3AsyncUploadVerifier;
+import java.util.concurrent.CompletableFuture;
 import withoutjjin.withoutjjin.domain.feedback.entity.DocumentFeedback;
 import withoutjjin.withoutjjin.domain.feedback.entity.FeedbackColor;
 import withoutjjin.withoutjjin.domain.feedback.repository.DocumentFeedbackRepository;
@@ -77,6 +79,7 @@ class DocumentVersionCompletionIntegrationTest {
     @MockitoSpyBean private DocumentVersionRepository versions;
     @MockitoSpyBean private DocumentConversionJobRepository jobs;
     @MockitoBean private S3UploadVerifier verifier;
+    @MockitoBean private S3AsyncUploadVerifier asyncVerifier;
     @MockitoBean(name = "documentUploadClock") private Clock clock;
 
     private AppUser member, colleague;
@@ -88,6 +91,11 @@ class DocumentVersionCompletionIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        when(asyncVerifier.verify(anyString(), anyLong(), anyString())).thenAnswer(call -> {
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            assertThat(Thread.currentThread().getName()).startsWith("upload-completion-");
+            return CompletableFuture.completedFuture(null);
+        });
         when(clock.instant()).thenReturn(NOW);
         when(clock.getZone()).thenReturn(ZONE);
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
@@ -144,6 +152,7 @@ class DocumentVersionCompletionIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT review_pdf_file_id FROM document_upload WHERE id = ?", Long.class, firstUpload.getId())).isEqualTo(firstPdfId);
         assertThat(versions.findById(v1.getId()).orElseThrow().getPageCount()).isEqualTo(2);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM document_feedback WHERE document_version_id = ?", Long.class, v2.getId())).isZero();
+        verify(asyncVerifier).verify(upload.getOriginalFile().getObjectKey(), 1024L, DOCX);
     }
 
     @Test

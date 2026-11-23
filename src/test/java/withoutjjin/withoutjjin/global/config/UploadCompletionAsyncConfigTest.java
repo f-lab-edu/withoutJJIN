@@ -35,6 +35,7 @@ class UploadCompletionAsyncConfigTest {
             assertThat(executor.getMaxPoolSize()).isEqualTo(4);
             assertThat(executor.getQueueCapacity()).isEqualTo(8);
             assertThat(context.getBean(UploadCompletionAsyncProperties.class).responseTimeout()).isEqualTo(Duration.ofSeconds(30));
+            assertThat(context.getBean(UploadCompletionAsyncProperties.class).maxInFlight()).isEqualTo(12);
         });
         assertThat(captured.get().getThreadPoolExecutor().isShutdown()).isTrue();
     }
@@ -83,7 +84,8 @@ class UploadCompletionAsyncConfigTest {
     @ValueSource(strings = {"document.upload-completion.async.threads=0", "document.upload-completion.async.threads=-1",
             "document.upload-completion.async.queue-capacity=-1", "document.upload-completion.async.response-timeout=0ms",
             "document.upload-completion.async.response-timeout=-1s", "document.upload-completion.async.response-timeout=1ns",
-            "document.upload-completion.async.response-timeout=invalid"})
+            "document.upload-completion.async.response-timeout=invalid", "document.upload-completion.async.max-in-flight=0",
+            "document.upload-completion.async.max-in-flight=-1"})
     void rejectsInvalidSettings(String setting) {
         runner.withPropertyValues(setting).run(context -> assertThat(context).hasFailed());
     }
