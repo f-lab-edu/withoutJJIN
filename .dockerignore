@@ -1,0 +1,11 @@
+# Only build inputs enter the Docker build context. Local credentials and documents stay outside it.
+**
+!Dockerfile
+!gradlew
+!gradle/
+!gradle/**
+!build.gradle
+!settings.gradle
+!src/
+!src/main/
+!src/main/**

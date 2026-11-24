@@ -39,3 +39,7 @@ out/
 #### env
 .env
 .csv
+
+# Runtime Docker environment files
+.env.*
+!.env.docker.example

@@ -1,0 +1,106 @@
+name: withoutjjin-deploy
+
+services:
+  app:
+    image: withoutjjin:${APP_IMAGE_TAG:-local}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 30s
+    ports:
+      # A reverse proxy can expose HTTPS later. Local checks use localhost:8080.
+      - "127.0.0.1:${APP_PORT:-8080}:8080"
+    environment:
+      TZ: Asia/Seoul
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/ftfm
+      SPRING_DATASOURCE_USERNAME: ftfm
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${DB_DDL_AUTO:-update}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?GOOGLE_CLIENT_ID is required}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?GOOGLE_CLIENT_SECRET is required}
+      INVITATION_TOKEN_ENCRYPTION_KEY: ${INVITATION_TOKEN_ENCRYPTION_KEY:?INVITATION_TOKEN_ENCRYPTION_KEY is required}
+      AWS_REGION: ${AWS_REGION:-ap-northeast-2}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      S3_BUCKET: ${S3_BUCKET:?S3_BUCKET is required}
+      SES_FROM_EMAIL: ${SES_FROM_EMAIL:?SES_FROM_EMAIL is required}
+      INVITATION_MAIL_ENABLED: ${INVITATION_MAIL_ENABLED:-false}
+      INVITATION_MAIL_ALLOWED_RECIPIENT: ${INVITATION_MAIL_ALLOWED_RECIPIENT:-}
+      INVITATION_MAIL_PAGE_URL: ${INVITATION_MAIL_PAGE_URL:-http://localhost:8080/invite}
+      DOCUMENT_CONVERSION_BASE_URL: http://gotenberg:3000
+      DOCUMENT_CONVERSION_WORKER_ENABLED: ${DOCUMENT_CONVERSION_WORKER_ENABLED:-true}
+      S3_OBJECT_DELETION_WORKER_ENABLED: ${S3_OBJECT_DELETION_WORKER_ENABLED:-false}
+      SERVER_SHUTDOWN: graceful
+      SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE: 20s
+    depends_on:
+      mysql:
+        condition: service_healthy
+      gotenberg:
+        condition: service_healthy
+    networks:
+      - outbound
+      - database
+      - converter
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
+      MYSQL_DATABASE: ftfm
+      MYSQL_USER: ftfm
+      MYSQL_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$${MYSQL_PASSWORD}\" mysql --user=\"$${MYSQL_USER}\" --database=\"$${MYSQL_DATABASE}\" --execute='SELECT 1' --silent >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+    networks:
+      - database
+
+  gotenberg:
+    image: gotenberg/gotenberg:9.1.0-libreoffice
+    restart: unless-stopped
+    environment:
+      API_TIMEOUT: 60s
+      API_BODY_LIMIT: 25MB
+      API_DISABLE_DOWNLOAD_FROM: "true"
+      WEBHOOK_DISABLE: "true"
+    # External DNS forwarding is unnecessary: Spring uploads DOCX bytes directly.
+    dns:
+      - 127.0.0.1
+    dns_opt:
+      - timeout:1
+      - attempts:1
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--max-time", "3", "http://127.0.0.1:3000/health"]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+      start_period: 10s
+    networks:
+      - converter
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  outbound:
+  database:
+    internal: true
+  converter:
+    internal: true
+
+volumes:
+  mysql-data:
