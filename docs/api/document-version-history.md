@@ -22,7 +22,10 @@ GET /api/v1/workspaces/{workspaceId}/documents/{documentId}/versions
     "uploadedBy": 7,
     "uploadedByDisplayName": "업로더",
     "createdAt": "2026-11-15T12:00:00",
-    "conversionStatus": "COMPLETED"
+    "conversionStatus": "COMPLETED",
+    "failureStage": null,
+    "failureCode": null,
+    "failedAt": null
   }
 ]
 ```
@@ -35,6 +38,50 @@ GET /api/v1/workspaces/{workspaceId}/documents/{documentId}/versions
 - 변환 전 pageCount와 업로더의 uploadedByDisplayName은 null일 수 있다.
 - DocumentVersion이 없는 Document는 빈 배열을 반환한다.
 - S3 저장 키, 사용자 이메일, PDF·원본 다운로드 URL은 반환하지 않는다.
+
+### PDF 변환 실패 정보
+
+기존 응답에 `failureStage`, `failureCode`, `failedAt`을 추가한다. 세 필드는 응답에
+항상 포함하며 값이 없으면 JSON null이다. `conversionStatus`가 FAILED일 때만
+DocumentConversionJob에 저장된 값을 반환한다.
+
+```json
+{
+  "id": 90,
+  "documentId": 10,
+  "versionNumber": 2,
+  "originalFileName": "서비스 기획서 V2.docx",
+  "fileSize": 1024,
+  "pageCount": null,
+  "uploadedBy": 7,
+  "uploadedByDisplayName": "업로더",
+  "createdAt": "2026-11-21T12:00:00",
+  "conversionStatus": "FAILED",
+  "failureStage": "ORIGINAL_DOWNLOAD",
+  "failureCode": "ACCESS_DENIED",
+  "failedAt": "2026-11-21T12:34:56.123456"
+}
+```
+
+| 필드 | 의미 |
+| --- | --- |
+| failureStage | 실패한 단계의 enum 이름 |
+| failureCode | 저장된 고정 원인 코드의 enum 이름 |
+| failedAt | 실패를 기록한 Asia/Seoul 기준 LocalDateTime의 ISO 문자열. 오프셋 없음 |
+
+- 실패 정보가 없는 기존 FAILED 작업은 세 필드를 null로 반환한다.
+- PENDING·PROCESSING·COMPLETED와 변환 작업이 없는 버전은 세 필드가 모두 null이다.
+- 다른 상태에 이전 실패 정보가 남아 있어도 응답에서 숨긴다. 조회 과정에서 DB를 변경하지 않는다.
+- 워크스페이스 멤버는 업로더가 아니어도 실패 정보를 조회할 수 있다. 재시도 권한은
+  기존 [재시도 API](document-conversion-retry.md)의 업로더 조건을 따른다.
+- 재시도 접수 후 같은 버전을 조회하면 PENDING과 초기화된 세 실패 필드를 반환한다.
+  다른 버전의 실패 정보와 버전 번호 정렬은 유지한다.
+- 실패 코드는 자동 재시도 허용 여부를 뜻하지 않는다.
+- 예외 원문·스택 추적·cause·문서 내용·인증 정보는 응답 필드에 추가하지 않는다.
+- DB 조회만 수행하며 S3·Gotenberg 호출이나 파일 URL 발급은 하지 않는다.
+
+단계와 코드의 의미는 [변환 실패 기록](../operations/document-conversion-failure.md)을 참고한다.
+이번 확장은 화면의 실패 원인 표시와 재시도 버튼을 포함하지 않는다.
 
 ## 권한 및 오류
 
@@ -50,7 +97,9 @@ GET /api/v1/workspaces/{workspaceId}/documents/{documentId}/versions
 
 ## 구현 범위
 
-버전 목록 조회와 선택한 버전의 PDF·원본 URL 발급을 제공한다. 문서 카드·히스토리 화면은 다음 커밋에서 연결한다. 버전 삭제와 검토 상태 관리는 포함하지 않는다.
+버전 목록 조회와 선택한 버전의 PDF·원본 URL 발급을 제공한다.
+문서 카드·히스토리 화면은 [버전 히스토리 화면](../frontend/document-history-screen.md)을 참고한다.
+버전 삭제는 [삭제 API](document-version-deletion.md)의 별도 기능이며 검토 상태 관리는 포함하지 않는다.
 
 조회 테스트에서는 실제 S3에 접근하지 않는다. DocumentVersion 목록과 변환 상태는 테스트 전용 MySQL 스키마에서 검증한다.
 
@@ -106,4 +155,21 @@ GET /api/v1/workspaces/{workspaceId}/documents/{documentId}/versions/{documentVe
 - 마지막 버전까지 삭제해도 Document는 목록에 남는다. 응답은 revision=0, versionCount=0, conversionStatus=null이며 버전 히스토리는 빈 배열이다. 최신 PDF URL은 발급하지 않는다(409).
 - 삭제한 DocumentVersion의 버전별 PDF·원본 URL 조회는 404다.
 
-삭제 이후 조회 검증은 `DocumentQueryAfterVersionDeletionApiTest`에서 실제 DELETE API를 호출한 뒤 목록·최신 PDF·히스토리·버전별 URL 응답을 확인한다. S3 URL 생성은 모의 객체로 대체하며, 화면 버튼은 후속 커밋에서 연결한다. 삭제 API는 `docs/api/document-version-deletion.md`를 참고한다.
+삭제 이후 조회 검증은 `DocumentQueryAfterVersionDeletionApiTest`에서 실제 DELETE API를 호출한 뒤 목록·최신 PDF·히스토리·버전별 URL 응답을 확인한다. S3 URL 생성은 모의 객체로 대체한다. 화면 버튼은 [버전 삭제 화면](../frontend/document-version-deletion.md)을 참고한다. 삭제 API는 `docs/api/document-version-deletion.md`를 참고한다.
+
+
+## 실패 정보 조회 검증 결과
+
+임시 MySQL DB에서 관련 자동화 테스트 78개가 통과했다.
+
+| 테스트 클래스 | 통과 |
+| --- | ---: |
+| DocumentVersionFailureQueryTest | 7 |
+| DocumentVersionQueryApiTest | 30 |
+| DocumentQueryAfterVersionDeletionApiTest | 8 |
+| DocumentVersionUrlApiTest | 33 |
+
+실패 코드와 ISO 시각, 명시적 null, 조회 권한, GET 목록 → POST 재시도 → GET 목록 응답을
+검증했다. 재시도한 버전의 ID·버전 번호와 다른 버전의 실패 정보도 유지되는지 확인했다.
+S3·Gotenberg·파일 URL 생성은 모의 객체로 대체하며 호출되지 않는지 검사했다.
+실제 외부 서비스와 화면 동작은 이번 검증에 포함하지 않는다.

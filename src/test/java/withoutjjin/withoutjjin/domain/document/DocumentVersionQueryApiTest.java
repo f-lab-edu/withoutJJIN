@@ -15,14 +15,20 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultMatcher;
 import org.springframework.transaction.annotation.Transactional;
+import software.amazon.awssdk.services.s3.S3Client;
+import withoutjjin.withoutjjin.domain.document.conversion.WordPdfConverter;
 import withoutjjin.withoutjjin.domain.document.entity.Document;
 import withoutjjin.withoutjjin.domain.document.entity.DocumentConversionJob;
 import withoutjjin.withoutjjin.domain.document.entity.DocumentConversionJobStatus;
+import withoutjjin.withoutjjin.domain.document.entity.DocumentConversionFailureStage;
+import withoutjjin.withoutjjin.domain.document.entity.DocumentConversionFailureCode;
 import withoutjjin.withoutjjin.domain.document.entity.DocumentUpload;
 import withoutjjin.withoutjjin.domain.document.entity.DocumentVersion;
 import withoutjjin.withoutjjin.domain.document.entity.StoreFile;
 import withoutjjin.withoutjjin.domain.document.storage.S3DownloadUrlGenerator;
+import withoutjjin.withoutjjin.domain.document.repository.DocumentConversionJobRepository;
 import withoutjjin.withoutjjin.domain.user.entity.AppUser;
 import withoutjjin.withoutjjin.domain.workspace.entity.Workspace;
 import withoutjjin.withoutjjin.domain.workspace.entity.WorkspaceMember;
@@ -31,8 +37,13 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.nullValue;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
@@ -44,7 +55,10 @@ class DocumentVersionQueryApiTest {
     @Autowired private MockMvc mvc;
     @Autowired private EntityManager em;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private DocumentConversionJobRepository jobs;
     @MockitoBean private S3DownloadUrlGenerator generator;
+    @MockitoBean private S3Client s3Client;
+    @MockitoBean private WordPdfConverter converter;
 
     private AppUser member;
     private Workspace workspace;
@@ -61,7 +75,7 @@ class DocumentVersionQueryApiTest {
 
     @AfterEach
     void doesNotIssueDownloadUrls() {
-        verifyNoInteractions(generator);
+        verifyNoInteractions(generator, s3Client, converter);
     }
 
     @Test
@@ -121,12 +135,14 @@ class DocumentVersionQueryApiTest {
     void allowsInvitedMembers() throws Exception {
         AppUser invitee = user("초대 멤버");
         em.persist(new WorkspaceMember(workspace, invitee));
-        version(document, 1, member, DocumentConversionJobStatus.PENDING);
+        failedVersion(document, 1, member);
         flushAndClear();
 
         mvc.perform(get(historyPath()).with(login(invitee)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].uploadedBy").value(member.getId()));
+                .andExpect(jsonPath("$[0].uploadedBy").value(member.getId()))
+                .andExpect(jsonPath("$[0].failureStage").value("ORIGINAL_DOWNLOAD"))
+                .andExpect(jsonPath("$[0].failureCode").value("ACCESS_DENIED"));
     }
 
     @Test
@@ -153,7 +169,7 @@ class DocumentVersionQueryApiTest {
     @Test
     @DisplayName("변환 작업이 없는 버전도 포함하고 다른 버전의 상태를 대신 사용하지 않는다")
     void preservesVersionWithoutConversionJob() throws Exception {
-        version(document, 1, member, DocumentConversionJobStatus.COMPLETED);
+        failedVersion(document, 1, member);
         version(document, 2, member, null);
         flushAndClear();
         mvc.perform(get(historyPath()).with(login(member)))
@@ -162,7 +178,9 @@ class DocumentVersionQueryApiTest {
                 .andExpect(jsonPath("$[0].versionNumber").value(2))
                 .andExpect(jsonPath("$[0].conversionStatus").doesNotExist())
                 .andExpect(jsonPath("$[0].pageCount").doesNotExist())
-                .andExpect(jsonPath("$[1].conversionStatus").value("COMPLETED"));
+                .andExpect(nullFailureFields("$[0]"))
+                .andExpect(jsonPath("$[1].conversionStatus").value("FAILED"))
+                .andExpect(jsonPath("$[1].failureCode").value("ACCESS_DENIED"));
     }
 
     @Test
@@ -181,6 +199,8 @@ class DocumentVersionQueryApiTest {
     @Test
     @DisplayName("비로그인 요청은 리다이렉트 없이 401을 반환한다")
     void rejectsAnonymousRequests() throws Exception {
+        failedVersion(document, 1, member);
+        flushAndClear();
         mvc.perform(get(historyPath()))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("AUTH_REQUIRED"))
@@ -191,7 +211,7 @@ class DocumentVersionQueryApiTest {
     @DisplayName("워크스페이스 비멤버는 버전 목록을 조회할 수 없다")
     void rejectsNonMembers() throws Exception {
         AppUser outsider = user("비멤버");
-        version(document, 1, member, DocumentConversionJobStatus.COMPLETED);
+        failedVersion(document, 1, member);
         flushAndClear();
         mvc.perform(get(historyPath()).with(login(outsider)))
                 .andExpect(status().isForbidden());
@@ -203,7 +223,7 @@ class DocumentVersionQueryApiTest {
         Workspace otherWorkspace = new Workspace("다른 팀", member);
         em.persist(otherWorkspace);
         Document otherDocument = document(otherWorkspace, "다른 팀 문서");
-        version(otherDocument, 1, member, DocumentConversionJobStatus.COMPLETED);
+        failedVersion(otherDocument, 1, member);
         flushAndClear();
         mvc.perform(get(path(workspace.getId().toString(), otherDocument.getId().toString())).with(login(member)))
                 .andExpect(status().isNotFound());
@@ -212,7 +232,7 @@ class DocumentVersionQueryApiTest {
     @Test
     @DisplayName("멤버십 삭제 후에는 이전에 조회한 버전 목록도 다시 조회할 수 없다")
     void rechecksMembershipOnEveryRequest() throws Exception {
-        version(document, 1, member, DocumentConversionJobStatus.PENDING);
+        failedVersion(document, 1, member);
         flushAndClear();
         mvc.perform(get(historyPath()).with(login(member))).andExpect(status().isOk());
         jdbc.update("DELETE FROM workspace_member WHERE workspace_id = ? AND user_id = ?", workspace.getId(), member.getId());
@@ -247,6 +267,113 @@ class DocumentVersionQueryApiTest {
     void rejectsMissingDocument() throws Exception {
         mvc.perform(get(path(workspace.getId().toString(), Long.toString(Long.MAX_VALUE))).with(login(member)))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("FAILED 응답에 저장된 코드와 ISO 시각을 포함하고 승인된 13개 필드만 반환한다")
+    void returnsFailureFieldsWithoutExposingInternalData() throws Exception {
+        DocumentVersion selected = failedVersion(document, 1, member);
+        Long jobId = jobs.findByDocumentVersionId(selected.getId()).orElseThrow().getId();
+        LocalDateTime recordedAt = LocalDateTime.of(2026, 11, 21, 12, 34, 56, 123456000);
+        em.flush();
+        jdbc.update("update document_conversion_job set failed_at = ? where id = ?", recordedAt, jobId);
+        flushAndClear();
+
+        mvc.perform(get(historyPath()).with(login(member)))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$[0].id").value(selected.getId()))
+                .andExpect(jsonPath("$[0].conversionStatus").value("FAILED"))
+                .andExpect(jsonPath("$[0].failureStage").value("ORIGINAL_DOWNLOAD"))
+                .andExpect(jsonPath("$[0].failureCode").value("ACCESS_DENIED"))
+                .andExpect(jsonPath("$[0].failedAt").value(recordedAt.toString()))
+                .andExpect(jsonPath("$[0]").value(aMapWithSize(13)))
+                .andExpect(jsonPath("$[0].failureMessage").doesNotExist())
+                .andExpect(jsonPath("$[0].exception").doesNotExist())
+                .andExpect(jsonPath("$[0].cause").doesNotExist())
+                .andExpect(jsonPath("$[0].stackTrace").doesNotExist())
+                .andExpect(jsonPath("$[0].storageKey").doesNotExist())
+                .andExpect(jsonPath("$[0].objectKey").doesNotExist())
+                .andExpect(jsonPath("$[0].email").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("실패 정보가 없는 기존 FAILED도 세 필드를 명시적 null로 응답한다")
+    void returnsNullFailureFieldsForLegacyJob() throws Exception {
+        DocumentVersion selected = failedVersion(document, 1, member);
+        Long jobId = jobs.findByDocumentVersionId(selected.getId()).orElseThrow().getId();
+        em.flush();
+        jdbc.update("update document_conversion_job set failure_stage = null, failure_code = null, failed_at = null where id = ?", jobId);
+        flushAndClear();
+
+        mvc.perform(get(historyPath()).with(login(member)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].conversionStatus").value("FAILED"))
+                .andExpect(nullFailureFields("$[0]"));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = DocumentConversionJobStatus.class, names = {"PENDING", "PROCESSING", "COMPLETED"})
+    @DisplayName("FAILED 이외 상태에서는 남아 있는 이전 실패 정보를 JSON에 노출하지 않는다")
+    void returnsNullFailureFieldsForOtherStatuses(DocumentConversionJobStatus status) throws Exception {
+        DocumentVersion selected = failedVersion(document, 1, member);
+        Long jobId = jobs.findByDocumentVersionId(selected.getId()).orElseThrow().getId();
+        em.flush();
+        jdbc.update("update document_conversion_job set status = ? where id = ?", status.name(), jobId);
+        flushAndClear();
+
+        mvc.perform(get(historyPath()).with(login(member)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].conversionStatus").value(status.name()))
+                .andExpect(nullFailureFields("$[0]"));
+    }
+
+    @Test
+    @DisplayName("조회·재시도·재조회 시 같은 버전은 PENDING과 null 실패 정보를 반환하고 다른 버전은 유지한다")
+    void returnsClearedFailureAfterRetryApi() throws Exception {
+        DocumentVersion sibling = failedVersion(document, 1, member);
+        DocumentVersion selected = failedVersion(document, 2, member);
+        flushAndClear();
+        mvc.perform(get(historyPath()).with(login(member)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(selected.getId()))
+                .andExpect(jsonPath("$[0].failureCode").value("ACCESS_DENIED"));
+
+        mvc.perform(post(historyPath() + "/" + selected.getId() + "/conversion-retry")
+                        .with(login(member)).with(csrf().asHeader()))
+                .andExpect(status().isAccepted());
+        flushAndClear();
+
+        mvc.perform(get(historyPath()).with(login(member)))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].id").value(selected.getId()))
+                .andExpect(jsonPath("$[0].versionNumber").value(2))
+                .andExpect(jsonPath("$[0].conversionStatus").value("PENDING"))
+                .andExpect(nullFailureFields("$[0]"))
+                .andExpect(jsonPath("$[1].id").value(sibling.getId()))
+                .andExpect(jsonPath("$[1].conversionStatus").value("FAILED"))
+                .andExpect(jsonPath("$[1].failureCode").value("ACCESS_DENIED"));
+        Long jobId = jobs.findByDocumentVersionId(selected.getId()).orElseThrow().getId();
+        assertThat(jdbc.queryForMap("select failure_stage, failure_code, failed_at from document_conversion_job where id = ?",
+                jobId).values()).containsOnlyNulls();
+    }
+
+    private ResultMatcher nullFailureFields(String prefix) {
+        return result -> {
+            for (String field : new String[]{"failureStage", "failureCode", "failedAt"}) {
+                jsonPath(prefix + "." + field).hasJsonPath().match(result);
+                jsonPath(prefix + "." + field).value(nullValue()).match(result);
+            }
+        };
+    }
+
+    private DocumentVersion failedVersion(Document target, int number, AppUser uploader) {
+        DocumentVersion selected = version(target, number, uploader, DocumentConversionJobStatus.PROCESSING);
+        jobs.findByDocumentVersionId(selected.getId()).orElseThrow()
+                .fail(DocumentConversionFailureStage.ORIGINAL_DOWNLOAD, DocumentConversionFailureCode.ACCESS_DENIED);
+        return selected;
     }
 
     private String historyPath() { return path(workspace.getId().toString(), document.getId().toString()); }

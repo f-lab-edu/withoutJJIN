@@ -15,6 +15,7 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import withoutjjin.withoutjjin.domain.document.entity.DocumentConversionFailureCode;
 
 import java.io.IOException;
 
@@ -83,30 +84,36 @@ public class WordPdfConverter {
         try {
             contentType = response.getHeaders().getContentType();
         } catch (InvalidMediaTypeException exception) {
-            throw new WordPdfConversionException("변환 서버의 Content-Type을 확인할 수 없습니다.", exception);
+            throw new WordPdfConversionException(DocumentConversionFailureCode.INVALID_PDF,
+                    "변환 서버의 Content-Type을 확인할 수 없습니다.", exception);
         }
         if (contentType == null || !MediaType.APPLICATION_PDF.includes(contentType)) {
-            throw new WordPdfConversionException("변환 서버가 application/pdf 응답을 반환하지 않았습니다.");
+            throw new WordPdfConversionException(DocumentConversionFailureCode.INVALID_PDF,
+                    "변환 서버가 application/pdf 응답을 반환하지 않았습니다.");
         }
         if (response.getHeaders().getContentLength() > MAX_PDF_BYTES) {
-            throw new WordPdfConversionException("변환된 PDF가 64MiB 제한을 초과했습니다.");
+            throw new WordPdfConversionException(DocumentConversionFailureCode.SIZE_LIMIT_EXCEEDED,
+                    "변환된 PDF가 64MiB 제한을 초과했습니다.");
         }
 
         // Content-Length가 없거나 부정확한 응답도 실제 읽은 바이트 수로 제한한다.
         byte[] pdfContent = response.getBody().readNBytes(MAX_PDF_BYTES + 1); //④ 실제로 읽은 데이터 크기 확인
         if (pdfContent.length > MAX_PDF_BYTES) { //1바이트를 더 읽는 이유는 정확히 64MiB인 응답과 64MiB를 초과한 응답을 구분하기 위해서
-            throw new WordPdfConversionException("변환된 PDF가 64MiB 제한을 초과했습니다.");
+            throw new WordPdfConversionException(DocumentConversionFailureCode.SIZE_LIMIT_EXCEEDED,
+                    "변환된 PDF가 64MiB 제한을 초과했습니다.");
         }
 
         try (PDDocument pdf = Loader.loadPDF(pdfContent)) { //PDFBox로 PDF를 열고 페이지 수 확인
             //Loader.loadPDF(): PDF 바이트 배열을 PDFBox로 열어.
             int pageCount = pdf.getNumberOfPages();
             if (pageCount < 1) {
-                throw new WordPdfConversionException("변환된 PDF에 페이지가 없습니다.");
+                throw new WordPdfConversionException(DocumentConversionFailureCode.INVALID_PDF,
+                        "변환된 PDF에 페이지가 없습니다.");
             }
             return new ConvertedPdf(pdfContent, pageCount);
         } catch (IOException exception) {
-            throw new WordPdfConversionException("변환 서버의 응답을 PDF로 열 수 없습니다.", exception);
+            throw new WordPdfConversionException(DocumentConversionFailureCode.INVALID_PDF,
+                    "변환 서버의 응답을 PDF로 열 수 없습니다.", exception);
         }
 
 

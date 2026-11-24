@@ -20,6 +20,7 @@ import withoutjjin.withoutjjin.domain.document.repository.DocumentConversionJobR
 import withoutjjin.withoutjjin.domain.document.repository.DocumentRepository;
 import withoutjjin.withoutjjin.domain.document.repository.DocumentUploadRepository;
 import withoutjjin.withoutjjin.domain.document.repository.DocumentVersionRepository;
+import withoutjjin.withoutjjin.domain.document.repository.DocumentVersionReviewRepository;
 import withoutjjin.withoutjjin.domain.document.repository.S3ObjectDeletionTaskRepository;
 import withoutjjin.withoutjjin.domain.document.repository.StoreFileRepository;
 import withoutjjin.withoutjjin.domain.feedback.repository.DocumentFeedbackRepository;
@@ -43,6 +44,7 @@ public class DocumentVersionDeletionService {
     private final DocumentConversionJobRepository conversionJobs;
     private final DocumentUploadRepository uploads;
     private final DocumentFeedbackRepository feedbacks;
+    private final DocumentVersionReviewRepository reviews;
     private final StoreFileRepository files;
     private final S3ObjectDeletionTaskRepository deletionTasks;
     private final AppUserService appUserService;
@@ -89,6 +91,7 @@ public class DocumentVersionDeletionService {
 
         // FK를 참조하는 행부터 삭제하며 어느 단계에서 실패해도 전체를 롤백한다.
         feedbacks.deleteAllForDocumentVersion(documentVersionId);
+        reviews.deleteAllForDocumentVersion(documentVersionId);
         conversionJobs.delete(job);
         conversionJobs.flush();
         uploads.delete(upload);

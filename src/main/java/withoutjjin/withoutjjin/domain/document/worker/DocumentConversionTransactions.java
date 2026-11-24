@@ -7,6 +7,8 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import withoutjjin.withoutjjin.domain.document.conversion.StoredPdf;
 import withoutjjin.withoutjjin.domain.document.entity.DocumentConversionJob;
+import withoutjjin.withoutjjin.domain.document.entity.DocumentConversionFailureStage;
+import withoutjjin.withoutjjin.domain.document.entity.DocumentConversionFailureCode;
 import withoutjjin.withoutjjin.domain.document.entity.DocumentConversionJobStatus;
 import withoutjjin.withoutjjin.domain.document.entity.DocumentUpload;
 import withoutjjin.withoutjjin.domain.document.entity.DocumentUploadStatus;
@@ -69,10 +71,10 @@ public class DocumentConversionTransactions {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
-    public void markFailed(Long jobId) {
+    public void markFailed(Long jobId, DocumentConversionFailureStage stage, DocumentConversionFailureCode code) {
         jobs.findByIdForUpdate(jobId)
                 .filter(job -> job.getStatus() == DocumentConversionJobStatus.PROCESSING)
-                .ifPresent(DocumentConversionJob::fail);
+                .ifPresent(job -> job.fail(stage, code));
     }
 
     private void validateSource(DocumentConversionJob job, PreparedConversion prepared) {

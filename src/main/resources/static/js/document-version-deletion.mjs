@@ -1,4 +1,5 @@
 import {DocumentRequestError} from "./workspace-documents.mjs?v=pdf-version-1";
+import {requireDocumentSession} from "./document-session.mjs?v=version-actions-78";
 
 export class DocumentVersionDeletionError extends DocumentRequestError {
     constructor(message, status, {deleteAttempted = false, outcomeUnknown = false, cause} = {}) {
@@ -14,39 +15,13 @@ const validId = value => Number.isSafeInteger(value) && value > 0;
 const UNKNOWN_OUTCOME_MESSAGE = "삭제 결과를 확인하지 못했어요. 목록을 새로고침해 삭제 여부를 확인해 주세요.";
 
 async function currentUser({expectedUserId, fetchImpl, signal}) {
-    signal?.throwIfAborted();
-    let response;
     try {
-        response = await fetchImpl("/api/v1/auth/me", {
-            credentials: "same-origin", cache: "no-store", redirect: "error", signal
-        });
+        return await requireDocumentSession({expectedUserId, fetchImpl, signal}, "삭제");
     } catch (error) {
         signal?.throwIfAborted();
         if (error?.name === "AbortError") throw error;
-        throw new DocumentVersionDeletionError("로그인 정보를 확인하지 못해 삭제 요청을 보내지 않았어요. 다시 확인해 주세요.",
-                undefined, {cause: error});
+        throw new DocumentVersionDeletionError(error.message, error.status, {cause: error.cause});
     }
-    signal?.throwIfAborted();
-    if (!response.ok) {
-        throw new DocumentVersionDeletionError(response.status === 401
-                ? "로그인이 만료됐어요. 다시 로그인해 주세요."
-                : "로그인 정보를 확인하지 못해 삭제 요청을 보내지 않았어요. 다시 확인해 주세요.", response.status);
-    }
-    let user;
-    try { user = await response.json(); }
-    catch (error) {
-        signal?.throwIfAborted();
-        if (error?.name === "AbortError") throw error;
-        throw new DocumentVersionDeletionError("로그인 응답을 확인하지 못해 삭제 요청을 보내지 않았어요.");
-    }
-    signal?.throwIfAborted();
-    if (user?.id !== expectedUserId) {
-        throw new DocumentVersionDeletionError("로그인 계정이 바뀌었어요. 화면을 새로고침해 주세요.", 401);
-    }
-    if (typeof user.csrfToken !== "string" || !user.csrfToken.trim() || /[\r\n]/.test(user.csrfToken)) {
-        throw new DocumentVersionDeletionError("보안 토큰을 확인할 수 없어요. 화면을 새로고침해 주세요.", 403);
-    }
-    return user;
 }
 
 export async function deleteDocumentVersion({workspaceId, documentId, documentVersionId, expectedUserId,

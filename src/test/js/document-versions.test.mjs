@@ -83,3 +83,42 @@ test("original URL rejects a missing filename and invalid JSON is reported safel
     const f = fixture({invalidJson: true});
     await assert.rejects(fetchDocumentVersions({...options, fetchImpl: f.fetchImpl}), /응답/);
 });
+
+test("preserves the matching failed version's stage, code and ISO time without changing the response object", async () => {
+    const item = {...version(), conversionStatus: "FAILED", failureStage: "ORIGINAL_DOWNLOAD",
+        failureCode: "ACCESS_DENIED", failedAt: "2026-11-22T12:34:56.123456"};
+    const f = fixture({body: [item]});
+    const [result] = await fetchDocumentVersions({...options, fetchImpl: f.fetchImpl});
+    assert.equal(result.failureStage, "ORIGINAL_DOWNLOAD");
+    assert.equal(result.failureCode, "ACCESS_DENIED");
+    assert.equal(result.failedAt, item.failedAt);
+    assert.notEqual(result, item);
+});
+
+test("legacy or malformed failure details do not break history and absent fields normalize to null", async () => {
+    for (const fields of [{}, {failureStage: null, failureCode: null, failedAt: null},
+        {failureStage: {}, failureCode: 3, failedAt: "bad"}, {failureStage: "", failureCode: " ", failedAt: 42}]) {
+        const f = fixture({body: [{...version(), conversionStatus: "FAILED", ...fields}]});
+        const [result] = await fetchDocumentVersions({...options, fetchImpl: f.fetchImpl});
+        assert.equal(result.failureStage, null); assert.equal(result.failureCode, null); assert.equal(result.failedAt, null);
+    }
+});
+
+test("accepts future failure codes while discarding a malformed failure time", async () => {
+    const f = fixture({body: [{...version(), conversionStatus: "FAILED", failureStage: "FUTURE_STAGE",
+        failureCode: "FUTURE_CODE", failedAt: "not-an-ISO-date"}]});
+    const [result] = await fetchDocumentVersions({...options, fetchImpl: f.fetchImpl});
+    assert.equal(result.failureStage, "FUTURE_STAGE"); assert.equal(result.failureCode, "FUTURE_CODE");
+    assert.equal(result.failedAt, null);
+});
+
+test("does not expose stale failure metadata for pending, processing, completed or missing jobs", async () => {
+    for (const conversionStatus of ["PENDING", "PROCESSING", "COMPLETED", null]) {
+        const item = {...version(), conversionStatus, failureStage: "PDF_UPLOAD", failureCode: "ACCESS_DENIED",
+            failedAt: "2026-11-22T12:34:56"};
+        const f = fixture({body: [item]});
+        const [result] = await fetchDocumentVersions({...options, fetchImpl: f.fetchImpl});
+        assert.equal(result.failureStage, null); assert.equal(result.failureCode, null); assert.equal(result.failedAt, null);
+        assert.equal(item.failureCode, "ACCESS_DENIED");
+    }
+});
