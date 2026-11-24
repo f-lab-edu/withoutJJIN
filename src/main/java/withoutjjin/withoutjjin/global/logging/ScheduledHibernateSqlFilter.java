@@ -19,7 +19,6 @@ public class ScheduledHibernateSqlFilter extends Filter<ILoggingEvent> {
                 || "org.hibernate.orm.jdbc.extract".equals(logger);
         String thread = event.getThreadName();
         boolean schedulerThread = thread.startsWith("document-conversion-")
-                || thread.startsWith("invitation-email-")
                 || thread.startsWith("s3-object-deletion-");
         return sqlLog && schedulerThread ? FilterReply.DENY : FilterReply.NEUTRAL;
     }

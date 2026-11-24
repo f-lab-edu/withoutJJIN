@@ -1,13 +1,13 @@
 package withoutjjin.withoutjjin.domain.invitation.service;
 
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
-import withoutjjin.withoutjjin.domain.invitation.entity.Invitation;
+import withoutjjin.withoutjjin.domain.invitation.dto.InvitationResponse;
 import withoutjjin.withoutjjin.domain.invitation.dto.InvitationStatusResponse;
-import withoutjjin.withoutjjin.domain.invitation.entity.InvitationStatus;
+import withoutjjin.withoutjjin.domain.invitation.entity.Invitation;
 import withoutjjin.withoutjjin.domain.invitation.repository.InvitationRepository;
 import withoutjjin.withoutjjin.domain.invitation.token.InvitationTokenCipher;
 import withoutjjin.withoutjjin.domain.invitation.token.InvitationTokenGenerator;
@@ -17,119 +17,96 @@ import withoutjjin.withoutjjin.domain.workspace.entity.Workspace;
 import withoutjjin.withoutjjin.domain.workspace.repository.WorkspaceMemberRepository;
 import withoutjjin.withoutjjin.domain.workspace.repository.WorkspaceRepository;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
+import java.util.List;
 
 @Service
-@RequiredArgsConstructor
 public class InvitationService {
+    private final WorkspaceRepository workspaces;
+    private final AppUserService users;
+    private final WorkspaceMemberRepository members;
+    private final InvitationRepository invitations;
+    private final InvitationTokenGenerator tokens;
+    private final InvitationTokenCipher cipher;
+    private final Clock clock;
 
-    private static final long EXPIRATION_HOURS = 24;
-
-    private final WorkspaceRepository workspaceRepository;
-    private final AppUserService appUserService;
-    private final WorkspaceMemberRepository workspaceMemberRepository;
-    private final InvitationRepository invitationRepository;
-    private final InvitationTokenGenerator invitationTokenGenerator;
-    private final InvitationTokenCipher invitationTokenCipher;
+    public InvitationService(WorkspaceRepository workspaces, AppUserService users,
+                             WorkspaceMemberRepository members, InvitationRepository invitations,
+                             InvitationTokenGenerator tokens, InvitationTokenCipher cipher,
+                             @Qualifier("invitationClock") Clock clock) {
+        this.workspaces = workspaces;
+        this.users = users;
+        this.members = members;
+        this.invitations = invitations;
+        this.tokens = tokens;
+        this.cipher = cipher;
+        this.clock = clock;
+    }
 
     @Transactional
-    public Invitation createInvitation(
-            String targetEmail,
-            Long workspaceId,
-            String issuer,
-            String subject
-    ) {
-        AppUser inviter = appUserService.getByIssuerAndSubject(issuer, subject);
-        Workspace workspace = workspaceRepository.findById(workspaceId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "워크스페이스를 찾을 수 없습니다."
-                ));
-
-        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
-        validateInvitation(workspaceId, inviter.getId(), targetEmail, now);
-
-        // 링크에 사용할 원문을 만들고, 검증용 해시를 계산한다.
-        String token = invitationTokenGenerator.generateToken();// 초대 링크에 들어갈 원문
-        String tokenHash = invitationTokenGenerator.hashToken(token);
-        // SHA-256으로 해시를 계산해 DB에 저장해.이유 : 어떤 초대 링크인지 확인을위해서 저장 .
-        String encryptedToken = invitationTokenCipher.encrypt(token); //  난수를 암호화한 녀석
-        // 이메일에 넣을 링크를 만들떄 처음이나 나중에 같은 원문으로 시도하기위해 암호화하여 저장해놨다가 비밀키로 복호화함
-        // 검증용 해시와, 작업자가 복호화해서 사용할 발송용 암호문을 함께 저장한다.
-        Invitation invitation = new Invitation(
-                workspace,
-                inviter,
-                targetEmail,
-                tokenHash,
-                encryptedToken,
-                now.plusHours(EXPIRATION_HOURS)
-        );
-
-        return invitationRepository.save(invitation);
+    public InvitationResponse createInvitation(Long workspaceId, String issuer, String subject) {
+        AppUser creator = users.getByIssuerAndSubject(issuer, subject);
+        Workspace workspace = authorizedWorkspace(workspaceId, creator, true);
+        String token = tokens.generateToken();
+        Invitation invitation = invitations.save(new Invitation(workspace, creator,
+                tokens.hashToken(token), cipher.encrypt(token), LocalDateTime.now(clock)));
+        return response(invitation, token);
     }
 
     @Transactional(readOnly = true)
-    public InvitationStatusResponse getInvitationStatus(
-            Long workspaceId, Long invitationId, String issuer, String subject
-    ) {
-        AppUser user = appUserService.getByIssuerAndSubject(issuer, subject);
-        if (!workspaceMemberRepository.existsByWorkspaceIdAndUserId(workspaceId, user.getId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                    "워크스페이스 멤버만 초대 상태를 조회할 수 있습니다.");
-        }
-
-        Invitation invitation = invitationRepository.findByIdAndWorkspaceId(invitationId, workspaceId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
-                        "초대를 찾을 수 없습니다."));
-
-        // 영속성 컨텍스트 안에서 필요한 정보만 응답으로 변환한다. 토큰은 반환하지 않는다.
-        return new InvitationStatusResponse(
-                invitation.getId(), invitation.getWorkspace().getId(), invitation.getTargetEmail(),
-                invitation.getInvitationStatus(), invitation.getEmailSendStatus(),
-                invitation.getRetryCount(), invitation.getNextRetryAt(),
-                invitation.getExpiresAt(), invitation.getCreatedAt()
-        );
+    public List<InvitationStatusResponse> getInvitations(Long workspaceId, String issuer, String subject) {
+        authorizedWorkspace(workspaceId, users.getByIssuerAndSubject(issuer, subject), false);
+        return invitations.findAllByWorkspaceIdOrderByCreatedAtDescIdDesc(workspaceId).stream()
+                .map(invitation -> new InvitationStatusResponse(invitation.getId(), workspaceId,
+                        invitation.getInvitedBy().getId(), invitation.getInvitationStatus(),
+                        invitation.getExpiresAt(), invitation.getCreatedAt(), invitation.getRevokedAt()))
+                .toList();
     }
 
-    private void validateInvitation(
-            Long workspaceId,
-            Long inviterId,
-            String targetEmail,
-            LocalDateTime now
-    ) {
-        boolean isMember = workspaceMemberRepository
-                .existsByWorkspaceIdAndUserId(workspaceId, inviterId);
-
-        if (!isMember) {
-            throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "워크스페이스 멤버만 초대할 수 있습니다."
-            );
+    @Transactional
+    public InvitationResponse getInvitation(Long workspaceId, Long invitationId, String issuer, String subject) {
+        // 폐기와 URL 재조회를 같은 Workspace 잠금 순서로 처리한다.
+        authorizedWorkspace(workspaceId, users.getByIssuerAndSubject(issuer, subject), true);
+        Invitation invitation = findForUpdate(workspaceId, invitationId);
+        requireActive(invitation, LocalDateTime.now(clock));
+        String token = cipher.decrypt(invitation.getEncryptedToken());
+        if (!tokens.hashToken(token).equals(invitation.getTokenHash())) {
+            throw new IllegalStateException("초대 토큰 검증에 실패했습니다.");
         }
+        return response(invitation, token);
+    }
 
-        if (workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(
-                workspaceId, targetEmail
-        )) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "이미 워크스페이스에 소속된 회원입니다."
-            );
+    @Transactional
+    public void revokeInvitation(Long workspaceId, Long invitationId, String issuer, String subject) {
+        authorizedWorkspace(workspaceId, users.getByIssuerAndSubject(issuer, subject), true);
+        findForUpdate(workspaceId, invitationId).revoke(LocalDateTime.now(clock));
+    }
+
+    private Workspace authorizedWorkspace(Long workspaceId, AppUser user, boolean lock) {
+        Workspace workspace = (lock ? workspaces.findByIdForUpdate(workspaceId) : workspaces.findById(workspaceId))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "워크스페이스를 찾을 수 없습니다."));
+        if (!workspace.getCreatedBy().getId().equals(user.getId())
+                || !members.existsByWorkspaceIdAndUserId(workspaceId, user.getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "워크스페이스 생성자만 초대 URL을 관리할 수 있습니다.");
         }
+        return workspace;
+    }
 
-        boolean alreadyInvited = invitationRepository
-                .existsByWorkspaceIdAndTargetEmailAndInvitationStatusAndExpiresAtAfter(
-                        workspaceId,
-                        targetEmail,
-                        InvitationStatus.PENDING,
-                        now
-                );
+    private Invitation findForUpdate(Long workspaceId, Long invitationId) {
+        return invitations.findByIdAndWorkspaceIdForUpdate(invitationId, workspaceId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "초대를 찾을 수 없습니다."));
+    }
 
-        if (alreadyInvited) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "아직 유효한 초대가 존재합니다."
-            );
+    static void requireActive(Invitation invitation, LocalDateTime now) {
+        if (!invitation.isActiveAt(now)) {
+            throw new ResponseStatusException(HttpStatus.GONE, "폐기되었거나 만료된 초대 URL입니다.");
         }
+    }
+
+    private InvitationResponse response(Invitation invitation, String token) {
+        return new InvitationResponse(invitation.getId(), invitation.getWorkspace().getId(),
+                invitation.getInvitedBy().getId(), invitation.getInvitationStatus(),
+                invitation.getExpiresAt(), invitation.getCreatedAt(), token);
     }
 }

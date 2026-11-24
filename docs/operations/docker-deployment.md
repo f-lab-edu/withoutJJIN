@@ -15,7 +15,7 @@
 Spring의 DB 주소는 `jdbc:mysql://mysql:3306/ftfm`, 변환 서버 주소는 `http://gotenberg:3000`이다.
 컨테이너의 `localhost`는 해당 컨테이너 자신을 가리키므로 호스트 개발용 주소를 사용하지 않는다.
 
-Spring은 `outbound`에서 Google·S3·SES와 통신할 수 있다.
+Spring은 `outbound`에서 Google·S3와 통신할 수 있다.
 Gotenberg는 `internal: true`인 `converter`에만 연결한다. 외부 DNS 전달이 필요하지 않으므로
 Gotenberg의 DNS 업스트림은 `127.0.0.1`로 지정한다. 외부 IP로 직접 접속하는 경로와
 일반적인 외부 DNS 조회를 모두 제한하고, 같은 네트워크의 Spring 변환 요청은 받는다.
@@ -29,7 +29,7 @@ Gotenberg의 DNS 업스트림은 `127.0.0.1`로 지정한다. 외부 IP로 직�
 
 `Dockerfile`의 build 단계에서 Gradle Wrapper와 Java 17 JDK로 `bootJar`를 실행한다.
 runtime 단계에는 Java 17 JRE와 실행 JAR만 복사하며 `spring` 사용자(UID 10001)로 실행한다.
-이미지 빌드 과정에서는 DB·S3·Google·SES 인증정보가 필요하지 않다.
+이미지 빌드 과정에서는 DB·S3·Google 인증정보가 필요하지 않다.
 `bootJar` 빌드는 자동화 테스트를 실행하는 명령이 아니므로 테스트 통과 여부는 별도로 확인한다.
 
 `.dockerignore`는 빌드에 필요한 Gradle 파일과 `src/main`만 허용한다.
@@ -54,7 +54,7 @@ Copy-Item .env.docker.example .env.docker
 - `MYSQL_ROOT_PASSWORD`, `DB_PASSWORD`: 새 DB에 사용할 비밀번호
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`: Google OAuth 클라이언트
 - `INVITATION_TOKEN_ENCRYPTION_KEY`: Base64로 인코딩한 32바이트 키. 재기동·재빌드 시 같은 키를 유지한다.
-- `S3_BUCKET`, `SES_FROM_EMAIL`, `AWS_REGION`: 사용할 AWS 리소스 정보
+- `S3_BUCKET`, `AWS_REGION`: 사용할 AWS 리소스 정보
 - `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`: 키 방식이면 두 값을 함께 설정한다. 지원되는 IAM 역할 환경에서는 둘 다 비워 SDK 기본 인증정보 공급자를 사용한다.
 
 호스트에서 이미 IntelliJ Spring이 8080을 사용 중이면 중지하거나 `APP_PORT`를 다른 값으로 지정한다.
@@ -129,7 +129,7 @@ docker compose --env-file .env.docker -f docker-compose.deploy.yaml exec -T gote
 - 앱 네트워크 네임스페이스에서 실제 `DocumentConversionConfig`·`WordPdfConverter`로 생성한 DOCX를 Gotenberg에 전송하여 1페이지 PDF 반환·검증 확인
 - Spring 컨테이너 재생성 후 MySQL 볼륨 유지와 Spring 재기동 확인
 
-변환 검증에는 테스트용으로 생성한 DOCX를 사용했다. 실제 AWS·Google 로그인·SES 발송이나
+변환 검증에는 테스트용으로 생성한 DOCX를 사용했다. 실제 AWS·Google 로그인이나
 브라우저의 전체 업로드 흐름을 검증한 결과는 아니다. 테스트용 컨테이너·네트워크·DB 볼륨은 검증 후 정리했다.
 
 ## 실제 서버 배포 전 남은 작업

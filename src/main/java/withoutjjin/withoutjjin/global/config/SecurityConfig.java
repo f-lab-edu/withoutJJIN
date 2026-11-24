@@ -60,6 +60,7 @@ public class SecurityConfig {
         http
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, "/api/v1/invitations").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/js/shared-invitations.mjs", "/js/workspace-invitations.mjs").permitAll()
                         .requestMatchers(HttpMethod.GET, "/invite", "/invite.html").permitAll()
                         .requestMatchers(
                                 "/",

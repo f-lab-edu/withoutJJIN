@@ -7,14 +7,10 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.retries.StandardRetryStrategy;
-import software.amazon.awssdk.services.sesv2.SesV2Client;
 
-import java.time.Duration;
 
 @Configuration
-public class SesConfig {
+public class AwsCredentialsConfig {
 
     @Bean
     public AwsCredentialsProvider awsCredentialsProvider(
@@ -36,25 +32,4 @@ public class SesConfig {
         return DefaultCredentialsProvider.builder().build();
     }
 
-    @Bean(destroyMethod = "close")
-    public SesV2Client sesV2Client(
-            AwsCredentialsProvider sesCredentialsProvider,
-            @Value("${aws.ses.region}") String region
-    ) {
-        if (region.isBlank()) {
-            throw new IllegalArgumentException("SES에서 이메일을 인증한 AWS 리전을 설정해야 합니다.");
-        }
-
-        // 클라이언트를 만드는 것만으로 메일을 보내지는 않는다.
-        // SES API 호출에 사용할 객체
-        return SesV2Client.builder()
-                .region(Region.of(region))
-                .credentialsProvider(sesCredentialsProvider) // AWS 인증 정보를 어디서 받을지 지정
-                .overrideConfiguration(config -> config
-                        .apiCallAttemptTimeout(Duration.ofSeconds(10)) // 요청 시도 하나의 시간 제한
-                        .apiCallTimeout(Duration.ofSeconds(20))  // SDK 호출 전체의 시간 제한
-                        // 재시도 횟수는 초대 작업자가 관리하므로 SDK에서는 한 번만 요청한다.
-                        .retryStrategy(StandardRetryStrategy.builder().maxAttempts(1).build()))
-                .build();
-    }
 }
