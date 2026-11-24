@@ -45,7 +45,7 @@ S3 PUT 이후 기존 `POST /api/v1/uploads/{uploadId}/complete`를 호출한다.
 
 `DocumentVersionCompletionIntegrationTest`에서 V2·V3 등록, 재시도, 동시 완료, 기존 V1 파일·피드백 유지, 최종 저장 실패 시 롤백을 검증한다.
 
-새 버전 완료 통합 테스트 15개, 기존 완료 통합 테스트 20개, 완료 서비스 테스트 8개가 통과했다. 통합 테스트는 MySQL의 실제 트랜잭션을 사용하고, S3UploadVerifier는 테스트 객체로 대체하여 실제 S3 파일 조회는 실행하지 않았다.
+새 버전 완료 통합 테스트 15개, 기존 완료 통합 테스트 21개, 완료 서비스 테스트 8개가 통과했다. 통합 테스트는 MySQL의 실제 트랜잭션을 사용한다. 동기 서비스의 `S3UploadVerifier`와 완료 API의 `S3AsyncUploadVerifier`는 모의 객체로 대체하여 실제 S3 파일 조회는 실행하지 않았다.
 
 
 ## 워크스페이스 화면 연결
@@ -63,3 +63,11 @@ S3 PUT 이후 기존 `POST /api/v1/uploads/{uploadId}/complete`를 호출한다.
 - 업로드·문서 목록·화면 연결 관련 Node 테스트 88개가 통과했다.
 - 로컬 Chrome에서 테스트 API와 S3 응답으로 대상 선택, V2 갱신, 변환 상태 폴링, 완료 실패 후 새로고침·재시도, 같은 파일명의 새 문서 등록을 확인했다.
 - 데스크톱(1365×1000)과 모바일(390×844)에서 버튼과 대상 문서 표시를 확인했다. 실제 S3 문서를 사용하는 검증은 별도다.
+
+
+## 업로드 완료 비동기 응답·S3 조회 (#82·#85)
+
+POST 완료 API의 응답 형식은 유지하며 Controller에서 CompletableFuture를 반환한다.
+S3 확인은 `S3AsyncUploadVerifier`와 `S3AsyncObjectReader`를 통해 `S3AsyncClient.headObject()`로 실행한다.
+`DocumentUploadCompletionTransactions.prepare()`·`complete()`는 전용 실행기에서 실행하고, S3 응답을 기다리는 동안 작업 스레드를 반환한다.
+진행 중 요청 한도·503·504 처리·시간 제한과 검증 결과는 [업로드 완료 비동기 응답·S3 조회](document-upload-completion-async.md)을 참고한다.

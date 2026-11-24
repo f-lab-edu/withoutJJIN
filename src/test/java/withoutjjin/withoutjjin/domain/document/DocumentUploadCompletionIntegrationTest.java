@@ -32,7 +32,12 @@ import withoutjjin.withoutjjin.domain.document.repository.DocumentUploadReposito
 import withoutjjin.withoutjjin.domain.document.repository.DocumentVersionRepository;
 import withoutjjin.withoutjjin.domain.document.repository.StoreFileRepository;
 import withoutjjin.withoutjjin.domain.document.service.DocumentUploadCompletionService;
+import withoutjjin.withoutjjin.domain.document.service.DocumentUploadCompletionAsyncService;
+import withoutjjin.withoutjjin.global.config.UploadCompletionAsyncProperties;
 import withoutjjin.withoutjjin.domain.document.storage.S3UploadVerifier;
+import withoutjjin.withoutjjin.domain.document.storage.S3AsyncUploadVerifier;
+import withoutjjin.withoutjjin.domain.document.service.DocumentUploadCompletionTransactions;
+import java.util.concurrent.CompletableFuture;
 import withoutjjin.withoutjjin.domain.user.entity.AppUser;
 import withoutjjin.withoutjjin.domain.user.repository.AppUserRepository;
 import withoutjjin.withoutjjin.domain.workspace.entity.Workspace;
@@ -41,11 +46,15 @@ import withoutjjin.withoutjjin.domain.workspace.repository.WorkspaceMemberReposi
 import withoutjjin.withoutjjin.domain.workspace.repository.WorkspaceRepository;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.UUID;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
@@ -56,6 +65,7 @@ import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 // Service의 실제 커밋·롤백을 검증하므로 테스트 전체를 트랜잭션으로 감싸지 않는다.
@@ -80,6 +90,8 @@ class DocumentUploadCompletionIntegrationTest {
     @Autowired private JdbcTemplate jdbc;
 
     @MockitoBean private S3UploadVerifier verifier;
+    @MockitoBean private S3AsyncUploadVerifier asyncVerifier;
+    @Autowired private DocumentUploadCompletionTransactions transactions;
     @MockitoBean(name = "documentUploadClock") private Clock clock;
     @MockitoSpyBean private DocumentVersionRepository versions;
     @MockitoSpyBean private DocumentConversionJobRepository conversionJobs;
@@ -92,6 +104,11 @@ class DocumentUploadCompletionIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        when(asyncVerifier.verify(anyString(), anyLong(), anyString())).thenAnswer(call -> {
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            assertThat(Thread.currentThread().getName()).startsWith("upload-completion-");
+            return CompletableFuture.completedFuture(null);
+        });
         when(clock.instant()).thenReturn(NOW);
         when(clock.getZone()).thenReturn(ZONE);
         requester = users.saveAndFlush(user("요청자"));
@@ -107,12 +124,15 @@ class DocumentUploadCompletionIntegrationTest {
     @Test
     @DisplayName("완료 API가 Document·DocumentVersion·변환 대기 작업을 등록하고 기존 ID들을 응답한다")
     void registersDocumentThroughCompletionApi() throws Exception {
-        var response = mockMvc.perform(post(
+        org.springframework.test.web.servlet.MvcResult pending = mockMvc.perform(post(
                         "/api/v1/uploads/{uploadId}/complete", upload.getId())
                         .with(oidcLogin().idToken(token -> token
                                 .claim("iss", requester.getIssuer())
                                 .subject(requester.getSubject())))
                         .with(csrf().asHeader()))
+                .andExpect(request().asyncStarted()).andReturn();
+        pending.getAsyncResult(5000);
+        var response = mockMvc.perform(asyncDispatch(pending))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(header().string("Cache-Control", "no-store"))
                 .andExpect(jsonPath("$.uploadId").value(upload.getId()));
@@ -128,7 +148,7 @@ class DocumentUploadCompletionIntegrationTest {
         assertThat(countVersions()).isEqualTo(1);
         assertThat(status()).isEqualTo("COMPLETED");
         assertPendingJob(versionId);
-        verify(verifier).verify(originalFile.getObjectKey(), 1024L, MEDIA_TYPE);
+        verify(asyncVerifier).verify(originalFile.getObjectKey(), 1024L, MEDIA_TYPE);
     }
 
     @Test
@@ -357,6 +377,44 @@ class DocumentUploadCompletionIntegrationTest {
             assertThat(countVersions()).isEqualTo(1);
             assertThat(status()).isEqualTo("COMPLETED");
         } finally {
+            executor.shutdownNow();
+            assertThat(executor.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
+        }
+    }
+
+    @Test
+    @DisplayName("504 이후 재요청이 먼저 완료되고 늦은 S3 응답이 와도 같은 문서 버전을 유지한다")
+    void retryAfterResponseTimeoutDoesNotDuplicateLateCompletion() throws Exception {
+        CompletableFuture<Void> delayed = new CompletableFuture<>();
+        java.util.concurrent.CountDownLatch started = new java.util.concurrent.CountDownLatch(1);
+        doAnswer(call -> {
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            started.countDown();
+            return delayed;
+        }).doReturn(CompletableFuture.completedFuture(null))
+                .when(asyncVerifier).verify(originalFile.getObjectKey(), 1024L, MEDIA_TYPE);
+        var executor = Executors.newSingleThreadExecutor();
+        try {
+            DocumentUploadCompletionAsyncService async = new DocumentUploadCompletionAsyncService(transactions, asyncVerifier, executor,
+                    new UploadCompletionAsyncProperties(1, 0, Duration.ofMillis(500), 2));
+            var first = async.completeUpload(upload.getId(), requester.getIssuer(), requester.getSubject());
+            assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThatThrownBy(() -> first.get(5, TimeUnit.SECONDS)).isInstanceOfSatisfying(ExecutionException.class,
+                    exception -> assertThat(exception.getCause()).isInstanceOfSatisfying(ResponseStatusException.class,
+                            response -> assertThat(response.getStatusCode().value()).isEqualTo(504)));
+            CompleteUploadResponse retried = async.completeUpload(upload.getId(), requester.getIssuer(), requester.getSubject())
+                    .get(5, TimeUnit.SECONDS);
+            delayed.complete(null);
+            assertThat(async.completeUpload(upload.getId(), requester.getIssuer(), requester.getSubject()).get(5, TimeUnit.SECONDS))
+                    .isEqualTo(retried);
+            assertThat(countDocuments()).isEqualTo(1);
+            assertThat(countVersions()).isEqualTo(1);
+            assertPendingJob(retried.documentVersionId());
+            assertThat(status()).isEqualTo("COMPLETED");
+            verifyNoInteractions(verifier);
+            verify(asyncVerifier, times(2)).verify(originalFile.getObjectKey(), 1024L, MEDIA_TYPE);
+        } finally {
+            delayed.complete(null);
             executor.shutdownNow();
             assertThat(executor.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
         }

@@ -14,14 +14,16 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import java.util.concurrent.CompletableFuture;
 import withoutjjin.withoutjjin.domain.document.dto.CompleteUploadResponse;
-import withoutjjin.withoutjjin.domain.document.service.DocumentUploadCompletionService;
+import withoutjjin.withoutjjin.domain.document.service.DocumentUploadCompletionAsyncService;
 
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 // Controller·Security·응답 형식을 검증한다. 실제 Service의 커밋은 별도 통합 테스트에서 검증한다.
@@ -36,17 +38,20 @@ class DocumentUploadCompletionApiTest {
     private static final String PATH = "/api/v1/uploads/{uploadId}/complete";
 
     @Autowired private MockMvc mockMvc;
-    @MockitoBean private DocumentUploadCompletionService completionService;
+    @MockitoBean private DocumentUploadCompletionAsyncService completionService;
 
     @Test
     @DisplayName("로그인 정보와 uploadId를 Service에 전달하고 ID들을 JSON으로 응답한다")
     void completesUploadWithAuthenticatedAccountAndCsrf() throws Exception {
         when(completionService.completeUpload(123L, ISSUER, SUBJECT))
-                .thenReturn(new CompleteUploadResponse(123L, 456L, 789L));
+                .thenReturn(CompletableFuture.completedFuture(new CompleteUploadResponse(123L, 456L, 789L)));
 
-        mockMvc.perform(post(PATH, 123)
+        org.springframework.test.web.servlet.MvcResult result = mockMvc.perform(post(PATH, 123)
                         .with(oidcLogin().idToken(token -> token.claim("iss", ISSUER).subject(SUBJECT)))
                         .with(csrf().asHeader()))
+                .andExpect(request().asyncStarted()).andReturn();
+        result.getAsyncResult(5000);
+        mockMvc.perform(asyncDispatch(result))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(header().string("Cache-Control", "no-store"))
@@ -106,12 +111,15 @@ class DocumentUploadCompletionApiTest {
     @DisplayName("Service의 실패 상태를 로그인 화면으로 리다이렉트하지 않고 HTTP 상태로 응답한다")
     void returnsServiceFailureStatus(int statusCode) throws Exception {
         when(completionService.completeUpload(123L, ISSUER, SUBJECT))
-                .thenThrow(new ResponseStatusException(
-                        HttpStatusCode.valueOf(statusCode), "테스트용 완료 처리 실패"));
+                .thenReturn(CompletableFuture.failedFuture(new ResponseStatusException(
+                        HttpStatusCode.valueOf(statusCode), "테스트용 완료 처리 실패")));
 
-        mockMvc.perform(post(PATH, 123)
+        org.springframework.test.web.servlet.MvcResult result = mockMvc.perform(post(PATH, 123)
                         .with(oidcLogin().idToken(token -> token.claim("iss", ISSUER).subject(SUBJECT)))
                         .with(csrf().asHeader()))
+                .andExpect(request().asyncStarted()).andReturn();
+        result.getAsyncResult(5000);
+        mockMvc.perform(asyncDispatch(result))
                 .andExpect(status().is(statusCode))
                 .andExpect(header().doesNotExist("Location"));
 

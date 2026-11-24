@@ -60,7 +60,7 @@ class DocumentConversionFlowTest {
                 .andRespond(withSuccess(pdf, MediaType.APPLICATION_PDF));
 
         DocumentConversionService service = new DocumentConversionService(
-                new S3ObjectReader(s3Client, "ftfm-test-bucket"),
+                new S3ObjectReader(s3Client, "ftfm-test-bucket", java.time.Duration.ofSeconds(10), java.time.Duration.ofSeconds(3)),
                 new WordPdfConverter(builder.build()),
                 new S3PdfWriter(s3Client, new DocumentStorageKeyGenerator(), "ftfm-test-bucket"));
 
