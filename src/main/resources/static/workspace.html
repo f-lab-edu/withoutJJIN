@@ -877,6 +877,7 @@
             $("members-summary").textContent = detail.members.length + "명";
             $("created-date").textContent = date(detail.createdAt);
             $("invite-members").href = "/?workspace=" + workspaceId;
+            $("invite-members").hidden = detail.createdBy !== state.user.id;
             $("workspace-select").replaceChildren(...workspaces.map(workspace => {
                 const option = new Option(workspace.name, String(workspace.id));
                 option.selected = workspace.id === workspaceId;

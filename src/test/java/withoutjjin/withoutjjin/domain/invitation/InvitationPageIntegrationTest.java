@@ -53,6 +53,17 @@ class InvitationPageIntegrationTest {
     }
 
     @Test
+    @DisplayName("로그인 전에도 공유 초대 화면의 모듈을 가져올 수 있다")
+    void servesSharedInvitationModulesBeforeLogin() throws Exception {
+        for (String path : new String[]{"/js/shared-invitations.mjs", "/js/workspace-invitations.mjs"}) {
+            mockMvc.perform(get(path).param("v", "20261125-1"))
+                    .andExpect(status().isOk())
+                    .andExpect(content().string(containsString("export function")));
+        }
+        mockMvc.perform(get("/api/v1/workspaces/1/invitations")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
     @DisplayName("초대에서 로그인하면 Google 로그인을 시작하고 가입은 수행하지 않는다")
     void startsGoogleLoginWithoutJoiningWorkspace() throws Exception {
         mockMvc.perform(get("/invite/continue"))

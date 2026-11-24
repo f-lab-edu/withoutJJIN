@@ -21,7 +21,7 @@
     <h1 id="title">초대를 확인하고 있어요.</h1>
     <p class="muted" id="description">잠시만 기다려 주세요.</p>
     <div class="team" id="team" hidden><div class="label">초대받은 워크스페이스</div><strong id="team-name"></strong><p class="expiry" id="expiry"></p></div>
-    <div class="account" id="account" hidden><div class="label">현재 로그인한 계정</div><p id="account-email"></p><p class="fine">초대 메일을 받은 Google 계정으로 수락해 주세요.</p></div>
+    <div class="account" id="account" hidden><div class="label">현재 로그인한 계정</div><p id="account-email"></p><p class="fine">참여할 Google 계정을 확인하고 수락해 주세요. 특정 이메일로 제한하지 않아요.</p></div>
     <p id="message" class="message" role="status" aria-live="polite" hidden></p>
     <div id="actions" hidden>
       <a id="login" class="button primary" href="/invite/continue">Google로 로그인하고 계속하기</a>
@@ -35,43 +35,19 @@
   <div class="steps" aria-label="초대 수락 순서"><span id="step-preview">1 초대 확인</span><span id="step-login">2 로그인</span><span id="step-accept">3 수락</span></div>
   <p class="foot">FTFM · File, Team & Feedback Management</p>
 </main>
-<script>
+<script type="module">
+import {createInvitationClient, createInvitationSession} from "/js/shared-invitations.mjs?v=20261125-1";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
-  const KEY = "ftfm-pending-invitation";
-  const MAX_AGE = 24 * 60 * 60 * 1000;
-  const params = new URLSearchParams(location.search);
-  const loginError = params.get("loginError");
-  const state = {token:null, preview:null, user:null, busy:false, accepted:null, stored:false};
-
-  function forget() { try { sessionStorage.removeItem(KEY); } catch (_) {} }
-  function validToken(value) { return typeof value === "string" && value.trim().length > 0 && value.length <= 256; }
-  function remember(token) {
-    try { sessionStorage.setItem(KEY, JSON.stringify({token, savedAt:Date.now()})); return true; }
-    catch (_) { return false; }
-  }
-  // 초대 토큰은 같은 탭의 로그인 왕복·새로고침에만 사용하고 성공 시 삭제한다.
-  function loadToken() {
-    if (params.has("token")) {
-      const values = params.getAll("token");
-      forget();
-      if (values.length !== 1 || !validToken(values[0])) return null;
-      state.stored = remember(values[0]);
-      return values[0];
-    }
-    try {
-      const stored = JSON.parse(sessionStorage.getItem(KEY) || "null");
-      const age = Date.now() - stored?.savedAt;
-      if (stored && validToken(stored.token) && Number.isFinite(age) && age >= 0 && age < MAX_AGE) {
-        state.stored = true;
-        return stored.token;
-      }
-    } catch (_) {}
-    forget();
-    return null;
-  }
-  state.token = loadToken();
+  const client = createInvitationClient();
+  let storage;
+  try { storage = sessionStorage; } catch (_) {}
+  const session = createInvitationSession({storage});
+  const loginError = new URLSearchParams(location.search).get("loginError");
+  const loaded = session.load(location);
+  const state = {token:loaded.token, preview:null, user:null, busy:false, accepted:null, stored:loaded.stored};
+  function forget() { session.clear(); }
   // 브라우저 주소와 이후 Referer에 토큰을 계속 남기지 않는다.
   history.replaceState(null, "", "/invite");
 
@@ -104,27 +80,18 @@
     $("step-accept").classList.toggle("done",!!state.accepted);
     $("success").hidden=!state.accepted;
   }
-  async function api(path, options={}) {
-    let response;
-    try { response=await fetch(path,{credentials:"same-origin",cache:"no-store",referrerPolicy:"no-referrer",...options}); }
-    catch (_) { throw new Error("서버에 연결하지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요."); }
-    let data=null;
-    try { data=await response.json(); } catch (_) {}
-    if (!response.ok) { const error=new Error("요청 실패");error.status=response.status;throw error; }
-    return data;
-  }
-  async function me() {
-    try { return await api("/api/v1/auth/me"); }
-    catch (error) { if(error.status===401)return null;throw error; }
-  }
-  function showError(error, accepting=false) {
+  const api = client.request;
+  const me = client.me;
+  function showError(error) {
+    if (error.status === 401) state.user = null;
+    if ([404,410].includes(error.status)) { forget(); state.token = null; state.preview = null; }
     const texts={
-      400:"초대 링크가 올바르지 않아요. 메일의 링크를 다시 열어 주세요.",
+      400:"초대 URL이 올바르지 않아요. 공유받은 URL을 다시 열어 주세요.",
       401:"로그인이 만료됐어요. 다시 로그인한 뒤 수락해 주세요.",
-      403:"초대받은 이메일의 인증된 Google 계정인지 확인해 주세요. 계정이 맞다면 다시 확인한 뒤 수락해 주세요.",
-      404:"초대를 찾을 수 없어요. 메일의 링크를 확인해 주세요.",
-      409:accepting ? "이미 사용한 초대예요. 팀에서 탈퇴했거나 제외됐다면 새 초대가 필요해요." : "이미 수락한 초대예요. 홈에서 내 워크스페이스 목록을 확인해 주세요.",
-      410:"만료되었거나 취소된 초대예요. 팀원에게 새 초대를 요청해 주세요.",
+      403:"로그인 상태와 참여 권한을 확인해 주세요. 다시 확인한 뒤 수락해 주세요.",
+      404:"초대를 찾을 수 없어요. 공유받은 URL을 확인해 주세요.",
+      409:"참여 상태를 확인하지 못했어요. 다시 확인해 주세요.",
+      410:"만료되었거나 취소된 초대예요. 생성자에게 새 초대 URL을 요청해 주세요.",
       429:"요청이 많아요. 잠시 뒤 다시 시도해 주세요."
     };
     message(texts[error.status] || (error.status ? "처리하지 못했어요. 잠시 뒤 다시 시도해 주세요." : error.message),true);
@@ -136,23 +103,24 @@
     try {
       if(!state.token) {
         $("title").textContent="초대 링크를 열어 주세요.";
-        $("description").textContent="초대 메일의 링크를 누르면 이곳에서 초대를 확인할 수 있어요.";
+        $("description").textContent="공유받은 초대 URL을 열면 참여할 워크스페이스를 확인할 수 있어요.";
         return;
       }
       $("title").textContent="초대를 확인하고 있어요.";
       const results=await Promise.allSettled([
-        api("/api/v1/invitations?token=" + encodeURIComponent(state.token)),me()
+        client.preview(state.token),me()
       ]);
       if(results[1].status==="fulfilled")state.user=results[1].value;
       else {state.user=null;throw results[1].reason;}
       if(results[0].status!=="fulfilled")throw results[0].reason;
       state.preview=results[0].value;
+      session.setExpiry(state.token, state.preview.expiresAt);
       $("title").textContent="함께할 팀이 기다리고 있어요.";
       $("description").textContent="초대 내용을 확인하고 워크스페이스에 참여하세요.";
       $("retry").hidden=true;
       const reasons={LOGIN_CANCELED:"로그인을 취소했어요. 준비되면 다시 로그인해 주세요.",OAUTH_STATE_INVALID:"로그인 요청을 확인하지 못했어요. 이 화면에서 다시 시작해 주세요.",GOOGLE_AUTH_FAILED:"Google 로그인에 실패했어요. 다시 시도해 주세요."};
       if(reasons[loginError])message(reasons[loginError],true);
-      if(!state.stored && !state.user)message("브라우저에서 임시 저장을 사용할 수 없어요. 먼저 로그인한 뒤 메일의 초대 링크를 다시 열어 주세요.",true);
+      if(!state.stored && !state.user)message("브라우저에서 임시 저장을 사용할 수 없어요. 먼저 로그인한 뒤 공유받은 초대 URL을 다시 열어 주세요.",true);
     } catch(error) {
       $("title").textContent="초대를 확인하지 못했어요.";
       $("description").textContent="아래 안내를 확인해 주세요.";
@@ -189,11 +157,7 @@
     if(state.busy || !state.preview || state.accepted)return;
     state.busy=true;message("");render();
     try {
-      const current=await csrfUser();
-      const accepted=await api("/api/v1/invitations/accept",{
-        method:"POST",headers:{"Content-Type":"application/json","X-CSRF-TOKEN":current.csrfToken},
-        body:JSON.stringify({token:state.token})
-      });
+      const accepted=await client.accept(state.token, state.user.id);
       state.accepted=accepted;forget();state.token=null;
       $("title").textContent="이제 같은 팀이에요.";
       $("description").textContent=accepted.workspaceName + " 워크스페이스에 참여했어요.";
@@ -214,8 +178,8 @@
       const current=await csrfUser();
       await api("/api/v1/auth/logout",{method:"POST",headers:{"X-CSRF-TOKEN":current.csrfToken}});
       state.user=null;
-      // Google의 로그인 상태는 별개다. 계정 선택 화면에서 초대받은 계정을 선택한다.
-      message("서비스에서 로그아웃했어요. Google 로그인에서 초대받은 계정을 선택해 주세요.");
+      // Google의 로그인 상태는 별개다. 계정 선택 화면에서 참여할 계정을 선택한다.
+      message("서비스에서 로그아웃했어요. Google 로그인에서 참여할 계정을 선택해 주세요.");
     } catch(error) {showError(error);}
     finally {state.busy=false;render();}
   });
