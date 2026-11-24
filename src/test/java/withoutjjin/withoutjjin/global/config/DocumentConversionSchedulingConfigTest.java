@@ -10,11 +10,9 @@ import org.springframework.scheduling.annotation.ScheduledAnnotationBeanPostProc
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import withoutjjin.withoutjjin.domain.document.worker.DocumentConversionBatchProcessor;
 import withoutjjin.withoutjjin.domain.document.worker.DocumentConversionScheduler;
-import withoutjjin.withoutjjin.domain.invitation.worker.InvitationEmailWorker;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -159,50 +157,6 @@ class DocumentConversionSchedulingConfigTest {
                 releaseFirst.countDown();
             }
         });
-    }
-
-    @Test
-    @Timeout(10)
-    @DisplayName("PDF 변환이 진행 중이어도 초대 메일 스케줄러는 별도 스레드에서 실행한다")
-    void keepsInvitationSchedulerIndependentFromPdfConversion() {
-        DocumentConversionBatchProcessor processor = mock(DocumentConversionBatchProcessor.class);
-        InvitationEmailWorker mailWorker = mock(InvitationEmailWorker.class);
-        CountDownLatch pdfStarted = new CountDownLatch(1);
-        CountDownLatch releasePdf = new CountDownLatch(1);
-        CountDownLatch mailDuringPdf = new CountDownLatch(1);
-        AtomicBoolean pdfBlocked = new AtomicBoolean();
-        AtomicReference<String> mailThread = new AtomicReference<>();
-        when(processor.processPendingBatch(5)).thenAnswer(invocation -> {
-            pdfBlocked.set(true);
-            pdfStarted.countDown();
-            assertThat(releasePdf.await(5, TimeUnit.SECONDS)).isTrue();
-            pdfBlocked.set(false);
-            return 0;
-        });
-        doAnswer(invocation -> {
-            if (pdfBlocked.get()) {
-                mailThread.set(Thread.currentThread().getName());
-                mailDuringPdf.countDown();
-            }
-            return null;
-        }).when(mailWorker).processPendingBatch();
-
-        runner(processor).withUserConfiguration(InvitationEmailSchedulingConfig.class)
-                .withBean(InvitationEmailWorker.class, () -> mailWorker)
-                .withPropertyValues("document.conversion.worker.enabled=true", "document.conversion.worker.poll-delay=20ms",
-                        "invitation.mail.enabled=true", "invitation.mail.poll-delay=20ms")
-                .run(context -> {
-                    try {
-                        assertThat(context).hasNotFailed();
-                        assertThat(pdfStarted.await(5, TimeUnit.SECONDS)).isTrue();
-                        assertThat(mailDuringPdf.await(5, TimeUnit.SECONDS)).isTrue();
-                        assertThat(mailThread.get()).startsWith("invitation-email-");
-                        assertThat(context.getBean("documentConversionTaskScheduler"))
-                                .isNotSameAs(context.getBean("invitationEmailTaskScheduler"));
-                    } finally {
-                        releasePdf.countDown();
-                    }
-                });
     }
 
     private ApplicationContextRunner runner(DocumentConversionBatchProcessor processor) {

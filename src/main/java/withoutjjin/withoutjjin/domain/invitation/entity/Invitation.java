@@ -1,6 +1,5 @@
 package withoutjjin.withoutjjin.domain.invitation.entity;
 
-
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -9,36 +8,22 @@ import withoutjjin.withoutjjin.domain.user.entity.AppUser;
 import withoutjjin.withoutjjin.domain.workspace.entity.Workspace;
 
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.Objects;
 
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@Table(name = "invitation", indexes = {@Index(
-        name = "idx_invitation_email_schedule",
-        columnList = "invitation_status,email_send_status,next_retry_at,expires_at"
-), @Index(
-        name = "idx_invitation_email_processing",
-        columnList = "email_send_status,processing_started_at"
-)})
+@Table(name = "invitation", indexes = @Index(
+        name = "idx_invitation_workspace_created", columnList = "workspace_id,created_at,id"))
 public class Invitation {
-
-    // 최초 발송을 제외하고 최대 3회 재시도한다.
-    private static final long[] RETRY_DELAYS_SECONDS = {30, 60, 120};
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-
-    @Column(name = "target_email", nullable = false)
-    private String targetEmail;
-
-    @Column(name = "token_hash", nullable = false,unique = true)
+    @Column(name = "token_hash", nullable = false, unique = true, length = 64)
     private String tokenHash;
 
-    // 기존 초대 행과 향후 발송 종료 후 삭제를 위해 DB에서는 null을 허용한다.
+    // 생성자가 같은 URL을 다시 복사할 수 있도록 암호문만 보관한다.
     @Column(name = "encrypted_token", length = 255)
     private String encryptedToken;
 
@@ -46,138 +31,52 @@ public class Invitation {
     @Column(name = "invitation_status", nullable = false)
     private InvitationStatus invitationStatus;
 
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "email_send_status", nullable = false)
-    private EmailSendStatus emailSendStatus;
-
-
-    @Column(name = "retry_count", nullable = false)
-    // 실제로 시작한 재시도 횟수. 최초 발송은 0이다.
-    private Long retryCount;
-
-    @Column(name = "expires_at", nullable = false)
+    @Column(name = "expires_at", nullable = false, updatable = false)
     private LocalDateTime expiresAt;
-
-    @Column(name = "next_retry_at")
-    private LocalDateTime nextRetryAt;
-
-    @Column(name = "processing_started_at")
-    private LocalDateTime processingStartedAt;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @PrePersist
-    private void onCreate() {
-        this.createdAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
-    }
+    @Column(name = "revoked_at")
+    private LocalDateTime revokedAt;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "workspace_id", nullable = false)
+    @JoinColumn(name = "workspace_id", nullable = false, updatable = false)
     private Workspace workspace;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "invited_by", nullable = false)
+    @JoinColumn(name = "invited_by", nullable = false, updatable = false)
     private AppUser invitedBy;
 
-
-    public Invitation(
-            Workspace workspace,
-            AppUser invitedBy,
-            String targetEmail,
-            String tokenHash,
-            String encryptedToken,
-            LocalDateTime expiresAt
-    ) {
-        this.workspace = workspace;
-        this.invitedBy = invitedBy;
-        this.targetEmail = targetEmail;
+    public Invitation(Workspace workspace, AppUser invitedBy, String tokenHash,
+                      String encryptedToken, LocalDateTime createdAt) {
+        this.workspace = Objects.requireNonNull(workspace);
+        this.invitedBy = Objects.requireNonNull(invitedBy);
+        if (tokenHash == null || !tokenHash.matches("[0-9a-f]{64}")) {
+            throw new IllegalArgumentException("초대 토큰의 SHA-256 해시가 필요합니다.");
+        }
+        if (encryptedToken == null || encryptedToken.isBlank() || encryptedToken.length() > 255) {
+            throw new IllegalArgumentException("초대 URL 재조회용 토큰 암호문이 필요합니다.");
+        }
         this.tokenHash = tokenHash;
-        this.encryptedToken = Objects.requireNonNull(encryptedToken, "발송용 토큰 암호문이 필요합니다.");
-        this.expiresAt = expiresAt;
-
-        this.invitationStatus = InvitationStatus.PENDING;
-        this.emailSendStatus = EmailSendStatus.PENDING;
-        this.retryCount = 0L;
+        this.encryptedToken = encryptedToken;
+        this.createdAt = Objects.requireNonNull(createdAt);
+        this.expiresAt = createdAt.plusDays(7);
+        this.invitationStatus = InvitationStatus.ACTIVE;
     }
 
-    public void startProcessing(LocalDateTime now) {
-        Objects.requireNonNull(now, "처리 시작 시각이 필요합니다.");
-        if (!isReadyToSend(now)) {
-            throw new IllegalStateException("발송 가능한 초대의 처리만 시작할 수 있습니다.");
-        }
-
-        if (emailSendStatus == EmailSendStatus.FAILED) {
-            retryCount++;
-        }
-
-        emailSendStatus = EmailSendStatus.PROCESSING;
-        processingStartedAt = now;
-        nextRetryAt = null;
+    public boolean isActiveAt(LocalDateTime now) {
+        Objects.requireNonNull(now);
+        return invitationStatus == InvitationStatus.ACTIVE && revokedAt == null
+                && expiresAt.isAfter(now);
     }
 
-    public boolean isReadyToSend(LocalDateTime now) {
-        Objects.requireNonNull(now, "조회 시각이 필요합니다.");
-        if (invitationStatus != InvitationStatus.PENDING || !expiresAt.isAfter(now)
-                || encryptedToken == null || encryptedToken.isBlank()) {
-            return false;
+    public void revoke(LocalDateTime now) {
+        Objects.requireNonNull(now);
+        if (revokedAt == null) {
+            revokedAt = now;
         }
-        return emailSendStatus == EmailSendStatus.PENDING
-                || (emailSendStatus == EmailSendStatus.FAILED && nextRetryAt != null
-                && !nextRetryAt.isAfter(now) && retryCount < RETRY_DELAYS_SECONDS.length);
-    }
-
-    public void markSubmitted() {
-        ensureProcessing(); // 처리 상태인지 확인
-
-        // SUBMITTED는 메일 서비스의 요청 접수 성공이며, 메일함 배달 완료는 아니다.
-        emailSendStatus = EmailSendStatus.SUBMITTED;
-        processingStartedAt = null;
-        nextRetryAt = null;
+        invitationStatus = InvitationStatus.CANCELED;
         encryptedToken = null;
     }
-
-    public void markFailed(LocalDateTime now, boolean retryable) {
-        Objects.requireNonNull(now, "실패 시각이 필요합니다.");
-        ensureProcessing(); // 준비상태인지 확인
-
-        emailSendStatus = EmailSendStatus.FAILED;
-        processingStartedAt = null;
-        nextRetryAt = null;
-
-        if (retryable && retryCount < RETRY_DELAYS_SECONDS.length
-                && invitationStatus == InvitationStatus.PENDING && expiresAt.isAfter(now)) {
-            // 재시도 간격은 30초, 60초, 120초로 늘린다.
-            long delaySeconds = RETRY_DELAYS_SECONDS[retryCount.intValue()];
-            LocalDateTime retryAt = now.plusSeconds(delaySeconds);
-
-            if (retryAt.isBefore(expiresAt)) {
-                nextRetryAt = retryAt;
-                return; // 재시도할 동안은 암호문을 보관한다.
-            }
-        }
-
-        // 재시도 불가, 횟수 소진, 초대 만료 시에는 발송용 암호문을 정리한다.
-        encryptedToken = null;
-    }
-
-    public void accept(LocalDateTime now) {
-        Objects.requireNonNull(now, "수락 시각이 필요합니다.");
-        if (invitationStatus != InvitationStatus.PENDING || !expiresAt.isAfter(now)) {
-            throw new IllegalStateException("유효한 대기 상태의 초대만 수락할 수 있습니다.");
-        }
-        invitationStatus = InvitationStatus.ACCEPTED;
-        encryptedToken = null;
-        nextRetryAt = null;
-        // 이미 진행 중인 SES 요청은 이후 작업자가 결과를 기록할 수 있게 처리 시각을 유지한다.
-    }
-
-    private void ensureProcessing() {
-        if (emailSendStatus != EmailSendStatus.PROCESSING) {
-            throw new IllegalStateException("처리 중인 발송 작업만 결과를 기록할 수 있습니다.");
-        }
-    }
-
-
 }
