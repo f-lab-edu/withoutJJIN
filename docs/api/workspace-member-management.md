@@ -37,3 +37,26 @@ Invitation 수락은 WorkspaceMemberBan을 먼저 확인하고 차단 회원에�
 AppUser·Workspace·Document·DocumentVersion·StoreFile·DocumentFeedback·DocumentVersionReview는 삭제하지 않는다.
 강퇴·퇴장 후의 새 문서·피드백 요청은 기존 WorkspaceMember 소속 검사에서 거부한다.
 이미 발급된 S3 서명 URL은 기존 만료 시각까지 사용할 수 있으며 즉시 취소하지 않는다.
+
+
+## 동시 요청 검증
+
+WorkspaceMemberConcurrencyTest는 격리된 임시 MySQL에서 실제 서비스 트랜잭션을 각각 실행한다.
+첫 요청이 Workspace 행의 실제 비관적 잠금을 얻은 상태에서 두 번째 요청의 잠금 시도를 확인하고,
+첫 요청의 커밋 또는 롤백 이후 두 번째 요청이 최신 상태를 읽는지 검증한다. DB 잠금·조회 결과는 모의 처리하지 않는다.
+
+| 먼저 처리된 요청 | 뒤의 요청 | 최종 상태 |
+| --- | --- | --- |
+| 강퇴 | 같은 URL·다른 URL 수락 | 가입 403, WorkspaceMember 없음, WorkspaceMemberBan 유지 |
+| 가입 | 강퇴 | WorkspaceMember 제거, WorkspaceMemberBan 저장 |
+| 비멤버 강퇴(404) | 가입 | 가입 성공, WorkspaceMemberBan 없음 |
+| 본인 퇴장 | 가입 | 재가입 성공, WorkspaceMemberBan 없음 |
+| 가입 | 본인 퇴장 | WorkspaceMember 없음, WorkspaceMemberBan 없음 |
+| 차단 해제 | 가입 | 가입 성공, WorkspaceMemberBan 없음 |
+| 차단 중 가입(403) | 차단 해제 | WorkspaceMember·WorkspaceMemberBan 모두 없음, 자동 가입 없음 |
+| 강퇴 | 본인 퇴장 | 퇴장 403, WorkspaceMemberBan 유지 |
+| 본인 퇴장 | 강퇴 | 강퇴 404, WorkspaceMemberBan 없음 |
+
+강퇴 6건의 동시 요청은 차단 한 개만 생성하며, 차단 해제 6건의 동시 요청은 멤버십을 생성하지 않는다.
+한 Workspace의 잠금을 유지하는 동안 같은 회원이 다른 Workspace에는 참여할 수 있는지도 확인한다.
+HTTP 인증·CSRF·데이터 보존은 WorkspaceMemberApiTest, 강퇴 실패 시 롤백은 WorkspaceMemberTransactionTest에서 검증한다.
