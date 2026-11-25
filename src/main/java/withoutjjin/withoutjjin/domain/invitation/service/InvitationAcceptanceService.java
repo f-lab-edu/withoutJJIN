@@ -16,6 +16,7 @@ import withoutjjin.withoutjjin.domain.user.repository.AppUserRepository;
 import withoutjjin.withoutjjin.domain.workspace.entity.Workspace;
 import withoutjjin.withoutjjin.domain.workspace.entity.WorkspaceMember;
 import withoutjjin.withoutjjin.domain.workspace.repository.WorkspaceMemberRepository;
+import withoutjjin.withoutjjin.domain.workspace.repository.WorkspaceMemberBanRepository;
 import withoutjjin.withoutjjin.domain.workspace.repository.WorkspaceRepository;
 
 import java.time.Clock;
@@ -28,16 +29,19 @@ public class InvitationAcceptanceService {
     private final AppUserRepository users;
     private final WorkspaceMemberRepository members;
     private final WorkspaceRepository workspaces;
+    private final WorkspaceMemberBanRepository bans;
     private final Clock clock;
 
     public InvitationAcceptanceService(InvitationRepository invitations, InvitationTokenGenerator tokens,
                                         AppUserRepository users, WorkspaceMemberRepository members,
-                                        WorkspaceRepository workspaces, @Qualifier("invitationClock") Clock clock) {
+                                        WorkspaceRepository workspaces, WorkspaceMemberBanRepository bans,
+                                        @Qualifier("invitationClock") Clock clock) {
         this.invitations = invitations;
         this.tokens = tokens;
         this.users = users;
         this.members = members;
         this.workspaces = workspaces;
+        this.bans = bans;
         this.clock = clock;
     }
 
@@ -59,6 +63,9 @@ public class InvitationAcceptanceService {
         InvitationService.requireActive(invitation, LocalDateTime.now(clock));
         AppUser user = users.findByIssuerAndSubject(issuer, subject)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "로그인 회원을 찾을 수 없습니다."));
+        if (bans.existsByWorkspaceIdAndUserId(workspaceId, user.getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "워크스페이스 참여가 차단된 회원입니다.");
+        }
         if (!members.existsByWorkspaceIdAndUserId(workspaceId, user.getId())) {
             members.saveAndFlush(new WorkspaceMember(workspace, user));
         }

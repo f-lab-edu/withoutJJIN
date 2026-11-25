@@ -6,6 +6,7 @@ import org.springframework.data.repository.query.Param;
 import withoutjjin.withoutjjin.domain.workspace.entity.WorkspaceMember;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface WorkspaceMemberRepository extends JpaRepository<WorkspaceMember, Long> {
 
@@ -27,6 +28,8 @@ public interface WorkspaceMemberRepository extends JpaRepository<WorkspaceMember
         """)
     List<WorkspaceMember> findAllWithUserByWorkspaceId(@Param("workspaceId") Long workspaceId);
 
+
+    Optional<WorkspaceMember> findByWorkspaceIdAndUserId(Long workspaceId, Long userId);
 
     boolean existsByWorkspaceIdAndUserId(Long workspaceId, Long userId);
 
